@@ -1,0 +1,161 @@
+{
+  "format": 1,
+  "generated_by": "tools/extract_assets.mjs",
+  "source": "webview-fg4/tests/fixtures/original.html",
+  "images": {
+    "enemy_fx_elite_shockwave": {
+      "file": "enemy_fx_elite_shockwave.webp",
+      "source_expression": "GENERATED_ENEMY_FX_SOURCES.eliteShockwave",
+      "bytes": 9368,
+      "sha256": "45cd9c81c4b0e7a894ccf7481b08894479f0c357dd2c66b033d81b75d1cb6298",
+      "width": 256,
+      "height": 256,
+      "format": "lossless",
+      "chunks": ["VP8L"],
+      "rgba_sha256": "89d0797917302a984da7abc18dbe8d2db01bda4a6db4915f3a0671e36835a15d"
+    },
+    "enemy_fx_boss_charge": {
+      "file": "enemy_fx_boss_charge.webp",
+      "source_expression": "GENERATED_ENEMY_FX_SOURCES.bossCharge",
+      "bytes": 5202,
+      "sha256": "5d061d83fbe70f04e08dd512ff59f9f41fccd66c717f217bd5634abfa3eb73a8",
+      "width": 384,
+      "height": 192,
+      "format": "lossless",
+      "chunks": ["VP8L"],
+      "rgba_sha256": "330bfac87290d2d2e39fa321a8f6e7fd659f6724fd9a779c6207189cff175eb6"
+    },
+    "overhaul_characters": {
+      "file": "overhaul_characters.webp",
+      "source_expression": "OVERHAUL_CHAR_ATLAS_SOURCE",
+      "bytes": 24802,
+      "sha256": "24e2be597e91deb0044e4c5dceee9b3291b963d39f26bf4efa2d68996a0e7bb6",
+      "width": 896,
+      "height": 256,
+      "format": "lossless",
+      "chunks": ["VP8L"],
+      "rgba_sha256": "a7c97faf319481364eba7df6f0e01d0d7576df09b387cbbe41cd7a0191979e37"
+    },
+    "overhaul_fx": {
+      "file": "overhaul_fx.webp",
+      "source_expression": "OVERHAUL_FX_SOURCE",
+      "bytes": 74146,
+      "sha256": "2ff76ba4f6a1a291e6d3c95b2080546b9f591bc41891c80173b892fc95bb6a3a",
+      "width": 512,
+      "height": 1280,
+      "format": "lossless",
+      "chunks": ["VP8L"],
+      "rgba_sha256": "85175ae3eeb1c98976c9f8ead8ab8f4f01087cf3424290992f539a20cbbc274c"
+    },
+    "overhaul_weapon_icons": {
+      "file": "overhaul_weapon_icons.webp",
+      "source_expression": "OVERHAUL_ICON_SOURCE",
+      "bytes": 2672,
+      "sha256": "a64b0a486c865bd20e9aa542266f1a1e1f6aa4ffec240bbde447d885621e29cd",
+      "width": 256,
+      "height": 64,
+      "format": "lossless",
+      "chunks": ["VP8L"],
+      "rgba_sha256": "3eadcefd74067136b361a2e652284dccd56da05a835df4dcec40ca3ffeae05d3"
+    },
+    "art_hits": {
+      "file": "art_hits.webp",
+      "source_expression": "ART_SOURCES.hits",
+      "bytes": 1904,
+      "sha256": "1f4af781ce9c8f3b4f8a7e8743468436f344a43274b420d9b42c210d891e2bb1",
+      "width": 128,
+      "height": 96,
+      "format": "lossless",
+      "chunks": ["VP8L"],
+      "rgba_sha256": "36a4e55ab9d88aedd8cdf91b1540a2301089f6e6d08c6f974a4d34dfc06faa90"
+    },
+    "art_projectiles": {
+      "file": "art_projectiles.webp",
+      "source_expression": "ART_SOURCES.projectiles",
+      "bytes": 1236,
+      "sha256": "8cf1ef47ef36bf3e16a18ec1d5fb8b4f43b663e3663e919d363976b75771deb7",
+      "width": 128,
+      "height": 96,
+      "format": "lossless",
+      "chunks": ["VP8L"],
+      "rgba_sha256": "bb2bb99fb5ddd6c04a71f78b942271751106da741d45308a5610c1e632743d44"
+    },
+    "art_characters": {
+      "file": "art_characters.webp",
+      "source_expression": "ART_SOURCES.characters",
+      "bytes": 244902,
+      "sha256": "81e6996fc573d9d046cc01f87303b7faa460096b1b6e4099c380468e6ecbb09d",
+      "width": 896,
+      "height": 704,
+      "format": "lossless",
+      "chunks": ["VP8X","ICCP","VP8L"],
+      "rgba_sha256": "d353c874f9b624e6d33a988bd5f8d03be1f5dd31f66d2dae9934f822e60713dc"
+    },
+    "art_enemies": {
+      "file": "art_enemies.webp",
+      "source_expression": "ART_SOURCES.enemies",
+      "bytes": 5980,
+      "sha256": "afeb11b5b7306169f1b51741dc189d44442fc0af238873788aa6d80d171feaec",
+      "width": 320,
+      "height": 288,
+      "format": "lossless",
+      "chunks": ["VP8L"],
+      "rgba_sha256": "25c8cc58b8acfb8fe7274b070a15d195f7443307efecca8ce1e93a575f6172c9"
+    },
+    "art_weapons": {
+      "file": "art_weapons.webp",
+      "source_expression": "ART_SOURCES.weapons",
+      "bytes": 1406,
+      "sha256": "4ce32f0d23c45a9abd35a5e00ca256c2192f380c04dc2b8b6294ffa1943bfbe0",
+      "width": 128,
+      "height": 128,
+      "format": "lossless",
+      "chunks": ["VP8L"],
+      "rgba_sha256": "dcb08f22f0ab3f11c369a06459aad1c38d8bb893a88f98bce8443c5a91cf881f"
+    },
+    "art_elements": {
+      "file": "art_elements.webp",
+      "source_expression": "ART_SOURCES.elements",
+      "bytes": 1234,
+      "sha256": "f67220670be8483ef785a11df8b631916b1e386b013e64f6caa742aa9f2fe263",
+      "width": 160,
+      "height": 64,
+      "format": "lossless",
+      "chunks": ["VP8L"],
+      "rgba_sha256": "b315c6019dab495c810014a57b4efdd4f4c573bb38c525c451110d0d6d508bc0"
+    },
+    "art_effects": {
+      "file": "art_effects.webp",
+      "source_expression": "ART_SOURCES.effects",
+      "bytes": 2106,
+      "sha256": "f193b29bf54d24687c2b7208a1fed4c009c833ca5f03deb589a8e487b67b3163",
+      "width": 128,
+      "height": 96,
+      "format": "lossless",
+      "chunks": ["VP8L"],
+      "rgba_sha256": "c3bd3c0168f95fd52eb783c8c938d2062868180c6a8d2651f42c2fa4015c7533"
+    },
+    "signature_fx": {
+      "file": "signature_fx.webp",
+      "source_expression": "SIGNATURE_FX_SOURCE",
+      "bytes": 72836,
+      "sha256": "e89f541c351bf22f40e97840d79063f96d64a8360ca41ca25f07c55599b1c738",
+      "width": 512,
+      "height": 2944,
+      "format": "lossless",
+      "chunks": ["VP8L"],
+      "rgba_sha256": "159e2382900a97581723c7dadb7485d9ca6401558a3fe42c0922f6c3fe55ade0"
+    },
+    "range_fx": {
+      "file": "range_fx.webp",
+      "source_expression": "RANGE_FX_SOURCE",
+      "bytes": 8140,
+      "sha256": "fa63ca53443f1d1b94a59941d5a26d6163d79a64e2ac097d0429b6d332fd604d",
+      "width": 512,
+      "height": 512,
+      "format": "lossless",
+      "chunks": ["VP8L"],
+      "rgba_sha256": "430e8be8011b222f61fca5d9c3a8ad2b3d12bb3daa8712121119c960804a652a"
+    }
+  }
+}

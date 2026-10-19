@@ -99,7 +99,7 @@ if [[ -n "$EVIDENCE_DIR" ]]; then
   mkdir -p -- "$EVIDENCE_DIR"
   # A reused directory must not keep passing evidence of an earlier run next to this run's result.
   (cd -- "$EVIDENCE_DIR" && rm -f -- summary.txt apk.sha256 apksigner-verify.txt signer-cert.txt zipalign-check.txt \
-    aapt2-badging.txt aapt2-badging.err aapt2-manifest.txt permissions.txt godot-tests.log godot-import.log godot-export.log)
+    aapt2-badging.txt aapt2-badging.err aapt2-manifest.txt permissions.txt atlas-entries.txt godot-tests.log godot-import.log godot-export.log)
   OUT_DIR="$EVIDENCE_DIR"
 else
   OUT_DIR="$WORK_DIR"
@@ -300,12 +300,12 @@ else
   record FAIL "launcher intent" "no MAIN/LAUNCHER intent filter in the manifest"
 fi
 # Design 6.1 / fg.4 use 10 (fullSensor). Godot 4.7.2's prebuilt-template exporter writes 13 (fullUser) for
-# "Sensor": all four orientations, but the system rotation lock applies. That is a deviation from the
-# design, so it stays visible as a WARN until the user decides (accept it, or a Gradle build in S9).
+# "Sensor": all four orientations, but the system rotation lock applies. The user ACCEPTED 13 on 2026-10-19
+# (design 6.1), so it passes; 10 stays accepted (a Gradle build in S9 might emit it). Any other value fails.
 case "$orientation" in
   10) record PASS "screenOrientation" "10 (fullSensor)" ;;
-  13) record WARN "screenOrientation" "13 (fullUser) instead of the design's 10 (fullSensor): the system rotation lock applies; Godot 4.7.2's non-Gradle exporter cannot emit 10" ;;
-  *) record FAIL "screenOrientation" "got '$orientation', expected 10 (fullSensor) or 13 (fullUser)" ;;
+  13) record PASS "screenOrientation" "13 (fullUser), accepted by the user on 2026-10-19 (design 6.1): the system rotation lock applies; Godot 4.7.2's non-Gradle exporter cannot emit 10" ;;
+  *) record FAIL "screenOrientation" "got '$orientation', expected 13 (fullUser, accepted) or 10 (fullSensor)" ;;
 esac
 if [[ -n "$sdk_min" && -n "$sdk_target" ]]; then
   record PASS "SDK levels" "minSdkVersion=$sdk_min targetSdkVersion=$sdk_target"
@@ -375,6 +375,39 @@ if [[ -z "$dup_authorities" ]]; then
   record PASS "provider authorities" "unique"
 else
   record WARN "provider authorities" "duplicate authority in the exported manifest: $(paste -sd' ' - <<<"$dup_authorities") (Godot 4.7.2 exporter behaviour; see tools/build_android.sh)"
+fi
+
+# ---- 5. Atlas assets (step S2) -------------------------------------------------------------------
+# Every image of godot/assets/atlas/atlas_manifest.json must be in the APK as its imported texture
+# (assets/.godot/imported/<file>.webp-<md5>.ctex; the exporter packs the .ctex, not the .webp), and the
+# layout and manifest JSON files must be packed too (AtlasLayout reads atlas_layout.json at run time).
+ATLAS_MANIFEST="$PROJECT_DIR/assets/atlas/atlas_manifest.json"
+if [[ ! -f "$ATLAS_MANIFEST" ]]; then
+  record SKIP "atlas assets" "no $ATLAS_MANIFEST"
+else
+  apk_entries="$(unzip -Z1 "$APK")"
+  atlas_missing=""
+  atlas_count=0
+  : >"$OUT_DIR/atlas-entries.txt"
+  while IFS= read -r atlas_file; do
+    [[ -n "$atlas_file" ]] || continue
+    atlas_count=$((atlas_count + 1))
+    atlas_pattern="^assets/\\.godot/imported/${atlas_file//./\\.}-[0-9a-f]{32}\\.ctex\$"
+    if ! grep -Eq "$atlas_pattern" <<<"$apk_entries"; then atlas_missing+=" $atlas_file"; fi
+  done < <(sed -n 's/^ *"file": "\(.*\.webp\)",\{0,1\}$/\1/p' "$ATLAS_MANIFEST")
+  for atlas_json in atlas_layout.json atlas_manifest.json; do
+    grep -Fxq "assets/assets/atlas/$atlas_json" <<<"$apk_entries" || atlas_missing+=" $atlas_json"
+  done
+  # Evidence: every APK entry that comes from godot/assets/atlas or render/atlas_layout.gd (size, compressed size, name).
+  unzip -v "$APK" | awk '$NF ~ /atlas|\.godot\/imported\/(art_|enemy_fx_|overhaul_|signature_fx|range_fx)/ { printf "%10d %10d  %s\n", $1, $3, $NF }' >"$OUT_DIR/atlas-entries.txt"
+  atlas_bytes="$(awk '$3 ~ /\.ctex$/ { total += $1 } END { print total + 0 }' "$OUT_DIR/atlas-entries.txt")"
+  if ((atlas_count == 0)); then
+    record FAIL "atlas assets" "no .webp files listed in $ATLAS_MANIFEST"
+  elif [[ -z "$atlas_missing" ]]; then
+    record PASS "atlas assets" "$atlas_count textures (.ctex, $atlas_bytes bytes) + atlas_layout.json + atlas_manifest.json are in the APK"
+  else
+    record FAIL "atlas assets" "missing from the APK:$atlas_missing"
+  fi
 fi
 
 finish

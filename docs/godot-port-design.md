@@ -82,7 +82,8 @@ godot/                          Godot プロジェクト（project.godot）
   main.tscn / main.gd           ループ、入力、補間、シーン切り替え
   tests/                        ヘッドレステスト（外部アドオン不使用の最小ランナー）
 tools/
-  extract_assets.py             original.html から WebP とレイアウトを抽出
+  extract_assets.mjs            original.html から WebP とレイアウトを抽出（Node 22、標準ライブラリのみ。--check で差分検出）
+  check_assets.sh               抽出結果とリポジトリの一致を検査（run_godot_tests.sh が最初に実行）
   setup_godot.sh                Godot 本体、テンプレート、Android SDK の取得と SHA-512 照合
   build_android.sh              ヘッドレスでの APK エクスポート
   reference-trace/              元ゲームから参照トレースを採取（Playwright）
@@ -291,6 +292,8 @@ S1 で実際に組んだ構成である。
 | GDScript の実行速度【推測】 | 大量配置の場面で更新が遅れる | 1. 型付けと PackedArray で最適化する<br>2. それでも足りなければ、よく使う処理だけ C++（GDExtension、Android NDK が必要）へ移す。移す前に相談する |
 | 浮動小数の違い（三角関数）【推測】 | 参照トレースが長い時間で乖離する | 最初の乖離点を報告する。必要なら fdlibm を移植する |
 | Gradle なしの出力の制約【事実：S1 で確認】 | 1. min/target SDK が 24/36 に固定される<br>2. 画面の向きが fullUser になる<br>3. provider の authority が重複する | 1 は Android 10 以降が対象なので問題ない。2 は fullUser を採用した（ユーザー判断）。3 は端末で確かめ、必要なら Gradle ビルドへの切り替えを相談する |
+| 大きなテクスチャ【事実：S2 で確認】 | `signature_fx.webp` は 512×2944 である。OpenGL ES 3.0 が保証する最大テクスチャサイズは 2048 なので、古い端末では読み込めない可能性がある | S7 で端末の上限を確かめる。必要なら画像を分割する |
+| 実行時に生成する画像【事実：S2 で確認】 | 被弾時の白い点滅、縮小した演出、範囲の着色、地形、メニュー背景は、元のゲームが実行時に作っている | S7 でシェーダーかコードで作り直す。必要な値は `atlas_layout.json` の `runtime_derived` に記録した |
 | 日本語フォント【未確認】 | 端末によって文字化けする | SystemFont の代替表示を確かめる。必要なら Noto Sans JP（OFL）のサブセットを同梱する |
 | fg.4 のセーブを引き継げない | 進行状況が新アプリへ移らない | M2 以降で、元の「セーブの書き出し」で作った JSON を取り込む機能を検討する |
 | APK のサイズ増【推測：数十MB】 | 配布サイズが大きくなる | 不要なモジュールを除いたテンプレートは M2 以降で検討する |

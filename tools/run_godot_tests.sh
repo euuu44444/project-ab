@@ -5,8 +5,13 @@
 # contains no engine/script errors. The project is imported first on every run (incremental: only
 # new or changed assets are re-imported, about 7 s), so tests never see stale or missing imports.
 #
+# Before Godot starts, tools/check_assets.sh verifies that the committed atlas assets (godot/assets/atlas)
+# still equal a fresh extraction from the original game and that the extraction tool's own tests pass
+# (Node 22). A drifted asset therefore fails this script, not only the test it affects.
+#
 # Usage: tools/run_godot_tests.sh [test-file-name-filter]
 # Environment:
+#   SWARM_SKIP_ASSET_CHECK=1         skip tools/check_assets.sh (for a machine without Node)
 #   SWARM_SKIP_IMPORT=1              skip the import (only for a quick re-run when no asset changed)
 #   SWARM_IMPORT_TIMEOUT=<seconds>   limit for the import (default 600)
 #   SWARM_TEST_TIMEOUT=<seconds>     limit for the test run (default 300)
@@ -61,6 +66,14 @@ engine_errors() {
 
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
+
+# 0. The committed assets must equal what the original game yields (Node only, no Godot).
+if [[ "${SWARM_SKIP_ASSET_CHECK:-0}" == "1" ]]; then
+  log "skipping the asset check (SWARM_SKIP_ASSET_CHECK=1)"
+else
+  log "checking the atlas assets against the original game ..."
+  "$SCRIPT_DIR/check_assets.sh" || die "tools/check_assets.sh failed (the atlas assets drifted from the original game)"
+fi
 
 # 1. Import the project (creates godot/.godot, which is gitignored). Godot only redoes what changed,
 # so new assets and class_name scripts are picked up and edited assets are not read from stale data.
