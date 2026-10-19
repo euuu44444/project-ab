@@ -1,0 +1,59 @@
+S1 evidence: render check under Xvfb + Mesa software GL (design 9.4, was "unverified")
+date: 2026-10-19
+
+command (main run):
+  xvfb-run -a -s "-screen 0 390x844x24" godot --path godot --rendering-driver opengl3 \
+      --write-movie <scratch>/render/frame.png --fixed-fps 60 --quit-after 30
+  (run with LIBGL_ALWAYS_SOFTWARE=1; godot started through swarm_godot from tools/lib/toolchain.sh, i.e. with HOME,
+   TMPDIR and XDG_DATA_HOME inside the cache dir). Repeated after the review fixes, with physics_jitter_fix=0.0.
+exit code: 0, about 1.4 s wall time
+
+Godot output (ANSI codes stripped):
+  Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+  WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+       at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:372)
+  OpenGL API 4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.4 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 20.1.2, 256 bits)
+  
+  Movie Maker mode enabled, recording movie in 390×844 @ 60 FPS...
+  --------------------------------------------------------------------------------
+  Done recording movie at path: <scratch>/render/frame.png
+  30 frames at 60 FPS (movie length: 00:00:00:30), recorded in 00:00:01 (100% of real-time speed).
+  CPU render time: 0.01 seconds (average: 0.42 ms/frame)
+  GPU render time: 0.02 seconds (average: 0.81 ms/frame)
+  Encoding time: 0.48 seconds (average: 15.87 ms/frame)
+  --------------------------------------------------------------------------------
+  
+
+result
+  - Godot started with the Compatibility renderer on OpenGL and wrote frames: YES.
+  - GL renderer string printed by Godot:
+      OpenGL API 4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.4 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 20.1.2, 256 bits)
+  - 30 PNG frames (frame00000000.png .. frame00000029.png, 390 x 844, 15.7-16.3 KB each) plus frame.wav were written.
+  - The label is visible and legible (inspected frame 0 and frame 29 with an image viewer): white text on the default grey
+    background, top left, five lines:
+        Elemental Swarm Engine — S1 scaffold / ticks: 30 (60 Hz) / alpha: 0.000 / view: 390 x 844 / fps: 19      (frame 29; fps is meaningless in Movie Maker mode)
+    The em dash renders correctly. The ticks counter equals frame index + 1, so one fixed 60 Hz step ran per
+    60 fps movie frame. alpha is exactly 0.000 at a 60 fps movie rate, as expected.
+  - view: 390 x 844 shows that canvas_items + expand give 390 wide and a taller viewport on a 390x844 window.
+  - Harmless warning: "Could not set V-Sync mode" (Xvfb/llvmpipe does not support it).
+
+extra run (fixed step vs. display rate): same command with --fixed-fps 90 --quit-after 12 (exit 0, 12 frames)
+  Godot warned that the 48000 Hz audio mix rate is not divisible by 90 (audio only; irrelevant here).
+  frame 4: ticks 3, alpha 0.333
+  frame 5: ticks 4, alpha 0.000
+  frame 6: ticks 4, alpha 0.667
+  ticks + alpha advances by 2/3 per frame = 60 Hz fixed step / 90 fps display, i.e. exactly a pure accumulator
+  (frame k: (k+1) * 2/3 ticks). Engine.get_physics_interpolation_fraction() returns a proper fraction in [0,1) under a
+  real renderer (this is the value the later interpolating render layer will use).
+  Before the review fix (physics_jitter_fix left at Godot's default 0.5) the same run showed 3/0.667, 4/0.333, 5/0.000:
+  the jitter fix runs the tick count ahead of the accumulator. A headless probe (--fixed-fps 144, ticks:fraction per frame)
+  shows the same: 0.5 gives 0:0.500 1:0.000 1:0.500 2:0.000 ..., 0.0 gives 0:0.417 0:0.833 1:0.250 1:0.667 2:0.083 ...
+  (steps of 1/144 s * 60 = 0.4167). project.godot now sets physics/common/physics_jitter_fix=0.0 and a test asserts it.
+
+copied into the repo: verification/godot/s1/render_frame.png (frame 29 of the main run, 16,276 bytes)
+
+limits
+  - Software rendering only (llvmpipe). Real GPU drivers, ETC2/ASTC texture paths on a device, the Android GLES3 context
+    and actual FPS are not covered (design 9.5).
+  - S1 draws only a Label; MultiMesh, layer order and position interpolation (design 9.4) are checked in S7.
+  - Movie Maker mode steps time at exactly the movie fps, so this is deterministic and does not measure real timing.

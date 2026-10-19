@@ -15,3 +15,9 @@ build/
 .godot/
 export/
 godot/.godot/
+
+# Godot port: engine signing keys and build artifacts (the toolchain cache lives outside the repo)
+.signing-engine/
+*.apk
+*.aab
+*.idsig

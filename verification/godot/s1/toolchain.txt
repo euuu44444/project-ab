@@ -1,0 +1,78 @@
+S1 evidence: toolchain
+date: 2026-10-19
+install:  tools/setup_godot.sh   (first run 23 s, 15 s into an empty cache with the archives already there; re-run 7 s,
+          every download "OK (verified, cached)", nothing re-extracted)
+cache:    $SWARM_CACHE_DIR = ~/.cache/elemental-swarm-engine  (outside the repo, about 2.1 GB: 1.4 GB archives + extracted files)
+          toolchain.sh refuses a SWARM_CACHE_DIR that is the repo or below it (tested: tools/.cache and the repo root).
+scripts:  `source tools/lib/toolchain.sh` exports GODOT_BIN, ANDROID_SDK_ROOT/ANDROID_HOME, JAVA_HOME,
+          SWARM_DEBUG_KEYSTORE (+ SWARM_APKSIGNER/ZIPALIGN/ADB, SWARM_EDITOR_DATA, SWARM_TEMPLATES_DIR;
+          functions swarm_confined and swarm_godot)
+confined: Godot and adb run with HOME=<cache>/home, TMPDIR=<cache>/home/tmp, XDG_DATA_HOME=<cache>/xdg-data and
+          ANDROID_ADB_SERVER_PORT=5199 (SWARM_ADB_PORT). Effects, all tested: setup and build leave an empty HOME empty
+          (no ~/.android), do not touch /tmp/adb.<uid>.log, and a developer's adb server on tcp:5037 survives an export
+          (Godot kills the adb server it used on exit; that is now only the private one). No adb server is left running.
+
+Godot --version:  4.7.2.stable.official.ed1daf0bf
+JDK:              openjdk version "21.0.12.1" 2026-08-18  (/usr/lib/jvm/java-21-openjdk-amd64; the script requires >= 17)
+Editor mode:      self-contained (_sc_ marker next to the binary; editor data in <godot dir>/editor_data/)
+Editor settings:  export/android/java_sdk_path, android_sdk_path, debug_keystore, debug_keystore_pass (=android, public debug value),
+                  network/connection/check_for_updates = 0 (editor makes no update-check network call)
+
+----------------------------------------------------------------------
+Pinned downloads (hash pinned in tools/setup_godot.sh and checked before extraction)
+----------------------------------------------------------------------
+Godot_v4.7.2-stable_linux.x86_64.zip        77,860,424 bytes
+  SHA-512 9aa00f7a605200940bce3027a567b782f49bd8e940dd06ae9e987bd65aee1b1467edd56ed84fcdcbdd44354bf613bdbb4e5d2913e925850368e150c59ed54c65
+Godot_v4.7.2-stable_export_templates.tpz    1,281,349,702 bytes
+  SHA-512 ca4d71c4d7b81dfc15d1a98baa07534aa95b03fdda78a0075b06672e1648d2e5f40980c9adc28d23e1b92e732ee7bf3461997aa804af74ec2fcd7a93ccb84079
+  URL base https://github.com/godotengine/godot/releases/download/4.7.2-stable/
+build-tools_r36_linux.zip                   63,737,259 bytes   (Android build-tools 36.0.0, installed to build-tools/36.0.0)
+  SHA-256 5d9ac77fb6ff43d9da518a337b4fcf8f9097113df531d99ccefe80ef7ce8250b   (already pinned by fg.4)
+  SHA-1   b0b6376977657e8ad9b969bacf4093601da2c6fb                           (as published in repository2-3.xml)
+  URL https://dl.google.com/android/repository/build-tools_r36_linux.zip
+platform-tools_r37.0.1-linux.zip            9,054,187 bytes    (adb 1.0.41; Godot's export validation requires adb)
+  SHA-1   477254aa5f903c15cf51001717bdf347fb6b53e0                           (as published in repository2-3.xml)
+  SHA-256 d230f13842f60f782a8645f9c813f8f845bf36089ea7289f28c48f17979313f1   (computed after the SHA-1 matched, then pinned)
+  URL https://dl.google.com/android/repository/platform-tools_r37.0.1-linux.zip
+Not downloaded (recorded only; needed for Gradle builds, not for this export path):
+  platform-36_r02.zip SHA-256 37607369a28c5b640b3a7998868d45898ebcb777565a0e85f9acf36f29631d2e
+
+Verification done in this integration step:
+  - sha512sum / sha256sum / sha1sum of the cached files were recomputed and compared with the values above,
+    which were taken from the task text: all four MATCH. The two Godot values also equal the lines of the
+    official SHA512-SUMS.txt of release 4.7.2-stable fetched during S1, and the pins in tools/setup_godot.sh.
+  - agent A's tamper tests: a corrupted cached zip is discarded and re-downloaded; a corrupted installed template is
+    re-extracted from the verified .tpz; a deliberately wrong pin aborts with nothing extracted.
+  - the recomputation was repeated after the review fixes (cached files unchanged, all pins still match).
+
+Checks added in the review fixes (tested on a scratch cache with the real archives hard-linked in, and on crafted zips):
+  - archive safety fails closed: a file that is not a zip, an empty zip, '..' and absolute paths, and symlink entries are
+    all refused before anything is extracted (before, a file that could not be listed passed the check).
+  - install stamps detect additions as well as modification: a planted file in platform-tools or in the template
+    directory, or a symlink there, triggers a re-extract that removes it; an unknown build-tools/<version> directory is
+    removed (Godot would pick the apksigner from it). A re-run after that is a no-op again.
+  - an interrupted download keeps its .part file unless curl reports that the server cannot resume (exit 33); with an
+    unreachable proxy the 40 MB partial file survived and the next run resumed it and verified the SHA-512.
+
+----------------------------------------------------------------------
+Installed components
+----------------------------------------------------------------------
+Godot editor   : godot/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64   (4.7.2.stable.official.ed1daf0bf)
+Templates      : editor_data/export_templates/4.7.2.stable/  (version.txt = 4.7.2.stable)
+                 only the Android files are extracted, other platforms are never extracted:
+                   android_debug.apk    127260725 bytes
+                   android_release.apk  104803333 bytes
+                   android_source.zip   214418211 bytes
+                   version.txt          13 bytes
+Build-tools    : android-sdk/build-tools/36.0.0   apksigner 0.9, zipalign, aapt2 (Android Asset Packaging Tool (aapt) 2.20-13193326)
+Platform-tools : android-sdk/platform-tools       Android Debug Bridge version 1.0.41
+Debug keystore : keystore/debug.keystore  PKCS12, RSA 2048, alias androiddebugkey, password android (public debug convention), DN CN=Android Debug,O=Android,C=US
+                 certificate SHA-256 351abaa1580f2fbd0a9ff27df9b31e4143a40f0b74b91fbea1ddb0467c50fa89 (equals the signer of the exported APK)
+Release keystore: NONE (design step S9, needs the user's confirmation)
+
+Godot 4.7.2 export constants (read from the 4.7.2 source by agent A): DEFAULT_MIN_SDK_VERSION 24, DEFAULT_TARGET_SDK_VERSION 36,
+apksigner is chosen from the build-tools directory whose major version equals the target SDK (36).
+
+Deviations from design section 10 (all intentional): build-tools 36.0.0 instead of 35.0.1 (matches target SDK 36);
+no Platform 35/36 (not read by the non-Gradle export); platform-tools added (Godot refuses to export without adb);
+JDK 21 instead of 17; templates are never expanded beyond the 4 Android files instead of "expand then delete".

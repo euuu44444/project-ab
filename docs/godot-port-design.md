@@ -138,7 +138,12 @@ character/berserker, character/sentinel, player/reaction-buffs, **player/movemen
 ### 6.1 共通
 
 - ドット絵であるため、テクスチャのフィルタは Nearest にする（元の `imageSmoothingEnabled=false` に対応）。
-- 画面の拡大方式は `display/window/stretch/mode = "canvas_items"`、`aspect = "expand"` とする。画面の向きは、元と同じく端末の回転に追従する（fullSensor 相当）。
+- 画面の拡大方式は `display/window/stretch/mode = "canvas_items"`、`aspect = "expand"` とする。
+  - 基準サイズは 390×390 である。これにより、画面の短い辺が常に約390単位になる。縦向きなら約390×N、横向きなら約N×390 で、元のゲームが CSS ピクセルで世界を表示しているのに近い。
+  - PC で実行するときのウィンドウは 390×844 とする（`window_*_override`）。これは元のテストで使っている表示サイズである。
+  - 戦闘処理では、表示中の領域の大きさ（`viewW/viewH`）を入力として受け取る。参照トレースでは 390×844 に固定する。元のゲームは、敵の出現距離などをこの大きさから計算しているためである。
+- 画面の向きは `orientation = 6`（sensor）とする。【事実：S1 で確認】Godot 4.7.2 の Gradle なし出力では、Android の設定値が fullSensor(10) ではなく fullUser(13) になる。四方向とも回転できるが、端末側の回転ロックに従う。この扱いはユーザーの判断待ちである。
+- 自前で補間するため、`physics/common/physics_jitter_fix = 0` とする。Godot のドキュメントが、自前で補間する場合は 0 にするよう求めているためである。S1 のレビューで判明した。
 - カメラは `sim` のカメラ位置を補間した値を使う。オフセットは画面中央とする（元の `-cam.x + viewW*0.5`）。
 
 ### 6.2 レイヤーの順序
@@ -221,7 +226,8 @@ character/berserker, character/sentinel, player/reaction-buffs, **player/movemen
 
 ### 9.4 描画の確認
 
-- Xvfb とソフトウェアGPU（Mesa llvmpipe）で、Godot を OpenGL 3 描画として起動できるかを【未確認】である。起動できれば、固定シードの場面を Movie Maker モードで PNG に書き出す。そのうえで、レイヤー順と補間（中間の時刻で位置がずれないこと）を目で確かめる。
+- 【事実：S1 で確認】Xvfb とソフトウェアGPU（Mesa llvmpipe）上で、Godot を OpenGL 3 描画（Compatibility）で起動できた。Movie Maker モードで 390×844 の PNG を書き出せた（`verification/godot/s1/render.txt`）。
+- S7 では、固定シードの場面を同じ方法で書き出す。そのうえで、レイヤー順と補間（中間の時刻で位置がずれないこと）を目で確かめる。
 - 元のゲームと画素単位で一致することは求めない（描画方式が異なるため）。
 
 ### 9.5 検証できない範囲
@@ -230,19 +236,35 @@ character/berserker, character/sentinel, player/reaction-buffs, **player/movemen
 
 ## 10. ビルドと署名
 
-1. `tools/setup_godot.sh` で次を取得し、SHA-512 を照合する。
-   - `Godot_v4.7.2-stable_linux.x86_64.zip`
-   - `Godot_v4.7.2-stable_export_templates.tpz`（1,281,349,702バイト）
-   - 照合には公式の `SHA512-SUMS.txt` を使う。GitHub releases からの取得はこの環境で可能であった【事実：2026-10-19 に確認】
-2. テンプレートを展開し、Android 用以外は削除する。
-3. Android SDK は、Godot 4.7 の公式ドキュメントにある構成をそろえる（Build-Tools 35.0.1、Platform 35、Platform-Tools、JDK 17）。
-   - fg.4 の `build_apk.py` と同じく、`dl.google.com` から固定版を取得し、ハッシュを照合する。
-   - ビルドは Gradle を使わず、事前ビルド済みのテンプレートで行う方針である。ただし Godot 4.7 で Gradle なしの APK 出力ができるかは【未確認】である。手順 S1 で確かめる。
-4. 鍵は `keytool` で新しく作り、`.signing-engine/`（`.gitignore` 対象）に置く。
-   - エクスポート時は `GODOT_ANDROID_KEYSTORE_RELEASE_PATH`、`GODOT_ANDROID_KEYSTORE_RELEASE_USER`、`GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD` で渡す。
+S1 で実際に組んだ構成である。
+
+1. `tools/setup_godot.sh` は、ダウンロード物をリポジトリの外のキャッシュ（既定は `~/.cache/elemental-swarm-engine`、`SWARM_CACHE_DIR` で変更できる）に取得する。
+   - 取得するたびに、スクリプト内に固定したサイズとハッシュで照合する。照合が済むまで、展開も実行もしない。
+   - Godot の2ファイルは SHA-512 で照合する。値は公式の `SHA512-SUMS.txt` と一致することを確かめてある。
+     - `Godot_v4.7.2-stable_linux.x86_64.zip`
+     - `Godot_v4.7.2-stable_export_templates.tpz`（1,281,349,702バイト）
+   - Android SDK は SHA-256 と、Google が公開している SHA-1 の両方で照合する。
+   - 再実行してもダウンロードし直さず、既存のファイルを照合し直すだけである。
+2. Godot は self-contained モード（本体の隣に `_sc_` を置き、設定とテンプレートを本体の隣に保存する方式）で動かす。テンプレートは Android 用の4ファイルだけを展開する。
+3. Android SDK と JDK は、公式ドキュメントの構成から次のように変えた【事実：S1 で確認】。
+   - Build-Tools は 36.0.0 を使う。Godot 4.7.2 の標準の target SDK が 36 で、それに合う apksigner を選ぶためである。
+   - Platform-Tools は r37.0.1 を入れる。adb は使わないが、ないと書き出し前の検査で止まるためである。
+   - Platform は入れない。Gradle なしの書き出しでは参照されないためである。
+   - JDK は 21 を使う。17 以上であればよい。
+4. ビルドは Gradle を使わない。【事実：S1 で確認】
+   - Gradle なしでも APK を書き出せた。
+   - その場合、minSdk は 24、targetSdk は 36 に固定され、変更できない。対象の Android 10 以降は範囲に含まれるため、問題はない。
+5. S1 では、使い捨てのデバッグ用鍵（キャッシュ内）で署名した。配布用の鍵は S9 で、ユーザーの確認を取ってから作る。
+   - 作った鍵は `.signing-engine/`（`.gitignore` 対象）に置く。
    - **鍵をなくすと更新版を配れなくなる。** ユーザーが手元で保管する必要がある。
-5. 権限は追加しない（インターネット権限を含めない）。`export_presets.cfg` で確認する。
-6. 出力は `godot/export/ElementalSwarm_engine_m1.apk`（`.gitignore` 対象）とする。apksigner で署名を検証し、zipalign で配置を検査する。
+   - Godot 4.7.2 は、署名時にパスワードをコマンドラインで apksigner に渡す。コマンドラインは同じ端末上の他のプロセスから見えてしまう。そのため S9 では、署名なしで書き出してから `apksigner sign --ks-pass env:...` で署名する。
+6. 権限は追加しない（インターネット権限を含めない）。`build_android.sh` が書き出した APK のマニフェストを調べ、権限があれば失敗させる。
+7. 出力先は `export/`（リポジトリ直下、`.gitignore` 対象）とする。`build_android.sh` は次を検査する。
+   - apksigner での署名の検証
+   - zipalign での 16KiB 配置
+   - パッケージ名、バージョン、ABI、SDK 水準
+   - ネイティブライブラリの 16KiB 境界
+8. 【事実：S1 で確認】書き出した APK では、FileProvider と androidx.startup の InitializationProvider が同じ authority を持っている。Godot 4.7.2 の書き出し処理がすべての provider の authority を `<パッケージ名>.fileprovider` に書き換えるためである。端末での影響は【未確認】で、`build_android.sh` は警告として表示する。
 
 ## 11. 実装手順（各手順の前後でユーザーの確認を取る）
 
@@ -268,7 +290,7 @@ character/berserker, character/sentinel, player/reaction-buffs, **player/movemen
 | 移植量が大きい（約1,550関数、DOM UI、音声） | 全機能そろうまでに長くかかる | 縦切りで進め、M2 以降で段階的に追加する（§13） |
 | GDScript の実行速度【推測】 | 大量配置の場面で更新が遅れる | 1. 型付けと PackedArray で最適化する<br>2. それでも足りなければ、よく使う処理だけ C++（GDExtension、Android NDK が必要）へ移す。移す前に相談する |
 | 浮動小数の違い（三角関数）【推測】 | 参照トレースが長い時間で乖離する | 最初の乖離点を報告する。必要なら fdlibm を移植する |
-| Gradle なしの出力に制約がある【未確認】 | min/target SDK を変えられない可能性 | S1 で確かめる。必要なら Gradle ビルドに切り替えるか相談する |
+| Gradle なしの出力の制約【事実：S1 で確認】 | 1. min/target SDK が 24/36 に固定される<br>2. 画面の向きが fullUser になる<br>3. provider の authority が重複する | 1 は Android 10 以降が対象なので問題ない。2 と 3 は端末で確かめる。必要なら Gradle ビルドへの切り替えを相談する |
 | 日本語フォント【未確認】 | 端末によって文字化けする | SystemFont の代替表示を確かめる。必要なら Noto Sans JP（OFL）のサブセットを同梱する |
 | fg.4 のセーブを引き継げない | 進行状況が新アプリへ移らない | M2 以降で、元の「セーブの書き出し」で作った JSON を取り込む機能を検討する |
 | APK のサイズ増【推測：数十MB】 | 配布サイズが大きくなる | 不要なモジュールを除いたテンプレートは M2 以降で検討する |

@@ -1,0 +1,168 @@
+S1 evidence: debug APK export and verification
+date: 2026-10-19
+command: tools/build_android.sh --evidence-dir <scratch>      -> exit code 0, RESULT: PASS
+output:  export/ElementalSwarm_engine_s1_debug.apk  (gitignored). Two clean builds of the same checkout give identical
+         content for every zip entry, but the APK files themselves differ (zip timestamps, signing block), so the
+         SHA-256 below is for this one build.
+steps:   tools/build_android.sh runs the headless tests first (15/15), then exports, then checks.
+signing: throwaway DEBUG keystore only (alias androiddebugkey). No release keystore exists yet (design step S9).
+
+----------------------------------------------------------------------
+1. Summary printed by tools/build_android.sh (14 PASS, 2 WARN)
+----------------------------------------------------------------------
+Elemental Swarm Engine - Android debug build
+apk: /home/user/project-ab/export/ElementalSwarm_engine_s1_debug.apk
+
+PASS tests - 15/15 passed, 0 failed, 215 assertions
+PASS export - 57660321 bytes
+PASS apksigner verify - v2,v3 verified
+PASS signed with the debug keystore - certificate sha256 351abaa1580f2fbd...
+PASS zipalign -c -P 16 -v 4 - stored entries are 16 KiB / 4-byte aligned
+PASS package name - com.elementalswarm.engine
+PASS versionCode - 1
+PASS versionName - 0.1.0-s1
+PASS application label - Elemental Swarm Engine
+PASS native-code ABIs - arm64-v8a armeabi-v7a
+PASS launcher intent - MAIN + LAUNCHER declared
+WARN screenOrientation - 13 (fullUser) instead of the design's 10 (fullSensor): the system rotation lock applies; Godot 4.7.2's non-Gradle exporter cannot emit 10
+PASS SDK levels - minSdkVersion=24 targetSdkVersion=36
+PASS ELF 16 KiB alignment - 2 64-bit librar(ies), every LOAD segment aligned to >= 0x4000
+PASS permissions - none requested or declared
+WARN provider authorities - duplicate authority in the exported manifest: com.elementalswarm.engine.fileprovider (Godot 4.7.2 exporter behaviour; see tools/build_android.sh)
+
+RESULT: PASS
+
+----------------------------------------------------------------------
+2. Independent re-check with the raw tools (not the script's own checks)
+----------------------------------------------------------------------
+== apk
+c87cd8277e841135af39223e1a28ef5c20c9d6a115c7804cb23b449bd0c300d0  /home/user/project-ab/export/ElementalSwarm_engine_s1_debug.apk
+57660321 bytes
+
+== apksigner verify -v --print-certs (rc captured below)
+Verifies
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): true
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Verified for SourceStamp: false
+Number of signers: 1
+Signer #1 certificate DN: CN=Android Debug, O=Android, C=US
+Signer #1 certificate SHA-256 digest: 351abaa1580f2fbd0a9ff27df9b31e4143a40f0b74b91fbea1ddb0467c50fa89
+Signer #1 certificate SHA-1 digest: f4b1030ec3b94f6daf9df3ce29f576840d1f273c
+Signer #1 certificate MD5 digest: 944246854efaed8e56dfb05f9247f817
+Signer #1 key algorithm: RSA
+Signer #1 key size (bits): 2048
+Signer #1 public key SHA-256 digest: d3c90552b10cbec5bc948c76ed09206b5bed33d254b0def2267be42d647e1f7b
+Signer #1 public key SHA-1 digest: 605818652cf0973942505a2775bbd1dbeb03b64e
+Signer #1 public key MD5 digest: 44f413eabdfc0b3e8b16cd91d8b00ced
+apksigner rc=0
+
+== apksigner verify --min-sdk-version 23 (shows the v1 JAR signature state)
+Verifies
+Verified using v1 scheme (JAR signing): true
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): true
+rc=0
+
+== zipalign -c -P 16 -v 4 (tail)
+57640041 META-INF/ANDROIDD.RSA (OK - compressed)
+57641160 META-INF/MANIFEST.MF (OK - compressed)
+Verification successful
+zipalign -P 16 rc=0
+zipalign 4-byte rc=0
+
+== aapt2 dump badging (selected lines)
+package: name='com.elementalswarm.engine' versionCode='1' versionName='0.1.0-s1' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'
+minSdkVersion:'24'
+targetSdkVersion:'36'
+application-label:'Elemental Swarm Engine'
+supports-screens: 'small' 'normal' 'large' 'xlarge'
+native-code: 'arm64-v8a' 'armeabi-v7a'
+uses-permission lines in badging: 0
+
+== aapt2 dump permissions
+package: com.elementalswarm.engine
+
+== aapt2 dump xmltree: any element named uses-permission / permission
+uses-permission* elements: 0
+permission elements: 0
+permission-related attributes in the manifest:
+70:            A: http://schemas.android.com/apk/res/android:grantUriPermissions(0x0101001b)=true
+83:            A: http://schemas.android.com/apk/res/android:permission(0x01010006)="android.permission.DUMP" (Raw: "android.permission.DUMP")
+
+== providers (manifest)
+          E: provider (line=72)
+            A: name(0x01010003)="androidx.core.content.FileProvider" (Raw: "androidx.core.content.FileProvider")
+            A: exported(0x01010010)=false
+            A: authorities(0x01010018)="com.elementalswarm.engine.fileprovider" (Raw: "com.elementalswarm.engine.fileprovider")
+          E: provider (line=81)
+            A: name(0x01010003)="androidx.startup.InitializationProvider" (Raw: "androidx.startup.InitializationProvider")
+            A: exported(0x01010010)=false
+            A: authorities(0x01010018)="com.elementalswarm.engine.fileprovider" (Raw: "com.elementalswarm.engine.fileprovider")
+
+== activity screenOrientation / launcher
+A: screenOrientation(0x0101001e)=13
+A: name(0x01010003)="android.intent.action.MAIN" (Raw: "android.intent.action.MAIN")
+A: name(0x01010003)="android.intent.category.LAUNCHER" (Raw: "android.intent.category.LAUNCHER")
+
+== apk contents: tests excluded, native libs
+lib/arm64-v8a/libc++_shared.so
+lib/arm64-v8a/libgodot_android.so
+lib/armeabi-v7a/libc++_shared.so
+lib/armeabi-v7a/libgodot_android.so
+assets/main.gdc
+assets/.godot/exported/133200997/export-3070c538c03ee49b7677ff960a3f5195-main.scn
+assets/.godot/imported/icon.svg-218a8f2b3041327d8a5756f3a245f83b.ctex
+assets/icon.svg.import
+assets/main.gd.remap
+assets/main.tscn.remap
+assets/.godot/global_script_class_cache.cfg
+assets/icon.svg
+assets/.godot/uid_cache.bin
+assets/project.binary
+assets/assets.sparsepck
+assets/_cl_
+tests/ entries in apk (project files are packed in the .pck): 0
+
+== signer cert vs keystore
+Certificate fingerprint (SHA-256): 35:1A:BA:A1:58:0F:2F:BD:0A:9F:F2:7D:F9:B3:1E:41:43:A4:0F:0B:74:B9:1F:BE:A1:DD:B0:46:7C:50:FA:89
+
+----------------------------------------------------------------------
+3. Notes
+----------------------------------------------------------------------
+- apksigner: "v1 scheme: false" in the default run is because the manifest has minSdk 24 (apksigner
+  skips JAR signing there). With --min-sdk-version 23 the v1 signature also verifies, so META-INF/* is valid.
+  v3.1, v4 and SourceStamp are false (v4 needs a separate .idsig; not used).
+- Permissions: NO <uses-permission> element and no app-declared <permission> element; `aapt2 dump permissions`
+  lists none (no INTERNET). The gate in build_android.sh checks the manifest (xmltree) and the badging output; the
+  AndroidX "<package>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" (not present here) would be a WARN, anything else a FAIL.
+  The manifest contains two permission-related ATTRIBUTES, both from the prebuilt Godot 4.7.2 template,
+  neither is a permission request:
+    * <receiver androidx.profileinstaller.ProfileInstallReceiver android:permission="android.permission.DUMP">
+      guards the receiver (only callers holding DUMP, e.g. adb shell, may send it intents). It requests nothing.
+    * <provider androidx.core.content.FileProvider android:grantUriPermissions="true" exported="false">
+      is the standard FileProvider flag (URI grants), not a manifest permission.
+- SDK levels: minSdkVersion 24 and targetSdkVersion 36 are the template defaults of Godot 4.7.2
+  (DEFAULT_MIN_SDK_VERSION 24, DEFAULT_TARGET_SDK_VERSION 36). The non-Gradle export cannot change them.
+  This answers the open question in design 10 item 3 / section 12.
+- screenOrientation=13 (fullUser) is reported as WARN. Design 6.1 and fg.4 use fullSensor (10). Godot 4.7.2's
+  prebuilt-template exporter writes 13 for "Sensor" (per a review of the 4.7.2 source, gradle_export_util.cpp: SCREEN_SENSOR -> 13), which allows all
+  four orientations but follows the system rotation lock, so this cannot be fixed through project settings.
+  DECISION FOR THE USER: accept fullUser, or plan a Gradle build / manifest override in S9.
+- WARNING (Godot 4.7.2 exporter behaviour, found during this check): both <provider> elements,
+  androidx.core.content.FileProvider and androidx.startup.InitializationProvider, carry the same authority
+  "com.elementalswarm.engine.fileprovider". In the unmodified template they differ
+  (com.godot.game.fileprovider / com.godot.game.androidx-startup). Cause: export_plugin.cpp rewrites the
+  "authorities" attribute of every <provider> to "<package>.fileprovider". Possible effect (UNVERIFIED, no device
+  here): Android registers only the first provider with a given authority, so the AndroidX startup initializer
+  (ProfileInstaller) may not be registered. Install failure is not expected for a same-package duplicate, but this
+  has not been tested. tools/build_android.sh reports it as WARN. A Gradle build (design 12) would avoid it.
+- Reproducibility: main.tscn now carries unique_id= on every node. Without them Godot invents random node ids on every
+  clean import, so main.scn, assets.sparsepck and META-INF differed between two clean builds of one commit. After the
+  fix two clean builds (rm -rf godot/.godot between them) have identical content in every zip entry.
+- Side effects: the script runs Godot (and with it adb) with HOME, TMPDIR and XDG_DATA_HOME inside the cache dir and
+  adb on the private port 5199. ~/.android and /tmp/adb.<uid>.log were not touched by the final build, and a
+  developer's adb server on tcp:5037 survived a build (tested with a throwaway server).
+- The APK has not been installed or run on a device or emulator (design 9.5).
