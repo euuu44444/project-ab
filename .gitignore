@@ -1,0 +1,17 @@
+# Signing material (never commit)
+.signing/
+*.p12
+*.jks
+*.keystore
+key.properties
+
+# Build output / dependencies
+dist/
+node_modules/
+build/
+
+# Godot (upcoming port)
+# Note: *.import files are intentionally NOT ignored; Godot needs them committed.
+.godot/
+export/
+godot/.godot/

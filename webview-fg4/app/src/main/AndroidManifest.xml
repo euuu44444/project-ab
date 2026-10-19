@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.elementalswarm.mobile"
+    android:versionCode="1111195"
+    android:versionName="11.11.9-fg.4">
+    <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="36" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <application
+        android:label="Elemental Swarm"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:theme="@style/AppTheme"
+        android:appCategory="game"
+        android:allowBackup="false"
+        android:debuggable="false"
+        android:hardwareAccelerated="true"
+        android:usesCleartextTraffic="false"
+        android:resizeableActivity="true"
+        android:enableOnBackInvokedCallback="true">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden|keyboard|navigation|uiMode|density"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

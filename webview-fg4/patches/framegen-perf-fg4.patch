@@ -1,0 +1,2337 @@
+# Elemental Swarm fg.3 -> fg.4; apply with patch -p1, then npm run build:html.
+--- a/README.md
++++ b/README.md
+@@ -1,111 +1,85 @@
+-# Elemental Swarm — Android fg.1
++# Elemental Swarm — Android fg.4
+ 
+-- アプリ: `Elemental Swarm`
+-- パッケージID: `com.elementalswarm.mobile`
+-- Android版バージョン: `11.11.9-fg.1` / versionCode `1111192`
+-- 対象: Android 10（API 29）以降、target SDK 36
+-- ゲーム本体: 添付された Elemental Swarm v11.11.9 を基にしています。
+-- 物体の移動履歴とCanvas描画記録を使う、ゲーム専用の2Dフレーム生成を追加しました。
++- Android版: `11.11.9-fg.4` / versionCode `1111195`
++- アプリID: `com.elementalswarm.mobile`
++- 対象: Android 10（API 29）以降 / target SDK 36
++- 基準: 添付されたfg.3のソースZIPとAPK
++
++fg.3の記録・補間・画像複製を軽量化した版です。ゲームの更新刻み、ダメージ、敵・弾の上限、乱数、ウェーブ条件、画質設定を維持しています。AndroidのJavaコードと権限もfg.3のままです。
+ 
+ ## インストール
+ 
+-1. `ElementalSwarm_11.11.9_framegen1.apk` をAndroid端末にダウンロードして開きます。
+-2. Androidが求める場合、そのファイルを開いたアプリからのインストールを許可します。
+-3. ホーム画面の `Elemental Swarm` から起動します。
++`ElementalSwarm_11.11.9_framegen4.apk` をAndroid端末で開き、インストールしてください。fg.3とアプリID・署名証明書が一致し、versionCodeを増やしています。実機での更新インストールは未確認です。ゲームのHTML・画像・音声生成処理はAPKに同梱し、プレイに通信は使用しません。
+ 
+-前のmobile.1と同じ署名鍵・アプリIDを使用し、versionCodeを増やしています。Android側では更新インストールとして扱える構成です。実機での更新インストールは未確認です。
++## フレーム生成
+ 
+-ゲームのHTML・画像・音声生成コードはAPKに同梱しています。ゲームの起動・プレイに通信は不要で、アプリにはインターネット権限・ストレージの包括アクセス権限を付与していません。描画には端末のAndroid System WebViewを使用します。古いWebViewでは起動できない場合があるため、その場合はWebViewを更新してください。
+-
+-## フレーム生成の使い方と方式
+-
+-開始画面または一時停止画面の「画面設定」から選択します。
++開始画面または一時停止画面の「画面設定」で切り替えます。
+ 
+ | 設定 | 動作 |
+ | --- | --- |
+-| OFF | 通常描画を使用します。 |
+-| AUTO（初期設定） | ブラウザーの表示コールバックを24回以上観測し、推定90Hz以上で生成を使用します。Android側は対応する高リフレッシュレートを要求します。OSが要求を採用する保証はありません。 |
+-| 2x | 60Hzでも生成を使用します。60Hzなら実30＋生成30、120Hzなら実60＋生成60を目指す構成です。実際の速度は端末・場面に依存します。 |
++| OFF | 通常描画です。 |
++| AUTO | 表示周期を確認し、推定90Hz以上で生成を使用します。 |
++| 2x | 60Hzでも使用します。60Hzでは実30＋生成30、120Hzでは実60＋生成60を目指す構成です。 |
+ 
+-敵・弾・プレイヤーなどの同一性、固定更新後の移動履歴、出現・消滅時刻を記録します。実フレームではCanvasの描画命令、画像、変換、描画順を保持し、中間フレームでは保存した描画素材を移動・回転させて合成します。中間フレームのためにゲームの描画関数や戦闘更新を再実行する方式ではありません。オフスクリーンの可変Canvas画像も記録時に固定し、後から再利用されても前のフレームを壊さないようにしています。
++移動履歴とCanvas描画記録から中間画面を合成します。負荷が続く場合は通常描画に戻し、待機後に再試行します。OSが高リフレッシュレート要求を採用することや、端末での特定FPSを保証する機能ではありません。過去と現在の実フレームを使うため、表示には追加の遅延があります。DLSS 3のSDK・ニューラルモデルは使用していません。
+ 
+-画面全体を半透明で重ねる方法ではなく、背景・物体・前後関係を保って合成します。スプライトアトラスの絵柄やテキストは離散的に切り替えます。画面上のHUD・脅威マーカー・フラッシュは生成対象から外し、通常のタイミングで合成します。瞬間移動、急なカメラ移動、画面寸法変更、長い処理停止では補間を抑制・再初期化します。画像や描画記録が上限を超えた場合、またはCPU側の測定負荷が続いた場合は3秒間通常描画に戻します。
++## fg.4の最適化
+ 
+-2枚の実フレームを使うため、通常の描画より原理的に約1表示周期の遅れが加わります。これは120Hzで約8.3ms、60Hzで約16.7msというスケジューラー上の差であり、端末全体の入力遅延を実測した値ではありません。ゲームの固定刻み更新は60回／秒を維持します。144Hzでは同じゲーム状態を捕捉する周期があり、144枚すべてが異なる映像になるわけではありません。
++- 作成後に変更しない地形・光彩・被弾点滅アトラス・属性演出Canvasを共有します。動的な光源マップや未登録のCanvasは独立したスナップショットを維持します。
++- 共有画像の破棄を、保持中のフレームから参照されなくなるまで遅延します。
++- 描画状態とパスを共有し、変更時にコピーする構造にしました。既に記録した描画への変更の混入を防ぎます。
++- 並進だけの変換を簡単な計算で処理し、描画順・パス・対応命令の準備を再利用します。ペアの破棄時には準備した情報も破棄します。
++- 12点の移動履歴を再利用し、負荷判定の分位値は必要時に算出し、同じ計測窓では結果を再利用します。判定しきい値とバックオフ条件は維持しています。
++- フレーム生成UIでは同じ文字列・属性の再書き込みを避けます。
+ 
+-この実装はNVIDIA DLSS 3／StreamlineのSDKや学習済みニューラルモデルを使用していません。DLSS 3と同等の画質・速度を達成したという検証結果はありません。現時点のブラウザーCPU測定では、記録・生成は通常描画より重く、処理時間を短縮する効果は確認できていません。自動設定での高リフレッシュレート表示と、将来のGPU合成実装のための基盤として提供する実験版です。
+-
+-## モバイル向け変更
+-
+-| 項目 | 変更内容 |
+-| --- | --- |
+-| 自動画質 | タッチ端末の描画倍率を最大1.5倍に抑え、0.25刻みで画素数を調整します。DOMの文字解像度には影響しません。 |
+-| 画素数の目安 | 通常は2,097,152画素、低メモリー側の設定では1,572,864画素を目安とします。描画倍率の下限は1倍です。 |
+-| メモリー情報が不明な場合 | 低メモリー側の方針を採用します。端末が実際に4GBであるという判定ではありません。 |
+-| 地形キャッシュ | 低メモリー側では保持数を24〜48に抑制します。画面を描くために必要なチャンクは保護されます。 |
+-| 補助処理 | 低メモリー側の設定ではWorkerを最大1個に抑えます。非対応・エラー時は既存の通常描画に戻ります。 |
+-| タッチ操作 | 主要な設定・操作ボタンの高さを44 CSS px以上に調整します。回転・ウィンドウ寸法変更時には移動入力を解除します。 |
+-| 既存の画質設定 | 軽量・自動・鮮明・最高を維持しています。鮮明・最高を選ぶと高い描画解像度を使用します。 |
+-
+-ゲームの固定刻み更新、敵・弾の既存上限、ダメージ計算、乱数、ウェーブ条件は変更していません。
+-
+-## Android版の操作と保存
+-
+-- 縦向き・横向き・タブレットに対応する構成です。回転時にActivityを作り直さず、ゲーム画面を再配置します。
+-- Androidの戻る操作は、プレイ中なら一時停止に使います。一時停止画面やメニューでは終了確認を表示します。
+-- バックグラウンド移行時は入力を解除し、描画・補助処理・音声を停止します。復帰後は一時停止画面から手動で再開します。
+-- 設定・実績等はWebView内の保存領域に保持します。進行中の戦闘を終了・プロセス終了後に復元する機能は追加していません。
+-- ブラウザー版とAPK版の保存領域は別です。既存データを移すには、元のHTMLの「詳細設定」からバックアップJSONを書き出し、APK側の「JSONファイルを選択」で読み込みます。
+-- ファイルを選択した時点では上書きしません。「この内容を読み込む」で確認後に適用し、APK内のゲーム画面を再読み込みします。
+-- 書き出しにはAndroidの保存先選択画面を使用します。JSONファイルのサイズ上限は4 MiBです。
++測定値と検証範囲は `TEST_REPORT.md`、生の結果は `verification/framegen/` にあります。ブラウザー上のCPU処理時間とAndroid実機のFPS・GPU性能・発熱は別の指標です。
+ 
+ ## 再ビルド
+ 
+-Linux x86_64 / WSL2、Python 3.9以降、Java 17以降と`keytool`を使用します。GradleやAndroid Studioは必須ではありません。
++Linux x86_64 / WSL2、Python 3.9以降、Java 17以降と `keytool` が必要です。GradleやAndroid Studioは必須ではありません。
+ 
+ ```bash
+ python3 build_apk.py
+ ```
+ 
+-初回はGoogle公式Android SDK Build Tools 36.0.0・Platform 36と、Eclipse Java Compiler 3.40.0を取得します。取得物はスクリプトに固定したSHA-256で確認します。成果物は`dist/ElementalSwarm_11.11.9_framegen1.apk`です。
++初回は固定SHA-256で検査するAndroid SDK Build Tools 36、Platform 36、Eclipse Java Compiler 3.40.0を取得します。出力先は `dist/ElementalSwarm_11.11.9_framegen4.apk` です。`.signing/` には添付版から継続した更新用の署名鍵・設定を含めています。
+ 
+-HTMLを生成し直す場合はNode.jsと依存パッケージが必要です。すでに生成済みのHTMLからAPKを作る場合は不要です。
++HTMLを編集・再生成する場合:
+ 
+ ```bash
+-npm install
++npm ci
+ npm run build:html
+ ```
+ 
+-`frame_generation/baseline_mobile1.html`から、Acornで検査した描画箇所への計測コードと合成エンジン・設定UIを埋め込みます。置換元が想定と異なる場合は生成を停止します。
++編集対象は `frame_generation/frame-synthesis.js`、`frame_generation/frame-generation-runtime.js`、`frame_generation/build_frame_generation.cjs` です。`app/src/main/assets/index.html` は生成物です。`baseline_mobile1.html` と元ゲームの回帰用fixtureは基準として保持しています。
+ 
+-主な編集場所:
+-
+-- `app/src/main/assets/index.html`: ゲーム本体とモバイル向けの描画方針
+-- `frame_generation/`: 合成エンジン、フレームスケジューラー、HTML生成処理
+-- `app/src/main/java/com/elementalswarm/mobile/MainActivity.java`: Androidの画面・ライフサイクル・ファイル入出力
+-- `app/src/main/AndroidManifest.xml`: アプリID、Android要件、バージョン
+-- `app/src/main/res/`: テーマとベクターアイコン
+-
+-`.signing/elemental-swarm-mobile.p12`と`.signing/key.properties`は、このAPKを後から更新するための署名鍵・設定です。同じアプリIDを継続して更新する際に保持してください。個人利用向けの署名であり、Playストア公開用の本番署名として管理したものではありません。更新APKではversionCodeを増やしてください。
+-
+-## 検証
+-
+-検証結果と限界は`TEST_REPORT.md`にまとめています。Android実機・エミュレーターでは未実行です。ネイティブのファイル選択、画面インセット、実機での復帰は追加確認が必要です。
+-
+-任意のブラウザー回帰テスト:
++## テスト
+ 
+ ```bash
+-npm install
++npm ci
+ SWARM_CHROME_BINARY=/absolute/path/to/chrome-headless-shell npm test
++SWARM_CHROME_BINARY=/absolute/path/to/chrome-headless-shell npm run test:performance
+ ```
+ 
+-モバイル回帰、12種類の合成画像、生成ONの戦闘回帰・表示順・ライフサイクル、6種類の実ゲーム描画比較を実行します。測定JSONと内部確認用画像は`verification/`に出力します。このテストは配布HTMLにテスト用APIを保存せず、HTTP応答にだけ一時的な計測用コードを挿入します。Android API部分はモックです。日本語を目視確認する場合は、テスト用OSに日本語フォントが必要です。
++Chromiumは別途用意してください。検証環境ではChrome Headless Shell 141を使用しました。`npm test` は既存6スイートとfg.3との差分描画・演出キャッシュの追加テストを実行します。性能比較は同じブラウザーでfg.3→fg.4→fg.4→fg.3の順に、各バージョン160組、8条件を測定します。各組は新規に記録し、次の組まで `requestAnimationFrame` を待ちます。
+ 
+-## 参照したAndroid公式資料
++`tests/fixtures/fg3-reference.cjs` は元の生成スクリプトとエンジンから比較用HTMLをメモリー内で再構成し、添付版HTMLのSHA-256と一致することを検査します。テスト専用APIはHTTP応答にだけ挿入し、配布HTMLには含めません。Android APIはブラウザーテストではモックです。
+ 
+-- [アプリ内コンテンツの読み込み](https://developer.android.com/develop/ui/views/layout/webapps/load-local-content)
+-- [WebViewとネイティブ機能の連携](https://developer.android.com/privacy-and-security/risks/insecure-webview-native-bridges)
+-- [Android 16を対象とするアプリの動作変更](https://developer.android.com/about/versions/16/behavior-changes-16)
+-- [apksigner](https://developer.android.com/tools/apksigner)
++## patchの適用
+ 
+-公式資料はアプリ内にHTML等を同梱できることを説明しています。原文の“In-app content doesn't require internet access”は「アプリ内コンテンツはインターネット接続を必要としない」という意味です。本APKでは独自の固定URLハンドラーで同梱HTMLのみを返し、外部ページは開きません。
++`framegen-perf-fg4.patch` は添付fg.3のソースに適用します。生成HTML・測定結果・画像・ビルド出力はpatchから除外しています。
++
++```bash
++cd ElementalSwarmAndroid_fg3
++patch -p1 < ../framegen-perf-fg4.patch
++npm ci
++npm run build:html
++python3 build_apk.py
++```
++
++適用後に再生成したHTMLとfg.4のHTMLがバイト単位で一致することを確認しています。
++
++## 未確認の範囲
++
++Android実機・エミュレーターでのインストール、WebViewの実FPS、入力遅延、GPU時間、温度、消費電力、長時間の熱による性能低下は未測定です。実機のファイル選択画面、画面端の余白、バックグラウンド復帰も追加確認が必要です。
++
+--- a/TEST_REPORT.md
++++ b/TEST_REPORT.md
+@@ -1,157 +1,100 @@
+-# Elemental Swarm Android fg.1 検証結果
++# Elemental Swarm Android fg.4 検証報告
+ 
+-検証日: 2026-10-18。対象: `11.11.9-fg.1` / versionCode `1111192`。
++作成日時: 2026-10-19T11:28:37+09:00
+ 
+-## 作業内容と到達点
++## Work Performed / 実施内容
+ 
+-- 物体の移動履歴・出現消滅時刻・2D描画順と、実フレームで記録したCanvas描画素材から中間フレームを合成する処理を追加しました。
+-- 単なる全画面の半透明ブレンドではなく、描画素材を物体ごとに再配置します。回転・拡縮、半透明、スプライトアトラス、バッチ描画、カメラ移動を扱います。
+-- DOMのHUDはそのまま更新し、CanvasのHUD・脅威マーカー・フラッシュも記録対象から外して通常合成します。
+-- OFF / AUTO / 2xと設定保存、実・生成フレーム数の表示、高リフレッシュレート要求、過負荷時の通常描画への復帰を追加しました。
+-- 同じ署名鍵・アプリIDで更新APKを作成しました。Android実機にはインストールしていません。
++- 添付fg.3を基準として、固定更新、描画、敵探索、HUD、Worker、Android側の構成を確認しました。
++- 地形・光彩・被弾点滅アトラス・縮小エフェクト・属性範囲画像のうち、作成後に変更しないCanvasを明示的に登録して共有します。
++- 動的な光源マップや一般のCanvasは引き続きフレームごとに独立して複製します。共有画像は保持フレームの参照がなくなってから破棄します。
++- 描画状態とパスは変更時にコピーし、既に記録した描画が後から変更されない構造にしました。
++- 並進変換の簡略化、描画順とパスの準備の再利用、移動履歴の再利用、分位値の必要時集計、UIの重複書き込み削減を行いました。
++- 非可逆な変換・極小スケール・微小な差の扱いは元の処理を保持し、境界ケースを追加検証しました。
++- アプリID・署名鍵を継続し、versionCodeを1111195、versionNameを11.11.9-fg.4に更新しました。
+ 
+-**DLSS 3と同等の画質・速度を達成したものではありません。** NVIDIAのSDKやニューラルモデルを利用せず、ゲーム専用のCanvas 2D合成を実装しています。比較対象は本ゲームの通常中間時刻描画・前フレーム保持・単純ブレンドです。DLSS実機出力との比較は行っていません。今回のCPU測定では通常描画より重く、処理時間短縮の効果は確認できていません。
++## Verified / 性能比較
+ 
+-## 設計・修正・再テスト
++測定ブラウザー: Chromium 141.0.7390.37 / Linux、390×844 CSS px、DPR 3、deviceMemory=4のモバイル条件です。
++GPU描画はSwiftShaderによるソフトウェア処理です。Androidの端末GPUを測定した結果ではありません。
++Workerを両版ともOFFにし、同じfixtureをfg.3→fg.4→fg.4→fg.3の順で実行しました。
++各版・各条件につき24組のウォームアップ後に80組を2回、合計160組を測定しています。
++各組は新規に実フレームを記録し、次の組までrequestAnimationFrameを待ちます。
+ 
+-| 検証で見つかった問題 | 修正 | 再テスト |
+-| --- | --- | --- |
+-| 瞬間移動を線形補間すると、途中に存在しない場所へ物体を描く | 固定更新の履歴に大きな位置変化を記録し、その区間は時刻に応じた離散切替にする | 合成ケースのRGB MAEが約2.81から0へ |
+-| カメラ移動で可視の草セル数が変わると、描画順番号だけでは別セルを対応付ける | ワールドのグリッド座標を識別子として記録し、単一物体のパスにも識別子を保持 | 可視範囲へのセル出入りの合成ケースでRGB MAE 0。最高画質の実ゲーム比較も合格 |
+-| 発光のグラデーションを作成時の変換だけで動かすと、色の帯が位置から外れる | 対応する実フレームのグラデーション座標を補間し、描画時の変換と合わせる | 合成ケースのRGB MAEが約1.458から0へ |
+-| 単一物体のパス形状が変わったときに古い頂点を足すと不要な線が出る | 単一物体の形状は選択したフレームの構成を維持し、複数物体のバッチだけを可視性に応じて統合 | 12合成ケース・6実ゲーム条件を再実行して合格 |
++以下は移動履歴の観測＋実フレーム記録＋中間フレーム合成のコールバック経過時間です。
++ブラウザー内部の描画待ちやOSのスケジューリングも時間に含まれます。短縮率はCPU側の処理時間の比較です。
+ 
+-複数回の試行で修正しました。最終ソースには以下の再現用テストを同梱しています。CPU負荷が競合した途中の試行では過負荷保護が発動したため、最終の画質・CPU測定は別プロセスのビルド終了後に実行しました。
++| 条件 | カメラ | fg.3中央値 ms | fg.4中央値 ms | 短縮率 | P95 ms（fg.3 → fg.4） |
++| --- | --- | ---: | ---: | ---: | ---: |
++| 軽量 | 固定 | 1.20 | 1.10 | 8.3% | 2.00 → 1.70 |
++| 軽量 | 移動 | 0.70 | 0.70 | 0.0% | 1.50 → 1.40 |
++| 自動 | 固定 | 2.70 | 2.00 | 25.9% | 4.50 → 3.10 |
++| 自動 | 移動 | 2.50 | 1.10 | 56.0% | 3.90 → 2.20 |
++| 最高 | 固定 | 8.50 | 6.30 | 25.9% | 17.40 → 11.90 |
++| 最高 | 移動 | 7.90 | 6.50 | 17.7% | 14.70 → 12.70 |
++| 自動・大量配置 | 固定 | 9.30 | 8.00 | 14.0% | 76.30 → 73.00 |
++| 最高・大量配置 | 移動 | 16.20 | 14.20 | 12.3% | 273.40 → 274.20 |
+ 
+-## 確認済み: 合成画像12ケース
++軽量設定では差が小さく、全条件で同じ短縮率を得られる結果ではありません。
++大量配置は敵45体、味方弾229発、敵弾212発、経験値オーブ220個の制御された場面です。
++P95は遅い側の処理時間を確認するため併記しています。
++大量配置の最高画質では依然として長い待ち時間が残っています。
++同条件の追加CPUプロファイルではdrawImage/strokeなどブラウザー内部の描画が時間の多くを占めました。
+ 
+-Chrome Headless Shell 155.0.8059.84で、320×192の既知の中間時刻を描いた正解画像と生成画像を比較しました。以下の12ケースは全てRGB MAE 0、実フレーム端点の再現もRGB MAE 0でした。限られた人工シーンの結果であり、任意のゲーム画面が完全一致するという意味ではありません。
++通常描画OFFの比較は、ゲームの更新と描画を含むコールバック全体です。
++各版・各画質で200コールバックを測定し、戦闘状態も比較しました。
+ 
+-- linear translation / revealed background
+-- crossing opaque sprites
+-- alpha sprite without double image
+-- rotation preserves scale
+-- birth and death visibility
+-- batched paths / different entity order
+-- camera pan and sprite movement
+-- teleport / no invented middle position
+-- moving gradient remains attached
+-- atlas source rectangle stays discrete
+-- world cell identity survives viewport entry
+-- mutable image source survives cache reuse
++| フレーム生成OFF | 中央値 ms（fg.3 → fg.4） | P95 ms（fg.3 → fg.4） | 戦闘状態 |
++| --- | ---: | ---: | --- |
++| 自動 | 0.60 → 0.50 | 1.30 → 1.30 | 一致 |
++| 最高 | 0.90 → 0.90 | 2.70 → 1.50 | 一致 |
+ 
+-## 確認済み: 実ゲーム描画6条件
++制御場面では、複製した画素数が地形・光彩を含めて0になりました。
++共有後も地形や画像そのものは必要なため、これはアプリ全体のメモリー使用量が0という意味ではありません。
++動的Canvasを固定する機能と画像予算超過時の安全な復帰は維持しています。
+ 
+-390×844 CSS px / DPR 3 / deviceMemoryを4としてモックした環境です。画質ごとの実バッファーは軽量390×844、自動585×1266、最高1170×2532です。ゲームの描画関数で敵5体、自弾9個、敵弾12個、XP20個とプレイヤー・地形を用意し、2実フレームと中間時刻の正解画像を作成しました。固定シード424242を使い、カメラ移動なし／12 CSS pxの2条件を比較しました。中間時刻の正解画像は通常レンダラーをその時刻で動かして作成し、生成側はその呼び出しを利用していません。
++## Verified / 正確性と回帰
+ 
+-MAEは0〜255のRGB値の平均絶対誤差です。「動く領域」は2つの端点画像でRGB差が3を超えたピクセルと定義しています。画像全体の平均だけで静止した背景に誤差が埋もれないよう、動く領域の誤差も確認しました。改善率は単純ブレンドとの比較です。
++| 検証 | 結果 |
++| --- | --- |
++| モバイル操作・レイアウト・保存 | 19チェック合格 |
++| 合成画像の基本検証 | 16チェック合格 |
++| 表示順・戦闘・全キャラ起動・ライフサイクル | 14チェック合格 |
++| 実ゲーム描画6条件 | 1チェック合格 |
++| 夕暮れ・地面・動的光源のちらつき回帰 | 3チェック合格 |
++| 負荷上限・一時休止・自動復帰 | 5チェック合格 |
++| fg.3との差分描画・状態保持・変換の境界 | 50チェック合格 |
++| 被弾点滅・縮小演出・属性範囲画像の共有と解放 | 5チェック合格 |
++| 最終コードの制御された描画比較 | 8条件×5時刻、計40枚がfg.3と画素単位で一致 |
++| 被弾点滅・演出キャッシュの比較 | 5時刻で画素単位一致、保持中の参照と解放を確認 |
++| 通常描画OFFの比較 | 2画質、4回ずつ、戦闘状態が一致 |
+ 
+-| 条件 | 全体MAE | 動く領域MAE | ブレンドの動く領域MAE | 誤差減少 | PSNR dB |
+-| --- | ---: | ---: | ---: | ---: | ---: |
+-| 軽量 / カメラ移動0 | 0.3835 | 7.297 | 38.915 | 81.2% | 32.09 |
+-| 軽量 / カメラ移動12 | 0.3835 | 0.758 | 11.065 | 93.1% | 32.09 |
+-| 自動 / カメラ移動0 | 0.6679 | 7.490 | 28.043 | 73.3% | 29.93 |
+-| 自動 / カメラ移動12 | 0.6714 | 2.617 | 19.305 | 86.4% | 29.90 |
+-| 最高 / カメラ移動0 | 0.6767 | 6.479 | 26.030 | 75.1% | 28.97 |
+-| 最高 / カメラ移動12 | 0.6767 | 1.876 | 15.820 | 88.1% | 28.97 |
++固定600ステップの戦闘回帰では、生成ON/OFFと元ゲームのプレイヤー、敵、弾、乱数消費が一致しました。
++60/90/120/144Hzの仮想コールバック、全キャラクターの起動、リサイズ、背景移行、一時停止、メモリー解放、負荷後の再試行を確認しています。
++仮想表示周期の検証はAndroid実機のリフレッシュレート測定ではありません。
++配布HTMLにテスト専用APIが含まれないことを検査しています。
+ 
+-6条件全てで、動く領域の誤差が前フレーム保持・単純ブレンドより小さくなりました。生成前後のゲーム状態と乱数消費も一致しました。実フレーム端点の再現MAEは最大約0.000193でした。微小な差は残っているため、全ての実ゲーム画像がバイト一致するとはしていません。PSNR 99はテストコードで「差なし」の場合に置く値です。
++## Verified / APKとソース
+ 
+-### CPU側の描画処理時間
++- APKの署名検証、16KiBページを考慮したzipalign検査に合格しました。
++- APKに含まれるHTMLと配布ソースのHTMLはバイト単位で一致します。
++- 添付APKと更新APKの署名証明書、アプリIDが一致します。
++- バージョン以外のManifest設定と、Javaソースを保持しています。
++- classes.dex、resources.arsc、2個のコンパイル済みXMLリソースが添付APKと同一です。
++- インターネット権限を含む追加権限はありません。
++- patchを未変更の添付ソースに適用し、HTMLを再生成してfg.4と一致することを検査しました。
++- ZIP内の全ファイルを原本と照合しました。詳細はpackage-results.jsonとpatch-results.jsonに記録します。
+ 
+-単位ms。通常描画・生成は4回ウォームアップ後12回を測定し、記録は2回ウォームアップ後8回を測定しました。「記録＋生成」は各中央値の和で、同じ2表示分の通常描画と比較する目安です。HTML解析や画像の読み戻しはこの区間から除外しています。端末GPUの完了時間、消費電力、Android FPSは測定していません。
++APK SHA-256: `dd4ae5bed81198192346a29dcd037a1f531444da1695d7fd0939146c13b9b1a7`
+ 
+-| 条件 | 通常1回の中央値 | 記録の中央値 | 生成の中央値 | 生成P95 | 記録＋生成 | 通常2回 |
+-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+-| 軽量 / 0 | 0.30 | 0.80 | 0.40 | 1.00 | 1.20 | 0.60 |
+-| 軽量 / 12 | 0.20 | 1.10 | 0.30 | 1.00 | 1.40 | 0.40 |
+-| 自動 / 0 | 0.40 | 2.00 | 0.80 | 7.80 | 2.80 | 0.80 |
+-| 自動 / 12 | 0.40 | 2.00 | 1.00 | 4.60 | 3.00 | 0.80 |
+-| 最高 / 0 | 1.00 | 7.10 | 3.00 | 6.60 | 10.10 | 2.00 |
+-| 最高 / 12 | 1.00 | 6.90 | 3.60 | 4.90 | 10.50 | 2.00 |
++HTML SHA-256: `50d7bae5e7c6275e69b58fff2c197815400ce85399b677c892eba40b08c2a7e2`
+ 
+-**この測定ではCPU処理時間を短縮していません。** 元の2D描画が軽いため、Canvas命令の記録・対応付けの費用が上回っています。生成ONでCPU・メモリー負荷が増えます。最高画質では特に記録量が増えます。CPU側の平均費用が表示間隔の1.75倍を12回連続で超える場合は、3秒間通常描画に戻す設計です。この閾値は実機での調整が必要です。
++署名証明書 SHA-256: `8eaea0fb89a8ef2c5ea269ea2e3b95bfa8bd982ea36820daa5f603f486ae0abd`
+ 
+-実ブラウザーの約60HzのrAFでは実30＋生成30／秒を観測しました。これはそのブラウザーでの短いプレイの結果です。120HzのAndroid端末で実60＋生成60を測定したものではありません。
++## Unverified or Remaining Issues / 未確認・残る課題
+ 
+-## 確認済み: 表示順・戦闘・ライフサイクル
++- Android実機・エミュレーターでのインストール、更新操作、WebView上のFPS、入力遅延、GPU時間、温度、消費電力、長時間の熱による性能低下は未測定です。
++- 高負荷時のブラウザー内部の描画待ちは残っています。フレーム生成の負荷増加がなくなった、または全端末で滑らかになったという検証結果ではありません。
++- ネイティブのファイル選択、画面端の余白、OSによる高リフレッシュレート採用、実機の復帰動作は追加確認が必要です。
++- 未使用の全ての武器・能力の組み合わせを網羅した長時間プレイは行っていません。
+ 
+-仮想の表示コールバックで2秒分を進めました。ゲームの固定更新は60Hzです。表はFPSではなく2秒間の計数です。
+-
+-| 設定 | 仮想Hz | 実フレーム計数 | 生成計数 | 保持周期 | 不成立ペア | 時刻逆転 |
+-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+-| auto | 60 | 0 | 0 | 0 | 0 | 0 |
+-| auto | 90 | 90 | 89 | 1 | 0 | 0 |
+-| auto | 120 | 120 | 119 | 1 | 0 | 0 |
+-| auto | 144 | 144 | 119 | 25 | 24 | 0 |
+-| 2x | 60 | 60 | 59 | 1 | 0 | 0 |
+-| 2x | 90 | 90 | 89 | 1 | 0 | 0 |
+-| 2x | 120 | 120 | 119 | 1 | 0 | 0 |
+-| 2x | 144 | 144 | 119 | 25 | 24 | 0 |
+-
+-AUTO / 60Hzでは生成しません。144Hzでは更新が進まない実フレーム同士は補間せず保持し、生成枚数を水増ししていません。実フレーム計数には、同じゲーム時刻を描いたものも含まれます。144Hzで全て異なる144画像／秒を実現したという結果ではありません。
+-
+-- 生成ON / OFF / 元の添付HTMLを、シード24681357・同一入力・600固定更新（約10秒）で比較。戦闘状態と乱数消費583回が一致しました。生成ONでは599枚を生成しました。
+-- 比較した状態のSHA-256: `b4cd672cb63d40e5ada7bc3b7745f6e3120c174eda78306bd6cb6f4b46f41f21`。
+-- 全10キャラクターの開始後1秒の描画スモークテストが合格。全能力・戦闘後半・全敵を網羅したものではありません。
+-- カメラの急変で当該ペアの生成を抑制。500msのコールバック停止で再初期化。画面サイズ変更・OFFでキャッシュ解放。
+-- 1024×1024の可変Canvas画像3枚を実描画に渡し、低メモリー向けのスナップショット上限超過を発生させたところ、安全に通常描画へ復帰しました。このテストで意図したfallback 1件以外にページ例外はありません。
+-- 生成ONのネイティブ連携モックで、一時停止後の時間停止・キャッシュ解放、手動再開、設定UIと選択保存を確認しました。
+-
+-## 確認済み: 既存モバイル機能19項目
+-
+-今回の配布HTMLで全て合格しました。縦横・小型端末・タブレット・PCのレイアウト6条件、元HTMLとの戦闘回帰、タッチ移動、移動中のマルチタッチ一時停止、背景移行と手動復帰、回転時の入力解除と戻る操作、画質4設定、メモリー解放、セーブJSONの書出し・コピー・読込み、ブラウザーでのダウンロード、計測用コードのないHTMLの起動を確認しています。AndroidのAPIはモックです。ページ例外・CSP違反は0件、外部HTTPリソース取得は0件でした。
+-
+-## 確認済み: APK
+-
+-| 項目 | 結果 |
+-| --- | --- |
+-| Java / DEX / リソース生成 | 成功 |
+-| APK署名 | apksigner verify成功、v3、旧mobile.1と同じ証明書 |
+-| ZIP整列 | zipalign -c -P 16 4成功 |
+-| アプリID | com.elementalswarm.mobile |
+-| バージョン | 11.11.9-fg.1 / 1111192 |
+-| min / target SDK | 29 / 36 |
+-| 権限宣言 | なし |
+-| ネイティブ共有ライブラリー | なし |
+-| 配布HTMLとAPK内HTML | バイト単位で一致 |
+-| テスト専用API | 配布HTML・APKに含まれない |
+-| HTMLの再生成 | バイト単位で再現 |
+-| APKサイズ | 876972 bytes |
+-
+-## 未確認・残る課題
+-
+-- Android実機・エミュレーターのインストール、更新インストール、WebView描画、音声、SAFファイル選択、インセット、高リフレッシュレート要求の採用。
+-- Android端末での入力遅延、実FPS、CPU/GPU負荷、消費電力、発熱、長時間メモリー推移。
+-- 本方式には約1表示周期分の待ちが加わります。120Hzで約8.3ms、60Hzで約16.7msという値はスケジューラー上の追加分で、端末全体の入力遅延の実測値ではありません。
+-- エンジンの位置履歴と描画素材を使う2D方式です。汎用動画のフレーム生成、任意の外部ゲーム、3D深度、ニューラル光学フロー、DLSS SDK統合はありません。
+-- ピクセルスナップ、非線形アニメーション、テキスト・絵柄・形状の離散切替、重なり順の動的変化、瞬間的な照明変化では差が残り得ます。6つの実ゲーム条件の誤差も0ではありません。
+-- 生存していて端点の両方で描画されなかった物体は復元できません。描画素材が大きく変わる場合は保持・切替・通常描画に戻します。
+-- 全能力・全敵・全ウェーブ・長時間プレイの網羅試験は未実施です。
+-- CPU時間改善のためには、描画記録の費用削減とGPUでまとめて合成する経路を別途設計し、実機測定で比較する必要があります。
+-
+-## 同梱テストの実行
+-
+-```bash
+-npm install
+-SWARM_CHROME_BINARY=/absolute/path/to/chrome-headless-shell npm test
+-```
+-
+-テストはHTTP応答にだけ一時的な内部APIを挿入します。結果JSONは`verification/framegen/`に同梱しています。生成画像は内部目視確認に使用し、配布アーカイブには含めていません。
+-
+-## ハッシュ
+-
+-- 元の添付HTML: `647860b1d9b510c0cb7bd17d60da80b9a85fa46ab90fdf4c9cb83035e0408d73`
+-- 今回の配布HTML: `9b33e42ca154cdbe79f5fb8a2f8914e2651de757a746ff89e9d567b510b3f85e`
+-- 今回のAPK: `fa3e198de1b53652144f3289b9527952d21d43b278904a8b9c5099c964c2b856`
+-- 署名証明書SHA-256: `8eaea0fb89a8ef2c5ea269ea2e3b95bfa8bd982ea36820daa5f603f486ae0abd`
+-
+-同じソースでもZIP内の時刻等によりAPK全体のハッシュは変わり得ます。ソースアーカイブには更新に必要な既存の署名鍵を継続して同梱しています。
+-
+-## 設計で参照した一次資料
+-
+-- [NVIDIA Streamline DLSS Frame Generation guide](https://github.com/NVIDIA-RTX/Streamline/blob/main/docs/ProgrammingGuideDLSS_G.md)
+-- [AMD FidelityFX Frame Interpolation](https://gpuopen.com/manuals/fidelityfx_sdk/techniques/frame-interpolation/)
+-- [AMD FidelityFX Super Resolution 3](https://gpuopen.com/fidelityfx-super-resolution-3/)
+-
+-これらの公開資料から、ゲームの動き情報、HUDの分離、可視性、表示のタイミングを設計上の比較項目にしました。SDKを移植したものではありません。
++再実行手順はREADME.md、個別の測定値と検査結果はverification/framegen/を参照してください。
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -1,8 +1,8 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+     package="com.elementalswarm.mobile"
+-    android:versionCode="1111194"
+-    android:versionName="11.11.9-fg.3">
++    android:versionCode="1111195"
++    android:versionName="11.11.9-fg.4">
+     <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="36" />
+     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+     <application
+--- a/build_apk.py
++++ b/build_apk.py
+@@ -18,7 +18,7 @@
+ import zipfile
+ 
+ ROOT = Path(__file__).resolve().parent
+-ARTIFACT = 'ElementalSwarm_11.11.9_framegen3.apk'
++ARTIFACT = 'ElementalSwarm_11.11.9_framegen4.apk'
+ DOWNLOADS = (
+     ('build-tools.zip', 'https://dl.google.com/android/repository/build-tools_r36_linux.zip',
+      '5d9ac77fb6ff43d9da518a337b4fcf8f9097113df531d99ccefe80ef7ce8250b', 'sdk-build'),
+--- a/frame_generation/build_frame_generation.cjs
++++ b/frame_generation/build_frame_generation.cjs
+@@ -64,16 +64,28 @@
+ replace('const o=i*3,x=buffer[o],y=buffer[o+1],r=buffer[o+2]+2;', 'if(frameGeneration?.recording)frameGeneration.mark(FG_ECO_PROJECTILE_OBJECTS[i]);const o=i*3,x=buffer[o],y=buffer[o+1],r=buffer[o+2]+2;');
+ replace('const x=bucket[i],y=bucket[i+1],r=bucket[i+2];ctx.rect(', 'if(frameGeneration?.recording)frameGeneration.mark(FG_ECO_BUCKET_OBJECTS.get(color)?.[i/3]);const x=bucket[i],y=bucket[i+1],r=bucket[i+2];ctx.rect(');
+ replace('const o=i*3,x=buffer[o],y=buffer[o+1];', 'if(frameGeneration?.recording)frameGeneration.mark(FG_ECO_PROJECTILE_OBJECTS[i]);const o=i*3,x=buffer[o],y=buffer[o+1];');
+-// Worker terrain chunks and light maps are ImageBitmaps referenced by the
+-// retained real frames. Closing one early makes the generated frame throw.
+-replace('  if(typeof surface.close==="function")surface.close();','  if(typeof surface.close==="function"){if(frameGeneration?.release(surface))return;surface.close();}');
++// Terrain and glow caches are written once. Retain those canvases just like
++// worker ImageBitmaps, rather than duplicating all their pixels at every
++// capture. Dynamic light maps and all unaudited canvases remain snapshots.
++replace('chunk=buildWorldChunk(cx,cy);WORLD_CHUNK_CACHE.set(key,chunk);',
++ 'chunk=buildWorldChunk(cx,cy);window.SwarmFrameSynthesis.markImmutable(chunk);WORLD_CHUNK_CACHE.set(key,chunk);');
++replace('g.fillStyle=grad;g.fillRect(0,0,128,128);ULTRA_GLOW_CACHE.set(key,sprite);',
++ 'g.fillStyle=grad;g.fillRect(0,0,128,128);window.SwarmFrameSynthesis.markImmutable(sprite);ULTRA_GLOW_CACHE.set(key,sprite);');
++replace('ART_FLASH_IMAGES[sheet]=atlas;',
++ 'window.SwarmFrameSynthesis.markImmutable(atlas);ART_FLASH_IMAGES[sheet]=atlas;');
++replace('LOWRES_EFFECT_CACHE.set(key,c);',
++ 'window.SwarmFrameSynthesis.markImmutable(c);LOWRES_EFFECT_CACHE.set(key,c);');
++replace('RANGE_FX_TINT_CACHE.set(key,c);',
++ 'window.SwarmFrameSynthesis.markImmutable(c);RANGE_FX_TINT_CACHE.set(key,c);');
++replace('function disposeVisualSurface(surface) {\n  if(!surface)return;',
++ 'function disposeVisualSurface(surface) {\n  if(!surface)return;\n  if(frameGeneration?.release(surface))return;');
+ // The eco ground translation wraps every 64 px tile. Interpolating across the
+ // wrap shifts the pattern by half a tile, so recorded frames use the unwrapped
+ // translation. The rounded pattern phase and covered pixels are unchanged.
+ replace('ctx.translate(px((-cam.x+viewW*0.5)%64),px((-cam.y+viewH*0.5)%64));ctx.fillStyle=pattern||"#294c3e";ctx.fillRect(-64,-64,viewW+128,viewH+128);',
+  'if(frameGeneration?.recording){const tx=px(-cam.x+viewW*0.5),ty=px(-cam.y+viewH*0.5);ctx.translate(tx,ty);ctx.fillStyle=pattern||"#294c3e";ctx.fillRect(-64-tx,-64-ty,viewW+128,viewH+128);}else{ctx.translate(px((-cam.x+viewW*0.5)%64),px((-cam.y+viewH*0.5)%64));ctx.fillStyle=pattern||"#294c3e";ctx.fillRect(-64,-64,viewW+128,viewH+128);}');
+ replace('frameGeneration:false','frameGeneration:!!frameGeneration?.status().active,frameGenerationStatus:frameGeneration?.status()');
+-replace('11.11.9-mobile.1','11.11.9-fg.3',2);
++replace('11.11.9-mobile.1','11.11.9-fg.4',2);
+ const runtime=fs.readFileSync(path.join(__dirname,'frame-generation-runtime.js'),'utf8');
+ replace('// Android shell integration is deliberately limited',runtime+'\n// Android shell integration is deliberately limited');
+ const core=fs.readFileSync(path.join(__dirname,'frame-synthesis.js'),'utf8');
+--- a/frame_generation/frame-generation-runtime.js
++++ b/frame_generation/frame-generation-runtime.js
+@@ -13,6 +13,9 @@
+   const REFRESH_CLASSES=[60,72,90,96,120,144,165];
+   // Backoff per failure class: first wait, growth factor and cap in ms.
+   const BACKOFF={budget:[2000,2,60000],resource:[5000,2,120000],content:[10000,3,90000],exception:[15000,4,120000]};
++  const sortedWindows=new WeakMap();
++  const statusLabels=document.querySelectorAll('[data-framegen-status]');
++  const modeButtons=document.querySelectorAll('[data-framegen-mode]');
+   let owner=null,metadata=new WeakMap(),live=new Map(),nextId=1,epoch=0;
+   let previous=null,current=null,recorder=null,active=false;
+   // Presentation clock: each callback shows content time clock-lag, captured
+@@ -37,16 +40,30 @@
+     lastLateAt:-Infinity,postDecayAt:0,skip:0,warm:0,restart:true,heavy:false,prevHeavy:false,yielding:false,yieldedLast:false,transition:false};
+   const backoff={level:{budget:0,resource:0,content:0,exception:0},cls:'',failedAt:-Infinity,normalAtFail:0,trialUntil:0,healthy:0};
+ 
+-  // Closable images (worker terrain chunks, light maps) are referenced, not
+-  // copied, by the retained frames. The game's release waits until no
+-  // retained frame can draw them again.
++  // Worker ImageBitmaps and audited write-once canvases are retained. The
++  // game's release waits until neither real frame can draw them again.
+   function holds(surface){
+     return !!(previous?.borrowed?.has(surface)||current?.borrowed?.has(surface)||recorder?.picture.borrowed.has(surface));
+   }
+   function deferRelease(surface){if(!holds(surface))return false;deferred.add(surface);return true;}
+-  function flushReleased(){for(const surface of deferred)if(!holds(surface)){deferred.delete(surface);surface.close();}}
+-  function remember(list,value,size=16){list.push(value);if(list.length>size)list.shift();}
+-  function quantile(list,q){if(!list.length)return 0;const sorted=list.slice().sort((a,b)=>a-b);return sorted[Math.min(sorted.length-1,Math.floor(sorted.length*q))];}
++  function flushReleased(){for(const surface of deferred)if(!holds(surface)){
++    deferred.delete(surface);if(typeof surface.close==='function')surface.close();else surface.width=surface.height=1;
++  }}
++  function sortedWindow(list){
++    let window=sortedWindows.get(list);
++    // The scheduler clears arrays with length=0 when restarting a trial.
++    if(!window||window.dirty||window.length!==list.length){window={length:list.length,dirty:false,sorted:list.slice().sort((a,b)=>a-b)};sortedWindows.set(list,window);}
++    return window;
++  }
++  function remember(list,value,size=16){
++    // Normal rendering writes samples much more often than it reads their
++    // quantiles. Defer sorting until a reader needs it; repeated predictions
++    // then share that result until the next sample. OFF keeps its original
++    // push/shift path without maintaining another sorted array on each write.
++    list.push(value);if(list.length>size)list.shift();
++    const window=sortedWindows.get(list);if(window)window.dirty=true;
++  }
++  function quantile(list,q){if(!list.length)return 0;const sorted=sortedWindow(list).sorted;return sorted[Math.min(sorted.length-1,Math.floor(sorted.length*q))];}
+   function predict(list,scale){return list.length>=4?quantile(list,.5)*scale:0;}
+   function releaseBuffers(){for(const c of buffers){c.width=1;c.height=1;}buffers=[];}
+   function reset(reason='reset',release=false){
+@@ -148,8 +165,11 @@
+       const old=meta.history[meta.history.length-1];
+       if(!old||time>old.time+1e-8){
+         const discontinuous=!!old&&Math.hypot(x-old.x,y-old.y)>96;
+-        meta.history.push({time,x,y,discontinuous});
+-        while(meta.history.length>12)meta.history.shift();
++        // No paint stores a history sample directly: it stores the owning
++        // metadata. Recycling the oldest sample keeps the same 12 positions
++        // and lifetime rules without allocating for every entity each tick.
++        const sample=meta.history.length===12?meta.history.shift():{};
++        sample.time=time;sample.x=x;sample.y=y;sample.discontinuous=discontinuous;meta.history.push(sample);
+       }
+       meta.x=x;meta.y=y;meta.lastAge=object.age;meta.epoch=epoch;
+     }
+@@ -206,6 +226,7 @@
+       maxSnapshotPixels:MOBILE_LOW_MEMORY?2097152:4194304,maxOps:24000,maxNodes:80000});
+     try{
+       ctx=recorder.context;render();current=recorder.finish();current.color=c;current.capturedAt=now;
++    }catch(failure){S.dispose(recorder.picture);throw failure;
+     }finally{ctx=raw;recorder=null;}
+     const ms=performance.now()-start;cpuCapture=cpuCapture?cpuCapture*.85+ms*.15:ms;if(!cost.warm)remember(cost.capture,ms);
+     totals.captured++;
+@@ -398,7 +419,8 @@
+   }
+   function status(){
+     const now=performance.now();while(events.length&&now-events[0].now>1000)events.shift();
+-    const real=events.filter(e=>e.kind==='real').length,generated=events.length-real;
++    let real=0;for(const e of events)if(e.kind==='real')real++;
++    const generated=events.length-real;
+     const elapsed=events.length?Math.min(1,Math.max(.25,(now-events[0].now)/1000)):1;
+     const ready=elapsed>=.75;
+     return {mode,active,supported:!!S,method:S?.method,displayHzEstimate:Math.round(1000/periodMs()),
+@@ -429,16 +451,17 @@
+       state!=='playing'&&lastSession?`直前 実 ${lastSession.realFPS} / 生成 ${lastSession.generatedFPS}`:
+       mode==='auto'?(state!=='playing'?'AUTO':s.autoState==='measuring'?'表示速度を測定中':
+         s.autoState==='low-refresh'?`90Hz以上で動作（現在 ${s.displayHzEstimate}Hz）`:'90Hz以上で動作'):'2x（プレイ中に動作）';
+-    document.querySelectorAll('[data-framegen-status]').forEach(el=>el.textContent=label);
+-    document.querySelectorAll('[data-framegen-mode]').forEach(button=>button.setAttribute('aria-checked',String(button.dataset.framegenMode===mode)));
++    statusLabels.forEach(el=>{if(el.textContent!==label)el.textContent=label;});
++    modeButtons.forEach(button=>{const value=String(button.dataset.framegenMode===mode);if(button.getAttribute('aria-checked')!==value)button.setAttribute('aria-checked',value);});
+   }
+   // Test-only: start from a confirmed display rate instead of measuring it.
+   function testSeedRefresh(hz){
+     refresh.deltas.length=0;for(let i=0;i<64;i++)refresh.deltas.push(1000/hz);
++    sortedWindows.delete(refresh.deltas);
+     refresh.period=snapPeriod(1000/hz);refresh.stable=16;refresh.slowRun=0;refresh.lastNow=NaN;
+     gate.open=1000/refresh.period>=88;gate.openAt=gate.open?0:Infinity;refresh.openHz=gate.open?Math.round(1000/refresh.period):0;
+   }
+-  document.querySelectorAll('[data-framegen-mode]').forEach(button=>button.addEventListener('click',()=>setMode(button.dataset.framegenMode)));
++  modeButtons.forEach(button=>button.addEventListener('click',()=>setMode(button.dataset.framegenMode)));
+   syncUi(true);
+   return {step,reset,direct,release:deferRelease,endCallback,sampleNormal,
+     observe:observeIfNeeded,observeNow:observe,mark,staticObject,layer,
+--- a/frame_generation/frame-synthesis.js
++++ b/frame_generation/frame-synthesis.js
+@@ -9,10 +9,13 @@
+     'lineWidth','lineCap','lineJoin','miterLimit','lineDashOffset','font','textAlign',
+     'textBaseline','direction','imageSmoothingEnabled','imageSmoothingQuality',
+     'shadowColor','shadowBlur','shadowOffsetX','shadowOffsetY','filter'];
++  const STATE_PROPERTIES=new Set(PROPERTIES);
+   const PATH_METHODS=new Set(['moveTo','lineTo','rect','arc','ellipse','quadraticCurveTo','bezierCurveTo','closePath','arcTo','roundRect']);
+   const PAINT_METHODS=new Set(['drawImage','fillRect','strokeRect','clearRect','fillText','strokeText','fill','stroke']);
+   const IDENTITIES=new WeakMap();let nextIdentity=1;
+   const GRADIENTS=new WeakMap();
++  const IMMUTABLE_SOURCES=new WeakSet();
++  let plannedPrevious=null,plannedCurrent=null,plannedPair=null;
+   const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+   const lerp=(a,b,t)=>a+(b-a)*t;
+   function identity(object){
+@@ -29,6 +32,15 @@
+     a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]
+   ];}
+   function affine(a,b,t){
++    // Translation is by far the common case. Keep the existing linear part
++    // instead of decomposing the same rotation/scale at every path vertex.
++    if(a[0]===b[0]&&a[1]===b[1]&&a[2]===b[2]&&a[3]===b[3]){
++      if(Math.abs(a[4]-b[4])<1e-10&&Math.abs(a[5]-b[5])<1e-10)return a;
++      const sx=Math.hypot(a[0],a[1]),sy=(a[0]*a[3]-a[1]*a[2])/sx;
++      // Singular/tiny transforms keep the original discrete fallback. Even
++      // though they are rare in gameplay, changing it is not a speed tradeoff.
++      if(sx>=1e-8&&sy*sy>0)return [a[0],a[1],a[2],a[3],lerp(a[4],b[4],t),lerp(a[5],b[5],t)];
++    }
+     if(a.every((value,i)=>Math.abs(value-b[i])<1e-10))return a;
+     const decompose=m=>{
+       const sx=Math.hypot(m[0],m[1]);
+@@ -47,23 +59,37 @@
+     const m=ctx.getTransform();state.matrix=[m.a,m.b,m.c,m.d,m.e,m.f];
+     state.lineDash=ctx.getLineDash();return state;
+   }
+-  function cloneState(s){return {...s,matrix:s.matrix.slice(),lineDash:s.lineDash.slice()};}
++  // Matrices and dash arrays are immutable once assigned to a state. Explicit
++  // fields keep snapshots monomorphic, and copy-on-write shares them until the
++  // next actual change. A retained paint/save must never see later mutations.
++  function cloneState(s){return {
++    fillStyle:s.fillStyle,strokeStyle:s.strokeStyle,globalAlpha:s.globalAlpha,
++    globalCompositeOperation:s.globalCompositeOperation,lineWidth:s.lineWidth,
++    lineCap:s.lineCap,lineJoin:s.lineJoin,miterLimit:s.miterLimit,lineDashOffset:s.lineDashOffset,
++    font:s.font,textAlign:s.textAlign,textBaseline:s.textBaseline,direction:s.direction,
++    imageSmoothingEnabled:s.imageSmoothingEnabled,imageSmoothingQuality:s.imageSmoothingQuality,
++    shadowColor:s.shadowColor,shadowBlur:s.shadowBlur,shadowOffsetX:s.shadowOffsetX,
++    shadowOffsetY:s.shadowOffsetY,filter:s.filter,matrix:s.matrix,lineDash:s.lineDash
++  };}
+   function writeState(ctx,state){
+     for(const p of PROPERTIES)if(state[p]!==undefined)ctx[p]=state[p];
+     ctx.setLineDash(state.lineDash);ctx.setTransform(...state.matrix);
+   }
+   function material(value){
+     const gradient=value&&typeof value==='object'?GRADIENTS.get(value):null;
+-    if(gradient)return 'gradient:'+gradient.kind+':'+gradient.stops.map(s=>s.join(':')).join(',');
++    if(gradient)return gradient.key||(gradient.key='gradient:'+gradient.kind+':'+gradient.stops.map(s=>s.join(':')).join(','));
+     return typeof value==='string'?value:'resource:'+identity(value);
+   }
+   function sourceIsMutable(image){return image&&typeof image.getContext==='function';}
++  // Only the game's audited, write-once caches opt in. Ordinary canvases,
++  // especially light maps, still get an independent per-frame snapshot.
++  function markImmutable(image){if(image&&typeof image==='object')IMMUTABLE_SOURCES.add(image);return image;}
+   // A closed ImageBitmap reports zero size and makes drawImage throw.
+   function usable(image){return !(image&&typeof image.close==='function'&&image.width===0&&image.height===0);}
+ 
+   class Recorder {
+     constructor(ctx,options){
+-      this.target=ctx;this.options=options;this.state=readState(ctx);this.stack=[];this.path=[];
++      this.target=ctx;this.options=options;this.state=readState(ctx);this.sharedState=false;this.stack=[];this.path=[];this.sharedPath=false;
+       this.layer={id:'root',index:0,space:'world'};this.currentTag=null;
+       this.picture={time:options.time,camera:{...options.camera},width:ctx.canvas.width,height:ctx.canvas.height,
+         scale:options.scale||1,ops:[],byKey:new Map(),nodes:new Map(),sources:[],borrowed:new Set(),snapshotPixels:0,fault:'',finalState:null};
+@@ -75,9 +101,16 @@
+     }
+     object(tag){if(tag)this.currentTag={id:tag.id,x:tag.x,y:tag.y,meta:tag.meta||tag,sampleTime:this.picture.time};}
+     tag(){return this.currentTag;}
++    snapshot(){this.sharedState=true;return this.state;}
++    assign(property,value){
++      if(this.state[property]===value)return;
++      if(this.sharedState){this.state=cloneState(this.state);this.sharedState=false;}
++      this.state[property]=value;
++    }
+     count(map,key){const n=map.get(key)||0;map.set(key,n+1);return n;}
+     freeze(image){
+       if(!sourceIsMutable(image))return image;
++      if(IMMUTABLE_SOURCES.has(image)){this.picture.borrowed.add(image);return image;}
+       let frozen=this.frozen.get(image);if(frozen)return frozen;
+       const width=image.width|0,height=image.height|0;
+       if(width<=0||height<=0){this.picture.fault='invalid-image-source';return image;}
+@@ -92,7 +125,8 @@
+     recordPath(kind,args){
+       const tag=this.tag(),base=this.layer.id+'|'+(tag?.id||'world')+'|'+kind;
+       const key=base+'|'+this.count(this.nodeCounters,base);
+-      const node={kind,args:args.slice(),matrix:this.state.matrix.slice(),tag,layer:this.layer,key};
++      const node={kind,args,matrix:this.state.matrix,tag,layer:this.layer,key};
++      if(this.sharedPath){this.path=this.path.slice();this.sharedPath=false;}
+       this.path.push(node);this.picture.nodes.set(key,node);
+       if(this.picture.nodes.size>(this.options.maxNodes||80000))this.picture.fault='path-budget';
+     }
+@@ -102,7 +136,7 @@
+       // paths spanning several objects keep identity on individual vertices.
+       const firstTag=isPath?this.path[0]?.tag:null;
+       const tag=isPath?(firstTag&&this.path.every(n=>n.tag?.id===firstTag.id)?firstTag:null):this.tag();
+-      const s=cloneState(this.state),image=kind==='drawImage'?args[0]:null;
++      const s=this.snapshot(),image=kind==='drawImage'?args[0]:null;
+       const style=kind==='stroke'||kind==='strokeRect'||kind==='strokeText'?s.strokeStyle:s.fillStyle;
+       const text=kind==='fillText'||kind==='strokeText'?String(args[0]):'';
+       const base=this.layer.id+'|'+(tag?.id||'world')+'|'+kind+'|'+(image?identity(image):material(style))+'|'+text;
+@@ -111,12 +145,13 @@
+       // image or text changed between the two real frames.
+       const looseBase=this.layer.id+'|'+(tag?.id||'world')+'|'+kind;
+       const looseKey=looseBase+'|'+this.count(this.looseCounters,looseBase);
+-      const stored=args.slice();if(image)stored[0]=this.freeze(image);
++      const stored=image?args.slice():args;if(image)stored[0]=this.freeze(image);
+       // Closable sources are not copied; the runtime defers their release.
+       if(image&&typeof image.close==='function')this.picture.borrowed.add(image);
+       const fullScreen=(kind==='fillRect'||kind==='clearRect')&&!tag&&args[0]<=0&&args[1]<=0&&
+         args[2]>=this.picture.width/this.picture.scale&&args[3]>=this.picture.height/this.picture.scale;
+-      const op={kind,args:stored,state:s,tag,layer:this.layer,key,looseKey,path:isPath?this.path.slice():null,
++      if(isPath)this.sharedPath=true;
++      const op={kind,args:stored,state:s,tag,layer:this.layer,key,looseKey,path:isPath?this.path:null,
+         imageId:image?identity(image):0,order:this.picture.ops.length,fullScreen};
+       this.picture.ops.push(op);this.picture.byKey.set(key,op);
+       if(this.picture.ops.length>(this.options.maxOps||24000))this.picture.fault='paint-budget';
+@@ -125,44 +160,48 @@
+       const self=this,raw=this.target;
+       return new Proxy(raw,{
+         get(target,property){
+-          if(typeof raw[property]!=='function')return raw[property];
+           if(self.methods.has(property))return self.methods.get(property);
++          const original=raw[property];if(typeof original!=='function')return original;
+           const method=function(...args){
+-            if(property==='save')self.stack.push(cloneState(self.state));
+-            else if(property==='restore'){if(self.stack.length)self.state=self.stack.pop();}
+-            else if(property==='beginPath')self.path=[];
+-            else if(property==='translate')self.state.matrix=matrixMultiply(self.state.matrix,[1,0,0,1,args[0],args[1]]);
+-            else if(property==='scale')self.state.matrix=matrixMultiply(self.state.matrix,[args[0],0,0,args[1],0,0]);
++            if(property==='save')self.stack.push(self.snapshot());
++            else if(property==='restore'){if(self.stack.length){self.state=self.stack.pop();self.sharedState=true;}}
++            else if(property==='beginPath'){self.path=[];self.sharedPath=false;}
++            else if(property==='translate'){
++              const m=self.state.matrix,x=args[0],y=args[1];self.assign('matrix',[m[0],m[1],m[2],m[3],m[4]+m[0]*x+m[2]*y,m[5]+m[1]*x+m[3]*y]);
++            }else if(property==='scale'){
++              const m=self.state.matrix;self.assign('matrix',[m[0]*args[0],m[1]*args[0],m[2]*args[1],m[3]*args[1],m[4],m[5]]);
++            }
+             else if(property==='rotate'){
+-              const c=Math.cos(args[0]),s=Math.sin(args[0]);self.state.matrix=matrixMultiply(self.state.matrix,[c,s,-s,c,0,0]);
+-            }else if(property==='transform')self.state.matrix=matrixMultiply(self.state.matrix,args);
++              const c=Math.cos(args[0]),s=Math.sin(args[0]);self.assign('matrix',matrixMultiply(self.state.matrix,[c,s,-s,c,0,0]));
++            }else if(property==='transform')self.assign('matrix',matrixMultiply(self.state.matrix,args));
+             else if(property==='setTransform'){
+-              const m=args[0];self.state.matrix=args.length===6?args.slice():[m.a,m.b,m.c,m.d,m.e,m.f];
+-            }else if(property==='resetTransform')self.state.matrix=[1,0,0,1,0,0];
+-            else if(property==='setLineDash')self.state.lineDash=Array.from(args[0]);
++              const m=args[0];self.assign('matrix',args.length===6?args:!m?[1,0,0,1,0,0]:[m.a,m.b,m.c,m.d,m.e,m.f]);
++            }else if(property==='resetTransform')self.assign('matrix',[1,0,0,1,0,0]);
++            else if(property==='setLineDash')self.assign('lineDash',Array.from(args[0]));
+             else if(property==='clip'||property==='putImageData')self.picture.fault='unsupported-'+property;
+             if(PATH_METHODS.has(property))self.recordPath(property,args);
+             if(PAINT_METHODS.has(property))self.recordPaint(property,args);
+-            const result=raw[property](...args);
++            const result=original.apply(raw,args);
+             if(property==='createLinearGradient'||property==='createRadialGradient'){
+               const meta={kind:property,args:args.slice(),matrix:self.state.matrix.slice(),tag:self.tag(),layer:self.layer,stops:[]};
+               GRADIENTS.set(result,meta);const add=result.addColorStop.bind(result);
+-              result.addColorStop=function(offset,color){meta.stops.push([offset,color]);return add(offset,color);};
++              result.addColorStop=function(offset,color){const value=add(offset,color);meta.stops.push([offset,color]);meta.key='';return value;};
+             }
+             return result;
+           };
+           self.methods.set(property,method);return method;
+         },
+         set(target,property,value){
++          if(STATE_PROPERTIES.has(property)&&self.state[property]===value)return true;
+           raw[property]=value;
+-          if(PROPERTIES.includes(property))self.state[property]=raw[property];
++          if(STATE_PROPERTIES.has(property))self.assign(property,raw[property]);
+           return true;
+         }
+       });
+     }
+     finish(){
+       if(this.stack.length)this.picture.fault='unbalanced-canvas-state';
+-      this.picture.finalState=cloneState(this.state);return this.picture;
++      this.picture.finalState=this.snapshot();return this.picture;
+     }
+   }
+ 
+@@ -180,12 +219,11 @@
+     const t=b.time>a.time?clamp((time-a.time)/(b.time-a.time),0,1):0;
+     return {x:lerp(a.x,b.x,t),y:lerp(a.y,b.y,t)};
+   }
+-  function shiftedMatrix(node,source,previous,current,t,targetTime){
++  function shiftedMatrix(node,source,previous,current,t,targetTime,motion){
+     const m=node.matrix.slice(),tag=node.tag;
+     if(node.layer.space==='screen')return m;
+-    const camera={x:lerp(previous.camera.x,current.camera.x,t),y:lerp(previous.camera.y,current.camera.y,t)};
+-    let dx=source.camera.x-camera.x,dy=source.camera.y-camera.y;
+-    if(tag){const p=pose(tag,targetTime,source.time);dx+=p.x-tag.x;dy+=p.y-tag.y;}
++    let dx=source.camera.x-motion.x,dy=source.camera.y-motion.y;
++    if(tag){let p=motion.poses.get(tag);if(!p){p=pose(tag,targetTime,source.time);motion.poses.set(tag,p);}dx+=p.x-tag.x;dy+=p.y-tag.y;}
+     m[4]+=dx*current.scale;m[5]+=dy*current.scale;return m;
+   }
+   function safePair(a,b,kind,loose=false){
+@@ -203,7 +241,7 @@
+     for(let i=skip;i<a.args.length;i++)if(a.args[i]!==b.args[i])return false;
+     return a.state.matrix.every((value,i)=>value===b.state.matrix[i]);
+   }
+-  function loosePartners(previous,current,t){
++  function loosePartners(previous,current){
+     // A colour, image or text change gives a primitive a new strict key, and
+     // both versions would be drawn. Pair the unmatched versions once by owner
+     // and draw order. Ownerless primitives must also keep their geometry.
+@@ -216,7 +254,7 @@
+       if(!a||a.args.length!==b.args.length)continue;
+       if(!a.tag&&!(a.fullScreen&&b.fullScreen)&&(a.path||!sameGeometry(a,b)))continue;
+       pending.delete(b.looseKey);
+-      partners.set(a.key,{a,b,skip:t>=.5});partners.set(b.key,{a,b,skip:t<.5});
++      const pair={a,b};partners.set(a.key,pair);partners.set(b.key,pair);
+     }
+     return partners;
+   }
+@@ -234,23 +272,48 @@
+   }
+   function dispose(picture){
+     if(!picture)return;
++    if(picture===plannedPrevious||picture===plannedCurrent)plannedPrevious=plannedCurrent=plannedPair=null;
+     for(const image of picture.sources||[]){image.width=1;image.height=1;}
+     picture.sources=[];picture.ops=[];picture.byKey?.clear();picture.nodes?.clear();picture.borrowed?.clear();
+   }
+   function mergedKeys(previous,current){
+     // The 2D layer order is the depth order. Keep prior relative order and
+     // insert newly visible primitives before their next surviving neighbor.
+-    const result=[],pending=[];let cursor=0;
+-    const present=new Set(previous.ops.map(o=>o.key));
++    const result=[];let pending=[];
+     const before=new Map();
+     for(const op of current.ops){
+-      if(present.has(op.key)){if(pending.length){before.set(op.key,pending.splice(0));}}
++      if(previous.byKey.has(op.key)){if(pending.length){before.set(op.key,pending);pending=[];}}
+       else pending.push(op.key);
+     }
+-    for(const op of previous.ops){for(const key of before.get(op.key)||[])result.push(key);result.push(op.key);}
+-    result.push(...pending);
++    for(const op of previous.ops){const added=before.get(op.key);if(added)for(const key of added)result.push(key);result.push(op.key);}
++    for(const key of pending)result.push(key);
+     const index=key=>(current.byKey.get(key)||previous.byKey.get(key)).layer.index;
+-    return result.map((key,n)=>({key,n,layer:index(key)})).sort((a,b)=>a.layer-b.layer||a.n-b.n).map(x=>x.key);
++    // Layers already arrive in renderer order in the common case. Preserve
++    // the stable sort for unusual layer insertion/removal, without allocating
++    // one temporary wrapper per paint on every generated presentation.
++    let last=-Infinity;
++    for(const key of result){const layer=index(key);if(layer<last){result.sort((a,b)=>index(a)-index(b));break;}last=layer;}
++    return result;
++  }
++
++  function preparePair(previous,current){
++    if(plannedPrevious===previous&&plannedCurrent===current)return plannedPair;
++    const partners=loosePartners(previous,current);
++    const paints=mergedKeys(previous,current).map(key=>({key,a:previous.byKey.get(key),b:current.byKey.get(key),mate:partners.get(key)}));
++    const layers=picture=>{const result=new Map();for(const op of picture.ops)if(op.layer.discrete){
++      let list=result.get(op.layer.id);if(!list)result.set(op.layer.id,list=[]);list.push(op);
++    }return result;};
++    plannedPrevious=previous;plannedCurrent=current;
++    return plannedPair={paints,previousLayers:layers(previous),currentLayers:layers(current),paths:new Map()};
++  }
++  function preparedPath(plan,path,alternate,previous,current){
++    let variants=plan.paths.get(path);if(!variants)plan.paths.set(path,variants=new Map());
++    if(variants.has(alternate))return variants.get(alternate);
++    const result=[],known=alternate?new Set():null;
++    const add=node=>{result.push({p:previous.nodes.get(node.key),q:current.nodes.get(node.key)});if(known)known.add(node.key);};
++    for(const node of path)add(node);
++    if(alternate)for(const node of alternate)if(!known.has(node.key))add(node);
++    variants.set(alternate,result);return result;
+   }
+ 
+   function replay(previous,current,t,ctx,options={}){
+@@ -259,9 +322,13 @@
+       throw new Error('Frame dimensions changed.');
+     t=clamp(t,0,1);
+     const targetTime=lerp(previous.time,current.time,t),stats={paints:0,pathNodes:0,rejected:0,unmatched:0,loosePairs:0,discrete:0,detached:0};
+-    const gradients=new WeakMap();let lastMatrix=null,lastStyles={};
++    const gradients=new WeakMap();let lastMatrix=null,lastStyles={},lastDash=null,lastState=null,lastPaired=null,lastSource=null;
++    const intermediate=t>0&&t<1,plan=intermediate?preparePair(previous,current):null;
++    const motion={x:lerp(previous.camera.x,current.camera.x,t),y:lerp(previous.camera.y,current.camera.y,t),poses:new WeakMap()};
+     const setMatrix=m=>{
+-      if(!lastMatrix||m.some((x,i)=>Math.abs(x-lastMatrix[i])>1e-9)){ctx.setTransform(...m);lastMatrix=m;}
++      if(!lastMatrix||Math.abs(m[0]-lastMatrix[0])>1e-9||Math.abs(m[1]-lastMatrix[1])>1e-9||
++        Math.abs(m[2]-lastMatrix[2])>1e-9||Math.abs(m[3]-lastMatrix[3])>1e-9||
++        Math.abs(m[4]-lastMatrix[4])>1e-9||Math.abs(m[5]-lastMatrix[5])>1e-9){ctx.setTransform(...m);lastMatrix=m;}
+     };
+     const gradientValue=(value,paired,source)=>{
+       const g=value&&typeof value==='object'?GRADIENTS.get(value):null;
+@@ -277,6 +344,8 @@
+       gradients.set(value,copy);return copy;
+     };
+     const applyState=(state,paired,source)=>{
++      if(state===lastState&&paired===lastPaired&&source===lastSource)return;
++      lastState=state;lastPaired=paired;lastSource=source;
+       for(const p of PROPERTIES){
+         let value=state[p];
+         if((p==='globalAlpha'||p==='lineWidth'||p==='lineDashOffset')&&paired&&typeof paired[p]==='number')
+@@ -284,10 +353,11 @@
+         if(p==='fillStyle'||p==='strokeStyle')value=gradientValue(value,paired?.[p],source);
+         if(value!==undefined&&lastStyles[p]!==value){ctx[p]=value;lastStyles[p]=value;}
+       }
+-      const dash=state.lineDash.join(',');if(lastStyles.dash!==dash){ctx.setLineDash(state.lineDash);lastStyles.dash=dash;}
++      const dash=state.lineDash;if(dash!==lastDash){
++        if(!lastDash||dash.length!==lastDash.length||dash.some((x,i)=>x!==lastDash[i]))ctx.setLineDash(dash);
++        lastDash=dash;
++      }
+     };
+-    const keys=t===0?previous.ops.map(o=>o.key):t===1?current.ops.map(o=>o.key):mergedKeys(previous,current);
+-    const partners=t>0&&t<1?loosePartners(previous,current,t):new Map();
+     const chosen=t<.5?previous:current,discreteDone=new Set();
+     const drawExact=op=>{
+       if(op.kind==='drawImage'&&!usable(op.args[0])){stats.detached++;return;}
+@@ -303,18 +373,20 @@
+     try{
+       ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
+       ctx.clearRect(0,0,current.width,current.height);ctx.imageSmoothingEnabled=false;
+-      for(const key of keys){
+-        let a=previous.byKey.get(key),b=current.byKey.get(key),loose=false;
++      for(const item of plan?plan.paints:chosen.ops){
++        const key=item.key;
++        let a=plan?item.a:previous.byKey.get(key),b=plan?item.b:current.byKey.get(key),loose=false;
+         const layer=(b||a).layer;
+         if(layer.discrete){
+           // Screen overlays such as the time-of-day tint and light map are shown
+           // from one real frame, exactly as the normal renderer drew them.
+           if(discreteDone.has(layer.id))continue;discreteDone.add(layer.id);
+-          for(const op of chosen.ops)if(op.layer.id===layer.id)drawExact(op);
++          if(plan){for(const op of (chosen===current?plan.currentLayers:plan.previousLayers).get(layer.id)||[])drawExact(op);}
++          else for(const op of chosen.ops)if(op.layer.id===layer.id)drawExact(op);
+           continue;
+         }
+-        const mate=partners.get(key);
+-        if(mate){if(mate.skip)continue;({a,b}=mate);loose=true;}
++        const mate=plan?item.mate:null;
++        if(mate){if((key===mate.a.key)===(t>=.5))continue;({a,b}=mate);loose=true;}
+         let op=t<.5?(a||b):(b||a),source=op===b?current:previous;
+         if(op.kind==='drawImage'&&!usable(op.args[0])){
+           const fallback=op===a?b:a;
+@@ -330,27 +402,25 @@
+         applyState(op.state,other?.state,source);
+         if(op.path){
+           ctx.beginPath();
+-          const pathKeys=op.path.map(n=>n.key),known=new Set(pathKeys);
+           const alternate=source===current?a:b;
+-          if(t>0&&t<1&&!op.tag&&alternate?.path)for(const n of alternate.path)if(!known.has(n.key)){pathKeys.push(n.key);known.add(n.key);}
++          const nodes=plan?preparedPath(plan,op.path,!op.tag?alternate?.path:null,previous,current):op.path;
+           let visibleNodes=0;
+-          for(const nodeKey of pathKeys){
+-            const p=previous.nodes.get(nodeKey),q=current.nodes.get(nodeKey),node=t<.5?(p||q):(q||p);
++          for(const entry of nodes){
++            const p=plan?entry.p:previous.nodes.get(entry.key),q=plan?entry.q:current.nodes.get(entry.key),node=t<.5?(p||q):(q||p);
+             if(!node||!alive(node.tag,targetTime))continue;
+             const nodeSource=node===q?current:previous;
+             const compatible=safePair(p,q,node.kind)&&t>0&&t<1;
+-            const matrix=compatible?affine(p.matrix,q.matrix,t):shiftedMatrix(node,nodeSource,previous,current,t,targetTime);
++            const matrix=compatible?affine(p.matrix,q.matrix,t):shiftedMatrix(node,nodeSource,previous,current,t,targetTime,motion);
+             const args=compatible?geometryArgs(p,q,t,node.kind):node.args;
+             setMatrix(matrix);ctx[node.kind](...args);visibleNodes++;
+           }
+           if(!visibleNodes)continue;
+           // Stroke widths and gradients are defined in the paint call's CTM.
+-          const matrix=pair?affine(a.state.matrix,b.state.matrix,t):
+-            shiftedMatrix({matrix:op.state.matrix,tag:null,layer:{...op.layer,space:'screen'}},source,previous,current,t,targetTime);
++          const matrix=pair?affine(a.state.matrix,b.state.matrix,t):op.state.matrix;
+           setMatrix(matrix);ctx[op.kind](...op.args);stats.pathNodes+=visibleNodes;
+         }else{
+           const matrix=pair?affine(a.state.matrix,b.state.matrix,t):
+-            op.fullScreen?op.state.matrix:shiftedMatrix({matrix:op.state.matrix,tag:op.tag,layer:op.layer},source,previous,current,t,targetTime);
++            op.fullScreen?op.state.matrix:shiftedMatrix({matrix:op.state.matrix,tag:op.tag,layer:op.layer},source,previous,current,t,targetTime,motion);
+           setMatrix(matrix);const args=pair?geometryArgs(a,b,t,op.kind):op.args;
+           ctx[op.kind](...args);
+         }
+@@ -359,6 +429,6 @@
+     }finally{ctx.restore();}
+     return stats;
+   }
+-  root.SwarmFrameSynthesis=Object.freeze({Recorder,replay,dispose,readState,writeState,surface,affine,
+-    version:'1.0.0',method:'engine-assisted retained-paint reprojection'});
++  root.SwarmFrameSynthesis=Object.freeze({Recorder,replay,dispose,readState,writeState,surface,affine,markImmutable,
++    version:'1.1.0',method:'engine-assisted retained-paint reprojection'});
+ })(typeof window==='object'?window:globalThis);
+--- /dev/null
++++ b/package-lock.json
+@@ -0,0 +1,76 @@
++{
++  "name": "elemental-swarm-android",
++  "version": "11.11.9-fg.4",
++  "lockfileVersion": 3,
++  "requires": true,
++  "packages": {
++    "": {
++      "name": "elemental-swarm-android",
++      "version": "11.11.9-fg.4",
++      "devDependencies": {
++        "acorn": "8.15.0",
++        "playwright": "1.62.1"
++      }
++    },
++    "node_modules/acorn": {
++      "version": "8.15.0",
++      "resolved": "https://registry.npmjs.org/acorn/-/acorn-8.15.0.tgz",
++      "integrity": "sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg==",
++      "dev": true,
++      "license": "MIT",
++      "bin": {
++        "acorn": "bin/acorn"
++      },
++      "engines": {
++        "node": ">=0.4.0"
++      }
++    },
++    "node_modules/fsevents": {
++      "version": "2.3.2",
++      "resolved": "https://registry.npmjs.org/fsevents/-/fsevents-2.3.2.tgz",
++      "integrity": "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==",
++      "dev": true,
++      "hasInstallScript": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "darwin"
++      ],
++      "engines": {
++        "node": "^8.16.0 || ^10.6.0 || >=11.0.0"
++      }
++    },
++    "node_modules/playwright": {
++      "version": "1.62.1",
++      "resolved": "https://registry.npmjs.org/playwright/-/playwright-1.62.1.tgz",
++      "integrity": "sha512-0M+L3LAD8/nm554LOla9Ayx0j0tmFZ0FBcoQ7F1VuVHpM/XpiC8RcDzBQB8W5+hA8L22THxELzeF+2WcUzvcLg==",
++      "dev": true,
++      "license": "Apache-2.0",
++      "dependencies": {
++        "playwright-core": "1.62.1"
++      },
++      "bin": {
++        "playwright": "cli.js"
++      },
++      "engines": {
++        "node": ">=20"
++      },
++      "optionalDependencies": {
++        "fsevents": "2.3.2"
++      }
++    },
++    "node_modules/playwright-core": {
++      "version": "1.62.1",
++      "resolved": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.62.1.tgz",
++      "integrity": "sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/rhDMjXGqHewDZ68nYZVw==",
++      "dev": true,
++      "license": "Apache-2.0",
++      "bin": {
++        "playwright-core": "cli.js"
++      },
++      "engines": {
++        "node": ">=20"
++      }
++    }
++  }
++}
+--- a/package.json
++++ b/package.json
+@@ -1,10 +1,11 @@
+ {
+   "name": "elemental-swarm-android",
+-  "version": "11.11.9",
++  "version": "11.11.9-fg.4",
+   "private": true,
+   "scripts": {
+     "build:html": "node frame_generation/build_frame_generation.cjs",
+-    "test": "node tests/mobile-regression.cjs && node tests/frame-synthesis.cjs && node tests/framegen-runtime.cjs && node tests/framegen-game.cjs && node tests/framegen-flicker.cjs && node tests/framegen-budget.cjs"
++    "test": "node tests/mobile-regression.cjs && node tests/frame-synthesis.cjs && node tests/framegen-runtime.cjs && node tests/framegen-game.cjs && node tests/framegen-flicker.cjs && node tests/framegen-budget.cjs && node tests/framegen-equivalence.cjs && node tests/framegen-static-caches.cjs",
++    "test:performance": "node tests/framegen-performance.cjs && node tests/framegen-off-performance.cjs"
+   },
+   "devDependencies": {
+     "acorn": "8.15.0",
+--- /dev/null
++++ b/tests/fixtures/fg3-build-frame-generation.cjs
+@@ -0,0 +1,96 @@
++const fs=require('fs'),path=require('path');
++let acorn;
++try{acorn=require('acorn');}catch(_){acorn=require(path.resolve(__dirname,'../../build-tools/js/node_modules/acorn'));}
++const root=path.resolve(__dirname,'..'),baseline=path.join(__dirname,'baseline_mobile1.html');
++let html=fs.readFileSync(baseline,'utf8');
++const match=html.match(/<script>([\s\S]*?)<\/script>/);if(!match)throw new Error('Game script missing');
++let script=match[1];
++const tree=acorn.parse(script,{ecmaVersion:'latest'}),inserts=[];
++function insert(at,text){inserts.push({at,text});}
++const objectNames=new Set(['p','e','h','o','d','fx','b','a','f','target','enemy','turret','sapling']);
++function traverse(node,parent=null,draw=false){
++ if(!node||typeof node!=='object'||!node.type)return;
++ if(node.type==='FunctionDeclaration')draw=/^(draw|ultra|mikoDraw|traceEnemy)/.test(node.id?.name||'');
++ if(draw&&node.type==='ForOfStatement'&&node.left.type==='VariableDeclaration'){
++  const id=node.left.declarations[0]?.id;
++  if(id?.type==='Identifier'){
++   const code='if(frameGeneration?.recording)frameGeneration.mark('+id.name+');';
++   if(node.body.type==='BlockStatement')insert(node.body.start+1,code);
++   else{insert(node.body.start,'{'+code);insert(node.body.end,'}');}
++  }
++ }
++ if(draw&&node.type==='VariableDeclaration'&&!['ForStatement','ForOfStatement','ForInStatement'].includes(parent?.type)){
++  const names=node.declarations.filter(d=>d.id.type==='Identifier'&&objectNames.has(d.id.name)&&d.init).map(d=>d.id.name);
++  if(names.length)insert(node.end,';if(frameGeneration?.recording){'+names.map(n=>'frameGeneration.mark('+n+');').join('')+'}');
++ }
++ for(const [key,value]of Object.entries(node)){
++  if(key==='start'||key==='end')continue;
++  if(Array.isArray(value)){for(const child of value)if(child?.type)traverse(child,node,draw);}
++  else if(value?.type)traverse(value,node,draw);
++ }
++}
++traverse(tree);
++for(const edit of inserts.sort((a,b)=>b.at-a.at))script=script.slice(0,edit.at)+edit.text+script.slice(edit.at);
++function replace(old,value,count=1){const actual=script.split(old).length-1;if(actual!==count)throw new Error('Expected '+count+', got '+actual+': '+old.slice(0,100));script=script.replaceAll(old,()=>value);}
++replace('var nativeActivityPaused=false;',`var nativeActivityPaused=false;var frameGeneration=null;
++var FG_ENEMY_PROJECTILE_OBJECTS=[],FG_XP_ORB_OBJECTS=[],FG_ECO_PROJECTILE_OBJECTS=[],FG_ECO_BUCKET_OBJECTS=new Map();`);
++replace('const defaults={quality:"auto",scanlines:false,flashes:false,lighting:false,markers:false};','const defaults={quality:"auto",scanlines:false,flashes:false,lighting:false,markers:false,frameGeneration:"auto"};');
++replace('markers:bool("markers")};','markers:bool("markers"),frameGeneration:["off","auto","2x"].includes(saved.frameGeneration)?saved.frameGeneration:"auto"};');
++replace('function __set_state(v){return state=v;}','function __set_state(v){if(state!==v)frameGeneration?.stateChanged(v);return state=v;}');
++replace('function __set_game(v){multicore?.stop();return game=v;}','function __set_game(v){frameGeneration?.reset("game-change",true);multicore?.stop();return game=v;}');
++replace('function applyResize(){const nextDpr=', 'function applyResize(){frameGeneration?.reset("resize",true);const nextDpr=');
++replace('function resetFrameClock(now=performance.now()){','function resetFrameClock(now=performance.now()){frameGeneration?.reset("clock");');
++replace('function releaseVolatileRenderCaches(){','function releaseVolatileRenderCaches(){frameGeneration?.reset("cache-release",true);');
++replace('function render(){if(nativeActivityPaused)return;', 'function render(){if(nativeActivityPaused)return;if(!frameGeneration?.recording)frameGeneration?.direct();');
++replace('  s.run(dt);','  if(list===RENDER_SYSTEMS&&frameGeneration?.recording){if(frameGeneration.isHud(s.id))continue;frameGeneration.layer(s.id,i);}\n  s.run(dt);');
++replace('update(FIXED_DT);simAccumulator-=FIXED_DT;', 'update(FIXED_DT);frameGeneration?.observe();simAccumulator-=FIXED_DT;');
++replace('const activeInterval=activeFrameIntervalMs();let holdRender=', 'const generatedPresentation=frameGeneration?.step(now,game.t+simAccumulator,workStart)||false;const activeInterval=activeFrameIntervalMs();let holdRender=');
++replace('if(!holdRender){render();commitActiveFrameDeadline(now,activeInterval);lastIdleRender=now;}', 'if(generatedPresentation){lastIdleRender=now;}else if(!holdRender){const fgNormalStart=performance.now();render();frameGeneration?.sampleNormal(performance.now()-fgNormalStart);commitActiveFrameDeadline(now,activeInterval);lastIdleRender=now;}');
++// Callbacks owned or shaped by frame generation do not reach adaptive
++// quality, eco pacing or autoPace, so its cost never changes the quality tier.
++replace('adaptiveSample(performance.now()-workStart,now,!holdRender);','{const fgWork=performance.now()-workStart;if(!frameGeneration?.endCallback(now,fgWork,generatedPresentation))adaptiveSample(fgWork,now,!holdRender);}');
++// The visible grid changes at cell boundaries. Its iteration ordinal is not
++// a stable identity: use world coordinates for the animated grass cells.
++replace('const x=wx-left,y=wy-top;', 'const x=wx-left,y=wy-top;if(frameGeneration?.recording)frameGeneration.staticObject("ground:"+gx+":"+gy,wx,wy);');
++// Keep the batched native drawing paths; associate their vertices with the
++// original objects so reordering/removal does not mix up motion vectors.
++replace('const base=offset;buffer[offset++]=px(sx);', 'const base=offset;if(frameGeneration?.recording)FG_ENEMY_PROJECTILE_OBJECTS[base]=p;buffer[offset++]=px(sx);');
++replace('const o=indices[i],', 'if(frameGeneration?.recording)frameGeneration.mark(FG_ENEMY_PROJECTILE_OBJECTS[indices[i]]);const o=indices[i],',9);
++replace('buffer[offset++]=px(sx);buffer[offset++]=px(sy);buffer[offset++]=o.r;count++;', 'if(frameGeneration?.recording)FG_XP_ORB_OBJECTS[count]=o;buffer[offset++]=px(sx);buffer[offset++]=px(sy);buffer[offset++]=o.r;count++;');
++replace('const n=i*3,x=buffer[n],y=buffer[n+1],r=buffer[n+2];ctx.rect(', 'if(frameGeneration?.recording)frameGeneration.mark(FG_XP_ORB_OBJECTS[i]);const n=i*3,x=buffer[n],y=buffer[n+1],r=buffer[n+2];ctx.rect(');
++replace('const n=i*3;ctx.rect(px(buffer[n]-1)', 'if(frameGeneration?.recording)frameGeneration.mark(FG_XP_ORB_OBJECTS[i]);const n=i*3;ctx.rect(px(buffer[n]-1)');
++replace('buffer[offset++]=x;buffer[offset++]=y;buffer[offset++]=r;count++;const color=', 'if(frameGeneration?.recording)FG_ECO_PROJECTILE_OBJECTS[count]=p;buffer[offset++]=x;buffer[offset++]=y;buffer[offset++]=r;count++;const color=');
++replace('bucket.push(x,y,r);', 'if(frameGeneration?.recording){let objects=FG_ECO_BUCKET_OBJECTS.get(color);if(!objects){objects=[];FG_ECO_BUCKET_OBJECTS.set(color,objects);}if(!bucket.length)objects.length=0;objects.push(p);}bucket.push(x,y,r);');
++replace('const o=i*3,x=buffer[o],y=buffer[o+1],r=buffer[o+2]+2;', 'if(frameGeneration?.recording)frameGeneration.mark(FG_ECO_PROJECTILE_OBJECTS[i]);const o=i*3,x=buffer[o],y=buffer[o+1],r=buffer[o+2]+2;');
++replace('const x=bucket[i],y=bucket[i+1],r=bucket[i+2];ctx.rect(', 'if(frameGeneration?.recording)frameGeneration.mark(FG_ECO_BUCKET_OBJECTS.get(color)?.[i/3]);const x=bucket[i],y=bucket[i+1],r=bucket[i+2];ctx.rect(');
++replace('const o=i*3,x=buffer[o],y=buffer[o+1];', 'if(frameGeneration?.recording)frameGeneration.mark(FG_ECO_PROJECTILE_OBJECTS[i]);const o=i*3,x=buffer[o],y=buffer[o+1];');
++// Worker terrain chunks and light maps are ImageBitmaps referenced by the
++// retained real frames. Closing one early makes the generated frame throw.
++replace('  if(typeof surface.close==="function")surface.close();','  if(typeof surface.close==="function"){if(frameGeneration?.release(surface))return;surface.close();}');
++// The eco ground translation wraps every 64 px tile. Interpolating across the
++// wrap shifts the pattern by half a tile, so recorded frames use the unwrapped
++// translation. The rounded pattern phase and covered pixels are unchanged.
++replace('ctx.translate(px((-cam.x+viewW*0.5)%64),px((-cam.y+viewH*0.5)%64));ctx.fillStyle=pattern||"#294c3e";ctx.fillRect(-64,-64,viewW+128,viewH+128);',
++ 'if(frameGeneration?.recording){const tx=px(-cam.x+viewW*0.5),ty=px(-cam.y+viewH*0.5);ctx.translate(tx,ty);ctx.fillStyle=pattern||"#294c3e";ctx.fillRect(-64-tx,-64-ty,viewW+128,viewH+128);}else{ctx.translate(px((-cam.x+viewW*0.5)%64),px((-cam.y+viewH*0.5)%64));ctx.fillStyle=pattern||"#294c3e";ctx.fillRect(-64,-64,viewW+128,viewH+128);}');
++replace('frameGeneration:false','frameGeneration:!!frameGeneration?.status().active,frameGenerationStatus:frameGeneration?.status()');
++replace('11.11.9-mobile.1','11.11.9-fg.3',2);
++const runtime=fs.readFileSync(path.join(__dirname,'frame-generation-runtime.js'),'utf8');
++replace('// Android shell integration is deliberately limited',runtime+'\n// Android shell integration is deliberately limited');
++const core=fs.readFileSync(path.join(__dirname,'frame-synthesis.js'),'utf8');
++acorn.parse(core+'\n'+script,{ecmaVersion:'latest'});
++html=html.replace(match[0],()=>'<script>\n'+core+'\n'+script+'</script>');
++const controls=`
++<div class="frameGenerationSettings">
++ <div class="visualSettingsHead"><span>フレーム生成</span><span class="visualStatus" data-framegen-status>AUTO</span></div>
++ <div class="visualPresetRow" role="radiogroup" aria-label="フレーム生成">
++  <button class="btn visualPreset" type="button" role="radio" data-framegen-mode="off" aria-checked="false">OFF</button>
++  <button class="btn visualPreset" type="button" role="radio" data-framegen-mode="auto" aria-checked="true">AUTO</button>
++  <button class="btn visualPreset" type="button" role="radio" data-framegen-mode="2x" aria-checked="false">2x</button>
++ </div>
++ <p class="visualHint">中間の画面を生成して動きを滑らかにします。AUTOは90Hz以上で使用します。2xは60Hzでも使用します。表示の遅れと処理負荷が増える場合があります。</p>
++</div>`;
++html=html.replaceAll('<div class="visualSettings" data-visual-panel>','<div class="visualSettings" data-visual-panel>'+controls);
++html=html.replace(/<p class="visualHint">描画倍率は[^<]*(?:[\s\S]*?)<\/p>/g,
++ '<p class="visualHint">自動設定は端末に合わせて描画解像度と演出量を調整します。軽量は1x、鮮明・最高は高い描画解像度を使用します。</p>');
++fs.writeFileSync(path.join(root,'app/src/main/assets/index.html'),html);
++console.log('Embedded frame synthesis, renderer instrumentation sites:',inserts.length,'bytes:',Buffer.byteLength(html));
+--- /dev/null
++++ b/tests/fixtures/fg3-frame-generation-runtime.js
+@@ -0,0 +1,453 @@
++// This file is embedded inside the game's closure by build_frame_generation.cjs.
++function makeFrameGeneration(){
++  const S=window.SwarmFrameSynthesis;
++  const HUD_IDS=new Set(['hud/reaction-buffs','overlay/threat-markers','overlay/low-hp','overlay/screen-flash','overlay/damage-flash']);
++  // Full-screen overlays are not interpolated; a generated frame shows them
++  // from one real frame so tint and light maps are never drawn twice.
++  const DISCRETE_LAYERS=new Set(['overlay/ambient']);
++  const COLLECTIONS=['enemies','projectiles','enemyProjectiles','xpOrbs','lootDrops','hazards',
++    'turrets','saplings','particles','spriteFx','signatureFx','enemyBeams','enemyGroundAttacks'];
++  // The run continues through choice screens: buffers and the native
++  // high-refresh request are kept there (buffers not on low-memory devices).
++  const RUN_STATES=new Set(['playing','levelup','chest','special','ability','abilityIntro']);
++  const REFRESH_CLASSES=[60,72,90,96,120,144,165];
++  // Backoff per failure class: first wait, growth factor and cap in ms.
++  const BACKOFF={budget:[2000,2,60000],resource:[5000,2,120000],content:[10000,3,90000],exception:[15000,4,120000]};
++  let owner=null,metadata=new WeakMap(),live=new Map(),nextId=1,epoch=0;
++  let previous=null,current=null,recorder=null,active=false;
++  // Presentation clock: each callback shows content time clock-lag, captured
++  // only when the simulation has a new state (see step()).
++  let lag=0,stride=1,observedAt=NaN,periodFlag=0;
++  const lagWindow=[];
++  let bufferIndex=0,buffers=[],lastStep=-Infinity,inactiveSince=0;
++  let cooldownUntil=0,requestedNative=false,mode=visualSettings.frameGeneration||'auto';
++  let lastUi=-Infinity,lastReason='initial',presentTime=-Infinity;
++  let cpuCapture=0,cpuGenerated=0,error='',lastSynthesis=null,lastSession=null;
++  const events=[],deferred=new Set();
++  const totals={captured:0,real:0,generated:0,warmup:0,holds:0,drops:0,yields:0,rejectedPairs:0,resets:0,errors:0,
++    lateCallbacks:0,nonMonotonic:0,observations:0};
++  const failures={budget:0,resource:0,content:0,exception:0};
++  // Display period from callback timestamps. Our own load can only lengthen
++  // deltas, so it never lowers the estimate while generation is active.
++  const refresh={deltas:[],period:0,stable:0,slowRun:0,lastNow:NaN,openHz:0};
++  const gate={open:false,openAt:Infinity};
++  // Whole-callback budget: recent costs in ms, late callbacks while active,
++  // the late share with generation off, and learned post-callback cost.
++  const cost={capture:[],replay:[],blit:[],normal:[],periods:[],late:[],heavyLate:[],dropRun:0,baseLate:.02,post:0,lastNow:NaN,
++    lastLateAt:-Infinity,postDecayAt:0,skip:0,warm:0,restart:true,heavy:false,prevHeavy:false,yielding:false,yieldedLast:false,transition:false};
++  const backoff={level:{budget:0,resource:0,content:0,exception:0},cls:'',failedAt:-Infinity,normalAtFail:0,trialUntil:0,healthy:0};
++
++  // Closable images (worker terrain chunks, light maps) are referenced, not
++  // copied, by the retained frames. The game's release waits until no
++  // retained frame can draw them again.
++  function holds(surface){
++    return !!(previous?.borrowed?.has(surface)||current?.borrowed?.has(surface)||recorder?.picture.borrowed.has(surface));
++  }
++  function deferRelease(surface){if(!holds(surface))return false;deferred.add(surface);return true;}
++  function flushReleased(){for(const surface of deferred)if(!holds(surface)){deferred.delete(surface);surface.close();}}
++  function remember(list,value,size=16){list.push(value);if(list.length>size)list.shift();}
++  function quantile(list,q){if(!list.length)return 0;const sorted=list.slice().sort((a,b)=>a-b);return sorted[Math.min(sorted.length-1,Math.floor(sorted.length*q))];}
++  function predict(list,scale){return list.length>=4?quantile(list,.5)*scale:0;}
++  function releaseBuffers(){for(const c of buffers){c.width=1;c.height=1;}buffers=[];}
++  function reset(reason='reset',release=false){
++    if(active&&events.length){
++      const s=status();if(s.realFPS+s.generatedFPS>0)lastSession={realFPS:s.realFPS,generatedFPS:s.generatedFPS};
++    }
++    S.dispose(previous);S.dispose(current);previous=current=null;recorder=null;flushReleased();
++    lag=0;lagWindow.length=0;observedAt=NaN;periodFlag=0;
++    if(active)cost.transition=true;
++    cost.heavy=false;cost.yieldedLast=false;
++    active=false;lastStep=-Infinity;presentTime=-Infinity;
++    owner=null;metadata=new WeakMap();live.clear();nextId=1;epoch=0;
++    events.length=0;lastReason=reason;totals.resets++;
++    if(reason==='clock')reconfirmRefresh();
++    if(release)releaseBuffers();
++  }
++  function snapPeriod(ms){const hz=1000/ms;for(const c of REFRESH_CLASSES)if(Math.abs(hz-c)<=c*.04)return 1000/c;return ms;}
++  function periodMs(){return refresh.period||Math.max(4,displayIntervalMs);}
++  function refreshConfident(){return refresh.period>0&&refresh.stable>=16;}
++  function reconfirmRefresh(){refresh.deltas.length=0;refresh.stable=0;refresh.slowRun=0;refresh.lastNow=NaN;gate.open=false;gate.openAt=Infinity;}
++  function adoptPeriod(period,now){
++    const slower=refresh.period>0&&period>refresh.period;
++    refresh.period=period;refresh.stable=0;refresh.slowRun=0;
++    // A panel that switched to a slower mode first looks like a budget
++    // failure; refund that level. Load can also produce a slower estimate, so
++    // the wait already scheduled stays as it is.
++    if(slower&&backoff.cls==='budget'&&now-backoff.failedAt<4000){
++      backoff.level.budget=Math.max(0,backoff.level.budget-1);
++    }
++  }
++  function sampleRefresh(now){
++    const delta=now-refresh.lastNow;refresh.lastNow=now;
++    if(!(delta>=3&&delta<=50))return;
++    const deltas=refresh.deltas;remember(deltas,delta,64);
++    if(deltas.length<12)return;
++    // Lower envelope of the deltas, refined over its cluster and snapped to
++    // a common panel rate.
++    const candidate=quantile(deltas,.15);let sum=0,n=0;
++    for(const value of deltas)if(Math.abs(value-candidate)<=candidate*.08){sum+=value;n++;}
++    if(n<Math.max(8,deltas.length*.2))return;
++    const period=snapPeriod(sum/n);
++    if(!refresh.period||period<refresh.period*.95){adoptPeriod(period,now);return;}
++    if(period>refresh.period*1.05){
++      refresh.slowRun=active?0:refresh.slowRun+1;
++      if(refresh.slowRun>=48)adoptPeriod(period,now);
++      return;
++    }
++    refresh.slowRun=0;refresh.stable++;
++  }
++  // AUTO opens at 88 Hz or more once the period is confirmed, after a 250 ms
++  // dwell for a newly seen rate, and closes only when a rate of 80 Hz or
++  // less is adopted.
++  function updateGate(now){
++    const hz=1000/periodMs();
++    if(gate.open){if(refresh.period&&hz<=80){gate.open=false;gate.openAt=Infinity;}return;}
++    if(!refreshConfident()||hz<88){gate.openAt=Infinity;return;}
++    if(gate.openAt===Infinity)gate.openAt=now+(Math.round(hz)===refresh.openHz?0:250);
++    if(now>=gate.openAt){gate.open=true;refresh.openHz=Math.round(hz);}
++  }
++  function requestNative(on){
++    const wanted=on&&mode!=='off';if(wanted===requestedNative)return;
++    requestedNative=wanted;if(wanted)reconfirmRefresh();
++    if(window.ElementalNative&&typeof ElementalNative.setFrameGenerationActive==='function')
++      ElementalNative.setFrameGenerationActive(wanted);
++  }
++  function stateChanged(next){
++    const run=RUN_STATES.has(next);
++    reset('state-'+next,!run||MOBILE_LOW_MEMORY);requestNative(run);syncUi(true);
++  }
++  function setMode(value){
++    if(!['off','auto','2x'].includes(value))return;
++    mode=value;error='';cooldownUntil=0;
++    for(const key in backoff.level)backoff.level[key]=0;backoff.cls='';backoff.trialUntil=0;backoff.healthy=0;
++    __set_visualSettings({...visualSettings,frameGeneration:mode});saveVisualSettings();
++    cost.restart=true;reset('mode-change',true);lastSession=null;requestNative(RUN_STATES.has(state));resetFrameClock();syncUi(true);
++    if(game)render();
++  }
++  function eligible(){return !!S&&state==='playing'&&!!game&&!game.awaitingChoice&&!nativeActivityPaused&&!document.hidden;}
++  function wants(now=performance.now()){
++    if(!eligible()||mode==='off'||now<cooldownUntil)return false;
++    return mode!=='auto'||gate.open;
++  }
++  function observe(){
++    if(!game)return;
++    const fresh=owner!==game;
++    if(fresh){owner=game;metadata=new WeakMap();live.clear();nextId=1;epoch=0;}
++    epoch++;const time=game.t;
++    function visit(object){
++      if(!object||typeof object!=='object')return;
++      const x=Number(object.x??object.x1),y=Number(object.y??object.y1);
++      if(!Number.isFinite(x)||!Number.isFinite(y))return;
++      let meta=metadata.get(object);
++      const reused=meta&&meta.lastAge!=null&&object.age!=null&&object.age+1e-5<meta.lastAge;
++      if(!meta||meta.deadAt!==Infinity||reused){
++        if(meta)meta.deadAt=Math.min(meta.deadAt,time);
++        meta={id:nextId++,bornAt:fresh?-Infinity:time,deadAt:Infinity,history:[],epoch};
++        metadata.set(object,meta);live.set(meta.id,meta);
++      }
++      const old=meta.history[meta.history.length-1];
++      if(!old||time>old.time+1e-8){
++        const discontinuous=!!old&&Math.hypot(x-old.x,y-old.y)>96;
++        meta.history.push({time,x,y,discontinuous});
++        while(meta.history.length>12)meta.history.shift();
++      }
++      meta.x=x;meta.y=y;meta.lastAge=object.age;meta.epoch=epoch;
++    }
++    visit(game.player);
++    for(const key of COLLECTIONS){const list=game[key];if(Array.isArray(list))for(const object of list)visit(object);}
++    for(const [id,meta]of live)if(meta.epoch!==epoch){meta.deadAt=time;live.delete(id);}
++    totals.observations++;observedAt=time;
++  }
++  function observeIfNeeded(){if(wants()||active)observe();}
++  function mark(object){
++    if(!recorder||!object||typeof object!=='object')return;
++    const meta=metadata.get(object);if(meta)recorder.object({id:meta.id,x:meta.x,y:meta.y,meta});
++  }
++  function staticObject(id,x,y){
++    if(recorder)recorder.object({id:'static:'+id,x,y,meta:{bornAt:-Infinity,deadAt:Infinity}});
++  }
++  function layer(id,index){
++    if(!recorder)return;
++    const discrete=DISCRETE_LAYERS.has(id);
++    recorder.beginLayer(id,index,discrete?'screen':'world',discrete);
++  }
++  function ensureBuffers(){
++    if(buffers.length!==2||buffers.some(c=>c.width!==canvas.width||c.height!==canvas.height)){
++      reset('buffer-size',true);
++      buffers=[S.surface(canvas.width,canvas.height),S.surface(canvas.width,canvas.height)];
++      bufferIndex=0;cost.warm=3;
++    }
++  }
++  function drawHud(){
++    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
++    for(const system of RENDER_SYSTEMS){if(!HUD_IDS.has(system.id))continue;
++      if(system.when!==null&&!system.when())continue;system.run(0);}
++  }
++  function image(picture){
++    const start=performance.now(),raw=ctx;raw.save();raw.setTransform(1,0,0,1,0,0);raw.globalAlpha=1;
++    raw.globalCompositeOperation='copy';raw.drawImage(picture.color,0,0);raw.restore();
++    S.writeState(raw,picture.finalState);drawHud();if(!cost.warm)remember(cost.blit,performance.now()-start);
++  }
++  function stamp(kind,now,time){
++    if(time<presentTime-1e-7){totals.nonMonotonic++;throw new Error('Non-monotonic frame timestamp');}
++    presentTime=time;totals[kind]++;events.push({now,kind});
++    while(events.length&&now-events[0].now>1000)events.shift();
++  }
++  function capture(now){
++    // loop() already observed this simulation state after its fixed update.
++    ensureBuffers();if(owner!==game||observedAt!==game.t)observe();
++    S.dispose(previous);previous=current;current=null;flushReleased();
++    const c=buffers[bufferIndex];bufferIndex^=1;
++    const target=c.getContext('2d',{alpha:false,desynchronized:true});
++    const raw=ctx;
++    S.writeState(target,S.readState(raw));
++    const start=performance.now();
++    recorder=new S.Recorder(target,{time:game.t,camera:game.camera,scale:dpr,
++      maxSnapshotPixels:MOBILE_LOW_MEMORY?2097152:4194304,maxOps:24000,maxNodes:80000});
++    try{
++      ctx=recorder.context;render();current=recorder.finish();current.color=c;current.capturedAt=now;
++    }finally{ctx=raw;recorder=null;}
++    const ms=performance.now()-start;cpuCapture=cpuCapture?cpuCapture*.85+ms*.15:ms;if(!cost.warm)remember(cost.capture,ms);
++    totals.captured++;
++    return current;
++  }
++  function validPair(){
++    if(!previous||!current||previous.fault||current.fault)return false;
++    const delta=current.time-previous.time;
++    if(!(delta>1e-7&&delta<=.067))return false;
++    if(Math.hypot(current.camera.x-previous.camera.x,current.camera.y-previous.camera.y)>Math.min(viewW,viewH)*.2)return false;
++    return previous.width===current.width&&previous.height===current.height&&previous.scale===current.scale;
++  }
++  function failureClass(reason){
++    if(/^(generation-budget|deadline-miss|budget-)/.test(reason))return 'budget';
++    if(/^(snapshot-budget|paint-budget|path-budget|invalid-image-source)$/.test(reason))return 'resource';
++    if(/^(unsupported-|unbalanced-canvas-state)/.test(reason))return 'content';
++    return 'exception';
++  }
++  function fail(reason,now){
++    // A failure during the trial after a resume escalates one extra level.
++    const cls=failureClass(String(reason)),[first,factor,cap]=BACKOFF[cls];
++    const level=backoff.level[cls]=Math.min(8,backoff.level[cls]+(now<backoff.trialUntil?2:1));
++    const wait=Math.min(cap,first*factor**(level-1));
++    error=String(reason);totals.errors++;failures[cls]++;cooldownUntil=now+wait;
++    backoff.cls=cls;backoff.failedAt=now;backoff.trialUntil=0;backoff.healthy=0;
++    backoff.normalAtFail=cost.normal.length>=8?quantile(cost.normal,.75):0;cost.restart=true;
++    // Short budget waits keep the two buffers so the resume does not reallocate.
++    reset('fallback',!(cls==='budget'&&wait<=8000&&!MOBILE_LOW_MEMORY));inactiveSince=now;syncUi(true);
++  }
++  // The work of one callback must end this long after its vsync.
++  function deadline(){const period=periodMs();return period-Math.max(.5,.06*period)-cost.post;}
++  // Lateness of the previous callback, attributed to generation only when it
++  // was active. Returns the callback delta in ms.
++  function noteCallback(now){
++    const delta=now-cost.lastNow;cost.lastNow=now;
++    if(!(delta>0&&delta<=250)){cost.prevHeavy=false;return 0;}
++    const late=delta>1.5*periodMs();
++    if(late)cost.lastLateAt=now;
++    if(active){
++      if(cost.skip>0)cost.skip--;else remember(cost.late,late?1:0,32);
++      // Heavy callbacks that fitted on the CPU and are still often late show
++      // cost after the callback (style, raster, GPU). One stall is not enough.
++      if(cost.prevHeavy){
++        remember(cost.heavyLate,late?1:0,32);
++        const n=cost.heavyLate.length,sum=cost.heavyLate.reduce((a,b)=>a+b,0);
++        if(n>=8&&sum>=3&&sum/n-cost.baseLate>.1){cost.post=Math.min(.3*periodMs(),cost.post+.25);cost.heavyLate.length=0;}
++      }
++    }else cost.baseLate+=((late?1:0)-cost.baseLate)/32;
++    if(now-cost.lastLateAt>=2000&&now>=cost.postDecayAt){cost.post=Math.max(0,cost.post-.1);cost.postDecayAt=now+2000;}
++    cost.prevHeavy=false;
++    return delta;
++  }
++  function presentationRate(now){
++    while(events.length&&now-events[0].now>1000)events.shift();
++    return events.length?events.length/Math.min(1,Math.max(.25,(now-events[0].now)/1000)):0;
++  }
++  // Sustained evidence only, judged at a capture. Misses and drops do not
++  // pause while generation still shows clearly more distinct frames than
++  // normal rendering (at most one per fixed step).
++  function overBudget(now){
++    if(cost.capture.length>=4&&quantile(cost.capture,.5)>2000*FIXED_DT)return 'budget-capture';
++    if(presentationRate(now)>=1.2/FIXED_DT)return '';
++    if(cost.late.length>=24){
++      const rate=cost.late.reduce((a,b)=>a+b,0)/cost.late.length;
++      if(rate-cost.baseLate>(now<backoff.trialUntil?.1:.25))return 'deadline-miss';
++    }
++    if(cost.periods.length>=16&&cost.periods.reduce((a,b)=>a+b,0)>=4)return 'budget-drops';
++    return '';
++  }
++  function earlyResume(now){
++    // A budget wait ends early once normal rendering became much cheaper.
++    if(now>=cooldownUntil||backoff.cls!=='budget'||now-backoff.failedAt<2000)return;
++    if(backoff.normalAtFail>0&&cost.normal.length>=16&&quantile(cost.normal,.75)<=.6*backoff.normalAtFail)cooldownUntil=now;
++  }
++  function strideFor(hz){
++    // 2x below 72 Hz captures every other fixed step; at 60 Hz every callback
++    // has a new step, so stride 1 would generate nothing.
++    return mode==='2x'&&hz<72?2:1;
++  }
++  // clock is the continuous simulation time in seconds (game.t plus the
++  // unspent accumulator). Each callback presents content time clock-lag:
++  // a blit of a real frame at an endpoint, otherwise a replay in between.
++  // workStart is the loop's performance.now() at the start of the callback.
++  function step(now,clock=game?game.t+Math.max(0,simAccumulator):0,workStart=-1){
++    cost.yielding=false;cost.heavy=false;if(cost.warm)cost.warm--;
++    const delta=noteCallback(now);sampleRefresh(now);updateGate(now);
++    requestNative(RUN_STATES.has(state));earlyResume(now);
++    if(!wants(now)){
++      if(active||current){reset(now<cooldownUntil?'cost-fallback':'inactive');inactiveSince=now;cost.restart=true;}
++      if(buffers.length&&now-inactiveSince>8000)releaseBuffers();
++      syncUi();return false;
++    }
++    const interval=periodMs(),seconds=interval/1000;
++    if(Number.isFinite(lastStep)&&now-lastStep>Math.max(80,interval*5)){
++      totals.lateCallbacks++;reset('callback-stall');
++    }
++    try{
++      ensureBuffers();
++      const nextStride=strideFor(1000/interval);
++      if(nextStride!==stride){stride=nextStride;if(current)reset('stride');}
++      if(!active){
++        active=true;
++        // A fresh start (not an internal reset) restarts the budget windows
++        // and, after a failure, a stricter trial.
++        if(cost.restart){
++          cost.restart=false;cost.late.length=0;cost.periods.length=0;cost.heavyLate.length=0;cost.dropRun=0;
++          cost.capture.length=0;cost.replay.length=0;cost.blit.length=0;cost.skip=4;if(backoff.cls)backoff.trialUntil=now+600;}
++      }
++      else if((backoff.healthy+=Math.min(50,delta))>=10000){
++        // Ten healthy seconds lower every backoff level by one.
++        backoff.healthy=0;let any=false;
++        for(const key in backoff.level){if(backoff.level[key])backoff.level[key]--;any||=backoff.level[key]>0;}
++        if(!any)backoff.cls='';
++      }
++      lastStep=now;
++      const elapsed=()=>workStart>=0?performance.now()-workStart:0;
++      if(!current||game.t-current.time>=stride*FIXED_DT-1e-6){
++        const reason=overBudget(now);if(reason){fail(reason,now);return false;}
++        const spent=elapsed();
++        if(current&&!cost.yieldedLast&&spent>.25*deadline()&&spent+predict(cost.capture,1.1)+predict(cost.blit,1.1)>deadline()){
++          // This callback's update leaves no room for a capture: render
++          // normally and capture on the next callback, which usually has none.
++          totals.yields++;remember(cost.periods,1);cost.yielding=true;cost.yieldedLast=true;syncUi();return false;
++        }
++        cost.yieldedLast=false;
++        if(current)remember(cost.periods,periodFlag);
++        periodFlag=0;
++        capture(now);cost.heavy=true;
++        if(current.fault){fail(current.fault,now);return false;}
++        if(previous&&!validPair())totals.rejectedPairs++;
++      }
++      const pair=validPair();
++      // The smallest lag that never needs content newer than the last
++      // capture: the largest recent clock-current.time. It rises at once
++      // and falls by at most 4% of an interval per callback.
++      lagWindow.push(clock-current.time);
++      const size=Math.max(24,Math.ceil(250/interval));
++      while(lagWindow.length>size)lagWindow.shift();
++      const wanted=Math.min(stride*FIXED_DT,Math.max(...lagWindow));
++      lag=wanted>lag?wanted:Math.max(wanted,lag-.04*seconds);
++      let target=Math.min(clock-lag,current.time);
++      target=pair?Math.max(target,previous.time):current.time;
++      target=Math.max(target,presentTime);
++      const snap=.2*seconds;
++      if(current.time-target<=snap)target=current.time;
++      else if(pair&&target-previous.time<=snap&&previous.time>=presentTime)target=previous.time;
++      if(target<=presentTime)totals.holds++;
++      else if(target===current.time){image(current);stamp('real',now,target);}
++      else if(target===previous.time){image(previous);stamp('real',now,target);}
++      else if(cost.dropRun<8&&elapsed()+predict(cost.replay,1.1)>deadline()){
++        // The replay would miss this vsync: show the newer real frame now.
++        totals.drops++;periodFlag=1;cost.dropRun++;
++        if(current.time>presentTime){image(current);stamp('real',now,current.time);}else totals.holds++;
++      }else{
++        const t=(target-previous.time)/(current.time-previous.time);
++        // After 8 consecutive drops one replay is forced so the prediction
++        // can recover; its sample replaces the stale window.
++        if(cost.dropRun>=8)cost.replay.length=0;
++        cost.dropRun=0;
++        const start=performance.now();lastSynthesis=S.replay(previous,current,t,ctx);
++        const ms=performance.now()-start;cpuGenerated=cpuGenerated?cpuGenerated*.85+ms*.15:ms;remember(cost.replay,ms);
++        drawHud();stamp('generated',now,target);cost.heavy=true;
++      }
++      syncUi();return true;
++    }catch(failure){fail(failure?.message||failure,now);return false;}
++  }
++  // Called by loop() after the callback's work. Returns true when the sample
++  // must not reach adaptive quality: generation owned or shaped it.
++  function endCallback(now,work,owned){
++    const skip=owned||cost.yielding||cost.transition;
++    cost.prevHeavy=owned&&cost.heavy&&work<=deadline();
++    cost.heavy=false;cost.yielding=false;if(!owned)cost.transition=false;
++    return skip;
++  }
++  function sampleNormal(ms){
++    remember(cost.normal,ms,32);
++    if(active&&game)presentTime=Math.max(presentTime,game.t);
++  }
++  function direct(){if(cost.yielding)return;if((current||previous||active)&&!recorder)reset('direct-render');}
++  function autoState(now){
++    if(mode==='off')return 'off';
++    if(now<cooldownUntil)return 'backoff';
++    if(active)return 'active';
++    if(!RUN_STATES.has(state))return 'idle';
++    if(mode==='auto'){
++      if(!refreshConfident())return 'measuring';
++      if(!gate.open)return 1000/periodMs()<88?'low-refresh':'arming';
++    }
++    return 'ready';
++  }
++  function status(){
++    const now=performance.now();while(events.length&&now-events[0].now>1000)events.shift();
++    const real=events.filter(e=>e.kind==='real').length,generated=events.length-real;
++    const elapsed=events.length?Math.min(1,Math.max(.25,(now-events[0].now)/1000)):1;
++    const ready=elapsed>=.75;
++    return {mode,active,supported:!!S,method:S?.method,displayHzEstimate:Math.round(1000/periodMs()),
++      refreshHz:refresh.period?Math.round(1000/refresh.period):null,refreshConfident:refreshConfident(),
++      autoGate:gate.open,autoState:autoState(now),
++      realFPS:ready?Math.round(real/elapsed):0,generatedFPS:ready?Math.round(generated/elapsed):0,
++      presentationsPerSecond:ready?Math.round(events.length/elapsed):0,lastSession,
++      captureCpuMs:+cpuCapture.toFixed(3),generationCpuMs:+cpuGenerated.toFixed(3),
++      addedPresentationDelayMs:active?+(lag*1000).toFixed(2):0,stride,
++      deadlineMs:+deadline().toFixed(2),learnedPostMs:+cost.post.toFixed(2),
++      medianMs:{capture:quantile(cost.capture,.5),replay:quantile(cost.replay,.5),blit:quantile(cost.blit,.5),normal:quantile(cost.normal,.5)},
++      missRate:cost.late.length?+(cost.late.reduce((a,b)=>a+b,0)/cost.late.length).toFixed(3):0,
++      baselineMissRate:+cost.baseLate.toFixed(3),
++      backoff:{class:backoff.cls,level:{...backoff.level},resumeInMs:Math.max(0,Math.round(cooldownUntil-now))},failures:{...failures},
++      cacheBytesEstimate:buffers.reduce((n,c)=>n+c.width*c.height*4,0)+
++        (previous?.snapshotPixels||0)*4+(current?.snapshotPixels||0)*4+
++        ((previous?.ops.length||0)+(current?.ops.length||0))*256+
++        ((previous?.nodes.size||0)+(current?.nodes.size||0))*128,
++      cachedPaints:current?.ops.length||0,cachedNodes:current?.nodes.size||0,
++      fallback:now<cooldownUntil,error,lastReason,lastSynthesis,
++      presentationTime:Number.isFinite(presentTime)?presentTime:null,...totals};
++  }
++  function syncUi(force=false){
++    const now=performance.now();if(!force&&now-lastUi<500)return;lastUi=now;
++    const s=status(),wait=Math.max(1,Math.ceil(s.backoff.resumeInMs/1000));
++    const label=mode==='off'?'OFF':s.fallback?(backoff.cls==='budget'?`負荷のため休止（${wait}秒後に再試行）`:`描画の制限のため休止（${wait}秒後に再試行）`):s.active?
++      `実 ${s.realFPS} / 生成 ${s.generatedFPS} / 表示 ${s.presentationsPerSecond}/s`:
++      state!=='playing'&&lastSession?`直前 実 ${lastSession.realFPS} / 生成 ${lastSession.generatedFPS}`:
++      mode==='auto'?(state!=='playing'?'AUTO':s.autoState==='measuring'?'表示速度を測定中':
++        s.autoState==='low-refresh'?`90Hz以上で動作（現在 ${s.displayHzEstimate}Hz）`:'90Hz以上で動作'):'2x（プレイ中に動作）';
++    document.querySelectorAll('[data-framegen-status]').forEach(el=>el.textContent=label);
++    document.querySelectorAll('[data-framegen-mode]').forEach(button=>button.setAttribute('aria-checked',String(button.dataset.framegenMode===mode)));
++  }
++  // Test-only: start from a confirmed display rate instead of measuring it.
++  function testSeedRefresh(hz){
++    refresh.deltas.length=0;for(let i=0;i<64;i++)refresh.deltas.push(1000/hz);
++    refresh.period=snapPeriod(1000/hz);refresh.stable=16;refresh.slowRun=0;refresh.lastNow=NaN;
++    gate.open=1000/refresh.period>=88;gate.openAt=gate.open?0:Infinity;refresh.openHz=gate.open?Math.round(1000/refresh.period):0;
++  }
++  document.querySelectorAll('[data-framegen-mode]').forEach(button=>button.addEventListener('click',()=>setMode(button.dataset.framegenMode)));
++  syncUi(true);
++  return {step,reset,direct,release:deferRelease,endCallback,sampleNormal,
++    observe:observeIfNeeded,observeNow:observe,mark,staticObject,layer,
++    isHud:id=>HUD_IDS.has(id),stateChanged,status,setMode,syncUi,
++    get recording(){return !!recorder;},
++    // Internal methods are retained for the in-memory test harness; the
++    // shipping window API exposes status and normal user configuration only.
++    capture,drawHud,testSeedRefresh,get previous(){return previous;},get current(){return current;}
++  };
++}
++frameGeneration=makeFrameGeneration();
++window.elementalFrameGeneration=Object.freeze({getStatus:()=>frameGeneration.status(),setMode:mode=>frameGeneration.setMode(mode)});
+--- /dev/null
++++ b/tests/fixtures/fg3-frame-synthesis.js
+@@ -0,0 +1,364 @@
++/* Elemental Swarm frame synthesis. Original implementation, no vendor SDK.
++ * Captures Canvas paint primitives and image resources on real frames, then
++ * reprojects them at an intermediate time without executing game renderers.
++ * Engine identity/lifetime and layer order supply motion and visibility.
++ */
++(function(root){
++  'use strict';
++  const PROPERTIES=['fillStyle','strokeStyle','globalAlpha','globalCompositeOperation',
++    'lineWidth','lineCap','lineJoin','miterLimit','lineDashOffset','font','textAlign',
++    'textBaseline','direction','imageSmoothingEnabled','imageSmoothingQuality',
++    'shadowColor','shadowBlur','shadowOffsetX','shadowOffsetY','filter'];
++  const PATH_METHODS=new Set(['moveTo','lineTo','rect','arc','ellipse','quadraticCurveTo','bezierCurveTo','closePath','arcTo','roundRect']);
++  const PAINT_METHODS=new Set(['drawImage','fillRect','strokeRect','clearRect','fillText','strokeText','fill','stroke']);
++  const IDENTITIES=new WeakMap();let nextIdentity=1;
++  const GRADIENTS=new WeakMap();
++  const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
++  const lerp=(a,b,t)=>a+(b-a)*t;
++  function identity(object){
++    if(!object||typeof object!=='object')return String(object);
++    let id=IDENTITIES.get(object);if(!id){id=nextIdentity++;IDENTITIES.set(object,id);}return id;
++  }
++  function surface(width,height){
++    const c=typeof OffscreenCanvas==='function'?new OffscreenCanvas(width,height):document.createElement('canvas');
++    c.width=width;c.height=height;return c;
++  }
++  function matrixMultiply(a,b){return [
++    a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],
++    a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],
++    a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]
++  ];}
++  function affine(a,b,t){
++    if(a.every((value,i)=>Math.abs(value-b[i])<1e-10))return a;
++    const decompose=m=>{
++      const sx=Math.hypot(m[0],m[1]);
++      if(sx<1e-8)return null;
++      return {angle:Math.atan2(m[1],m[0]),sx,sy:(m[0]*m[3]-m[1]*m[2])/sx,
++        shear:(m[0]*m[2]+m[1]*m[3])/sx};
++    };
++    const p=decompose(a),q=decompose(b);
++    if(!p||!q||p.sy*q.sy<=0)return (t<.5?a:b).slice();
++    let angle=q.angle-p.angle;angle=Math.atan2(Math.sin(angle),Math.cos(angle));
++    const r=p.angle+angle*t,c=Math.cos(r),s=Math.sin(r),sx=lerp(p.sx,q.sx,t),sy=lerp(p.sy,q.sy,t),sh=lerp(p.shear,q.shear,t);
++    return [c*sx,s*sx,c*sh-s*sy,s*sh+c*sy,lerp(a[4],b[4],t),lerp(a[5],b[5],t)];
++  }
++  function readState(ctx){
++    const state={};for(const p of PROPERTIES)state[p]=ctx[p];
++    const m=ctx.getTransform();state.matrix=[m.a,m.b,m.c,m.d,m.e,m.f];
++    state.lineDash=ctx.getLineDash();return state;
++  }
++  function cloneState(s){return {...s,matrix:s.matrix.slice(),lineDash:s.lineDash.slice()};}
++  function writeState(ctx,state){
++    for(const p of PROPERTIES)if(state[p]!==undefined)ctx[p]=state[p];
++    ctx.setLineDash(state.lineDash);ctx.setTransform(...state.matrix);
++  }
++  function material(value){
++    const gradient=value&&typeof value==='object'?GRADIENTS.get(value):null;
++    if(gradient)return 'gradient:'+gradient.kind+':'+gradient.stops.map(s=>s.join(':')).join(',');
++    return typeof value==='string'?value:'resource:'+identity(value);
++  }
++  function sourceIsMutable(image){return image&&typeof image.getContext==='function';}
++  // A closed ImageBitmap reports zero size and makes drawImage throw.
++  function usable(image){return !(image&&typeof image.close==='function'&&image.width===0&&image.height===0);}
++
++  class Recorder {
++    constructor(ctx,options){
++      this.target=ctx;this.options=options;this.state=readState(ctx);this.stack=[];this.path=[];
++      this.layer={id:'root',index:0,space:'world'};this.currentTag=null;
++      this.picture={time:options.time,camera:{...options.camera},width:ctx.canvas.width,height:ctx.canvas.height,
++        scale:options.scale||1,ops:[],byKey:new Map(),nodes:new Map(),sources:[],borrowed:new Set(),snapshotPixels:0,fault:'',finalState:null};
++      this.counters=new Map();this.nodeCounters=new Map();this.looseCounters=new Map();this.frozen=new WeakMap();
++      this.methods=new Map();this.context=this.makeProxy();
++    }
++    beginLayer(id,index,space='world',discrete=false){
++      this.layer={id,index,space,discrete};this.currentTag=null;
++    }
++    object(tag){if(tag)this.currentTag={id:tag.id,x:tag.x,y:tag.y,meta:tag.meta||tag,sampleTime:this.picture.time};}
++    tag(){return this.currentTag;}
++    count(map,key){const n=map.get(key)||0;map.set(key,n+1);return n;}
++    freeze(image){
++      if(!sourceIsMutable(image))return image;
++      let frozen=this.frozen.get(image);if(frozen)return frozen;
++      const width=image.width|0,height=image.height|0;
++      if(width<=0||height<=0){this.picture.fault='invalid-image-source';return image;}
++      const pixels=width*height;
++      if(this.picture.snapshotPixels+pixels>(this.options.maxSnapshotPixels||4194304)){
++        this.picture.fault='snapshot-budget';return image;
++      }
++      frozen=surface(width,height);const ctx=frozen.getContext('2d',{alpha:true});
++      ctx.drawImage(image,0,0);this.frozen.set(image,frozen);
++      this.picture.sources.push(frozen);this.picture.snapshotPixels+=pixels;return frozen;
++    }
++    recordPath(kind,args){
++      const tag=this.tag(),base=this.layer.id+'|'+(tag?.id||'world')+'|'+kind;
++      const key=base+'|'+this.count(this.nodeCounters,base);
++      const node={kind,args:args.slice(),matrix:this.state.matrix.slice(),tag,layer:this.layer,key};
++      this.path.push(node);this.picture.nodes.set(key,node);
++      if(this.picture.nodes.size>(this.options.maxNodes||80000))this.picture.fault='path-budget';
++    }
++    recordPaint(kind,args){
++      const isPath=kind==='fill'||kind==='stroke';
++      // A path belonging to one object keeps that object's identity. Batched
++      // paths spanning several objects keep identity on individual vertices.
++      const firstTag=isPath?this.path[0]?.tag:null;
++      const tag=isPath?(firstTag&&this.path.every(n=>n.tag?.id===firstTag.id)?firstTag:null):this.tag();
++      const s=cloneState(this.state),image=kind==='drawImage'?args[0]:null;
++      const style=kind==='stroke'||kind==='strokeRect'||kind==='strokeText'?s.strokeStyle:s.fillStyle;
++      const text=kind==='fillText'||kind==='strokeText'?String(args[0]):'';
++      const base=this.layer.id+'|'+(tag?.id||'world')+'|'+kind+'|'+(image?identity(image):material(style))+'|'+text;
++      const key=base+'|'+this.count(this.counters,base);
++      // Owner and draw order only. Used to pair a primitive whose colour,
++      // image or text changed between the two real frames.
++      const looseBase=this.layer.id+'|'+(tag?.id||'world')+'|'+kind;
++      const looseKey=looseBase+'|'+this.count(this.looseCounters,looseBase);
++      const stored=args.slice();if(image)stored[0]=this.freeze(image);
++      // Closable sources are not copied; the runtime defers their release.
++      if(image&&typeof image.close==='function')this.picture.borrowed.add(image);
++      const fullScreen=(kind==='fillRect'||kind==='clearRect')&&!tag&&args[0]<=0&&args[1]<=0&&
++        args[2]>=this.picture.width/this.picture.scale&&args[3]>=this.picture.height/this.picture.scale;
++      const op={kind,args:stored,state:s,tag,layer:this.layer,key,looseKey,path:isPath?this.path.slice():null,
++        imageId:image?identity(image):0,order:this.picture.ops.length,fullScreen};
++      this.picture.ops.push(op);this.picture.byKey.set(key,op);
++      if(this.picture.ops.length>(this.options.maxOps||24000))this.picture.fault='paint-budget';
++    }
++    makeProxy(){
++      const self=this,raw=this.target;
++      return new Proxy(raw,{
++        get(target,property){
++          if(typeof raw[property]!=='function')return raw[property];
++          if(self.methods.has(property))return self.methods.get(property);
++          const method=function(...args){
++            if(property==='save')self.stack.push(cloneState(self.state));
++            else if(property==='restore'){if(self.stack.length)self.state=self.stack.pop();}
++            else if(property==='beginPath')self.path=[];
++            else if(property==='translate')self.state.matrix=matrixMultiply(self.state.matrix,[1,0,0,1,args[0],args[1]]);
++            else if(property==='scale')self.state.matrix=matrixMultiply(self.state.matrix,[args[0],0,0,args[1],0,0]);
++            else if(property==='rotate'){
++              const c=Math.cos(args[0]),s=Math.sin(args[0]);self.state.matrix=matrixMultiply(self.state.matrix,[c,s,-s,c,0,0]);
++            }else if(property==='transform')self.state.matrix=matrixMultiply(self.state.matrix,args);
++            else if(property==='setTransform'){
++              const m=args[0];self.state.matrix=args.length===6?args.slice():[m.a,m.b,m.c,m.d,m.e,m.f];
++            }else if(property==='resetTransform')self.state.matrix=[1,0,0,1,0,0];
++            else if(property==='setLineDash')self.state.lineDash=Array.from(args[0]);
++            else if(property==='clip'||property==='putImageData')self.picture.fault='unsupported-'+property;
++            if(PATH_METHODS.has(property))self.recordPath(property,args);
++            if(PAINT_METHODS.has(property))self.recordPaint(property,args);
++            const result=raw[property](...args);
++            if(property==='createLinearGradient'||property==='createRadialGradient'){
++              const meta={kind:property,args:args.slice(),matrix:self.state.matrix.slice(),tag:self.tag(),layer:self.layer,stops:[]};
++              GRADIENTS.set(result,meta);const add=result.addColorStop.bind(result);
++              result.addColorStop=function(offset,color){meta.stops.push([offset,color]);return add(offset,color);};
++            }
++            return result;
++          };
++          self.methods.set(property,method);return method;
++        },
++        set(target,property,value){
++          raw[property]=value;
++          if(PROPERTIES.includes(property))self.state[property]=raw[property];
++          return true;
++        }
++      });
++    }
++    finish(){
++      if(this.stack.length)this.picture.fault='unbalanced-canvas-state';
++      this.picture.finalState=cloneState(this.state);return this.picture;
++    }
++  }
++
++  function alive(tag,time){
++    if(!tag)return true;const m=tag.meta;
++    return time>=(m.bornAt??-Infinity)-1e-7&&time<(m.deadAt??Infinity)-1e-7;
++  }
++  function pose(tag,time,fallbackTime){
++    const history=tag?.meta?.history;
++    if(!history||history.length<1)return {x:tag?.x||0,y:tag?.y||0};
++    let a=history[0],b=history[history.length-1];
++    for(let i=1;i<history.length;i++)if(history[i].time>=time){a=history[i-1];b=history[i];break;}
++    if(time<a.time||time>b.time+1e-7)return {x:tag.x,y:tag.y};
++    if(b.discontinuous)return time<b.time?{x:a.x,y:a.y}:{x:b.x,y:b.y};
++    const t=b.time>a.time?clamp((time-a.time)/(b.time-a.time),0,1):0;
++    return {x:lerp(a.x,b.x,t),y:lerp(a.y,b.y,t)};
++  }
++  function shiftedMatrix(node,source,previous,current,t,targetTime){
++    const m=node.matrix.slice(),tag=node.tag;
++    if(node.layer.space==='screen')return m;
++    const camera={x:lerp(previous.camera.x,current.camera.x,t),y:lerp(previous.camera.y,current.camera.y,t)};
++    let dx=source.camera.x-camera.x,dy=source.camera.y-camera.y;
++    if(tag){const p=pose(tag,targetTime,source.time);dx+=p.x-tag.x;dy+=p.y-tag.y;}
++    m[4]+=dx*current.scale;m[5]+=dy*current.scale;return m;
++  }
++  function safePair(a,b,kind,loose=false){
++    if(!a||!b||a.kind!==b.kind||a.args.length!==b.args.length)return false;
++    if((a.tag?.id||0)!==(b.tag?.id||0))return false;
++    if(a.tag?.meta?.history){
++      const start=Math.min(a.tag.sampleTime,b.tag.sampleTime),end=Math.max(a.tag.sampleTime,b.tag.sampleTime);
++      if(a.tag.meta.history.some(p=>p.discontinuous&&p.time>start+1e-7&&p.time<=end+1e-7))return false;
++    }
++    if(kind==='drawImage'&&a.imageId!==b.imageId&&!loose)return false;
++    return true;
++  }
++  function sameGeometry(a,b){
++    const skip=a.kind==='drawImage'||a.kind==='fillText'||a.kind==='strokeText'?1:0;
++    for(let i=skip;i<a.args.length;i++)if(a.args[i]!==b.args[i])return false;
++    return a.state.matrix.every((value,i)=>value===b.state.matrix[i]);
++  }
++  function loosePartners(previous,current,t){
++    // A colour, image or text change gives a primitive a new strict key, and
++    // both versions would be drawn. Pair the unmatched versions once by owner
++    // and draw order. Ownerless primitives must also keep their geometry.
++    const partners=new Map(),pending=new Map();
++    for(const a of previous.ops)if(a.looseKey&&!current.byKey.has(a.key))pending.set(a.looseKey,a);
++    if(!pending.size)return partners;
++    for(const b of current.ops){
++      if(previous.byKey.has(b.key))continue;
++      const a=pending.get(b.looseKey);
++      if(!a||a.args.length!==b.args.length)continue;
++      if(!a.tag&&!(a.fullScreen&&b.fullScreen)&&(a.path||!sameGeometry(a,b)))continue;
++      pending.delete(b.looseKey);
++      partners.set(a.key,{a,b,skip:t>=.5});partners.set(b.key,{a,b,skip:t<.5});
++    }
++    return partners;
++  }
++  function geometryArgs(a,b,t,kind){
++    if(a.args.every((value,i)=>value===b.args[i]))return b.args;
++    const pick=t<.5?a:b,args=pick.args.slice();
++    for(let i=0;i<args.length;i++){
++      // Sprite source rectangles and text content are discrete. Only geometry
++      // in the destination domain may be interpolated.
++      if(kind==='drawImage'&&(i===0||(args.length===9&&i<5)))continue;
++      if((kind==='fillText'||kind==='strokeText')&&i===0)continue;
++      if(typeof a.args[i]==='number'&&typeof b.args[i]==='number')args[i]=lerp(a.args[i],b.args[i],t);
++    }
++    return args;
++  }
++  function dispose(picture){
++    if(!picture)return;
++    for(const image of picture.sources||[]){image.width=1;image.height=1;}
++    picture.sources=[];picture.ops=[];picture.byKey?.clear();picture.nodes?.clear();picture.borrowed?.clear();
++  }
++  function mergedKeys(previous,current){
++    // The 2D layer order is the depth order. Keep prior relative order and
++    // insert newly visible primitives before their next surviving neighbor.
++    const result=[],pending=[];let cursor=0;
++    const present=new Set(previous.ops.map(o=>o.key));
++    const before=new Map();
++    for(const op of current.ops){
++      if(present.has(op.key)){if(pending.length){before.set(op.key,pending.splice(0));}}
++      else pending.push(op.key);
++    }
++    for(const op of previous.ops){for(const key of before.get(op.key)||[])result.push(key);result.push(op.key);}
++    result.push(...pending);
++    const index=key=>(current.byKey.get(key)||previous.byKey.get(key)).layer.index;
++    return result.map((key,n)=>({key,n,layer:index(key)})).sort((a,b)=>a.layer-b.layer||a.n-b.n).map(x=>x.key);
++  }
++
++  function replay(previous,current,t,ctx,options={}){
++    if(!previous||!current)throw new Error('Two real frames are required.');
++    if(previous.width!==current.width||previous.height!==current.height||previous.scale!==current.scale)
++      throw new Error('Frame dimensions changed.');
++    t=clamp(t,0,1);
++    const targetTime=lerp(previous.time,current.time,t),stats={paints:0,pathNodes:0,rejected:0,unmatched:0,loosePairs:0,discrete:0,detached:0};
++    const gradients=new WeakMap();let lastMatrix=null,lastStyles={};
++    const setMatrix=m=>{
++      if(!lastMatrix||m.some((x,i)=>Math.abs(x-lastMatrix[i])>1e-9)){ctx.setTransform(...m);lastMatrix=m;}
++    };
++    const gradientValue=(value,paired,source)=>{
++      const g=value&&typeof value==='object'?GRADIENTS.get(value):null;
++      if(!g)return value;
++      let copy=gradients.get(value);if(copy)return copy;
++      const other=paired&&typeof paired==='object'?GRADIENTS.get(paired):null;
++      // Gradient coordinates are consumed in the paint call's coordinate
++      // space. Moving the CTM only while creating a gradient does not move
++      // its color ramp when the later paint uses a different CTM.
++      const args=other&&other.kind===g.kind?g.args.map((value,i)=>
++        source===current?lerp(other.args[i],value,t):lerp(value,other.args[i],t)):g.args;
++      copy=ctx[g.kind](...args);for(const stop of g.stops)copy.addColorStop(...stop);
++      gradients.set(value,copy);return copy;
++    };
++    const applyState=(state,paired,source)=>{
++      for(const p of PROPERTIES){
++        let value=state[p];
++        if((p==='globalAlpha'||p==='lineWidth'||p==='lineDashOffset')&&paired&&typeof paired[p]==='number')
++          value=source===current?lerp(paired[p],value,t):lerp(value,paired[p],t);
++        if(p==='fillStyle'||p==='strokeStyle')value=gradientValue(value,paired?.[p],source);
++        if(value!==undefined&&lastStyles[p]!==value){ctx[p]=value;lastStyles[p]=value;}
++      }
++      const dash=state.lineDash.join(',');if(lastStyles.dash!==dash){ctx.setLineDash(state.lineDash);lastStyles.dash=dash;}
++    };
++    const keys=t===0?previous.ops.map(o=>o.key):t===1?current.ops.map(o=>o.key):mergedKeys(previous,current);
++    const partners=t>0&&t<1?loosePartners(previous,current,t):new Map();
++    const chosen=t<.5?previous:current,discreteDone=new Set();
++    const drawExact=op=>{
++      if(op.kind==='drawImage'&&!usable(op.args[0])){stats.detached++;return;}
++      applyState(op.state,null,chosen);
++      if(op.path){
++        ctx.beginPath();
++        for(const node of op.path){setMatrix(node.matrix);ctx[node.kind](...node.args);}
++        stats.pathNodes+=op.path.length;
++      }
++      setMatrix(op.state.matrix);ctx[op.kind](...op.args);stats.paints++;stats.discrete++;
++    };
++    ctx.save();
++    try{
++      ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
++      ctx.clearRect(0,0,current.width,current.height);ctx.imageSmoothingEnabled=false;
++      for(const key of keys){
++        let a=previous.byKey.get(key),b=current.byKey.get(key),loose=false;
++        const layer=(b||a).layer;
++        if(layer.discrete){
++          // Screen overlays such as the time-of-day tint and light map are shown
++          // from one real frame, exactly as the normal renderer drew them.
++          if(discreteDone.has(layer.id))continue;discreteDone.add(layer.id);
++          for(const op of chosen.ops)if(op.layer.id===layer.id)drawExact(op);
++          continue;
++        }
++        const mate=partners.get(key);
++        if(mate){if(mate.skip)continue;({a,b}=mate);loose=true;}
++        let op=t<.5?(a||b):(b||a),source=op===b?current:previous;
++        if(op.kind==='drawImage'&&!usable(op.args[0])){
++          const fallback=op===a?b:a;
++          if(!fallback||!usable(fallback.args[0])){stats.detached++;continue;}
++          op=fallback;source=op===b?current:previous;
++          if(source===current)a=null;else b=null;
++        }
++        if(!alive(op.tag,targetTime)){stats.rejected++;continue;}
++        const pair=safePair(a,b,op.kind,loose)&&t>0&&t<1;
++        if(!pair&&t>0&&t<1)stats.unmatched++;
++        if(pair&&loose)stats.loosePairs++;
++        const other=pair?(source===current?a:b):null;
++        applyState(op.state,other?.state,source);
++        if(op.path){
++          ctx.beginPath();
++          const pathKeys=op.path.map(n=>n.key),known=new Set(pathKeys);
++          const alternate=source===current?a:b;
++          if(t>0&&t<1&&!op.tag&&alternate?.path)for(const n of alternate.path)if(!known.has(n.key)){pathKeys.push(n.key);known.add(n.key);}
++          let visibleNodes=0;
++          for(const nodeKey of pathKeys){
++            const p=previous.nodes.get(nodeKey),q=current.nodes.get(nodeKey),node=t<.5?(p||q):(q||p);
++            if(!node||!alive(node.tag,targetTime))continue;
++            const nodeSource=node===q?current:previous;
++            const compatible=safePair(p,q,node.kind)&&t>0&&t<1;
++            const matrix=compatible?affine(p.matrix,q.matrix,t):shiftedMatrix(node,nodeSource,previous,current,t,targetTime);
++            const args=compatible?geometryArgs(p,q,t,node.kind):node.args;
++            setMatrix(matrix);ctx[node.kind](...args);visibleNodes++;
++          }
++          if(!visibleNodes)continue;
++          // Stroke widths and gradients are defined in the paint call's CTM.
++          const matrix=pair?affine(a.state.matrix,b.state.matrix,t):
++            shiftedMatrix({matrix:op.state.matrix,tag:null,layer:{...op.layer,space:'screen'}},source,previous,current,t,targetTime);
++          setMatrix(matrix);ctx[op.kind](...op.args);stats.pathNodes+=visibleNodes;
++        }else{
++          const matrix=pair?affine(a.state.matrix,b.state.matrix,t):
++            op.fullScreen?op.state.matrix:shiftedMatrix({matrix:op.state.matrix,tag:op.tag,layer:op.layer},source,previous,current,t,targetTime);
++          setMatrix(matrix);const args=pair?geometryArgs(a,b,t,op.kind):op.args;
++          ctx[op.kind](...args);
++        }
++        stats.paints++;
++      }
++    }finally{ctx.restore();}
++    return stats;
++  }
++  root.SwarmFrameSynthesis=Object.freeze({Recorder,replay,dispose,readState,writeState,surface,affine,
++    version:'1.0.0',method:'engine-assisted retained-paint reprojection'});
++})(typeof window==='object'?window:globalThis);
+--- /dev/null
++++ b/tests/fixtures/fg3-reference.cjs
+@@ -0,0 +1,25 @@
++// Reconstruct the uploaded reference in memory from its original generator
++// and engine. The large mobile baseline is already part of the source tree.
++const fs=require('fs'),path=require('path'),assert=require('assert/strict'),crypto=require('crypto');
++module.exports=function referenceHtml(){
++ const root=path.resolve(__dirname,'../..');let html=null;
++ const referenceFs={...fs,
++  readFileSync(filename,encoding){
++   const name=path.basename(filename),reference={
++    'frame-generation-runtime.js':'fg3-frame-generation-runtime.js',
++    'frame-synthesis.js':'fg3-frame-synthesis.js'
++   }[name];
++   return fs.readFileSync(reference?path.join(__dirname,reference):filename,encoding);
++  },
++  writeFileSync(filename,value){
++   assert.equal(path.resolve(filename),path.join(root,'app/src/main/assets/index.html'));
++   html=value;
++  }
++ };
++ const generator=fs.readFileSync(path.join(__dirname,'fg3-build-frame-generation.cjs'),'utf8');
++ const load=name=>name==='fs'?referenceFs:require(name);
++ new Function('require','__dirname','console',generator)(load,path.join(root,'frame_generation'),{log(){}});
++ assert.equal(typeof html,'string');
++ assert.equal(crypto.createHash('sha256').update(html).digest('hex'),'1b9ee47a7e77ff0e445a33af050688df8af1280960b04259bb00816215b6570c','Reference must match the uploaded fg.3 HTML');
++ return html;
++};
+--- /dev/null
++++ b/tests/framegen-equivalence.cjs
+@@ -0,0 +1,112 @@
++// Differential rendering against the uploaded fg.3 engine. This exercises
++// immutable snapshots, persistent paths and cached pairs through public APIs.
++const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
++const {chromium}=require(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES?path.join(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES,'playwright'):'playwright');
++const root=path.resolve(__dirname,'..'),out=path.join(root,'verification/framegen');
++fs.mkdirSync(out,{recursive:true});
++const before=fs.readFileSync(path.join(__dirname,'fixtures/fg3-frame-synthesis.js'),'utf8');
++const after=fs.readFileSync(path.join(root,'frame_generation/frame-synthesis.js'),'utf8');
++const html='<script>'+before+';window.FG3=SwarmFrameSynthesis;</script><script>'+after+'</script>';
++const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/html; charset=utf-8');res.end(html);});
++let browser;const report={startedAt:new Date().toISOString(),checks:[],errors:[]};
++(async()=>{
++ await new Promise(r=>server.listen(0,'127.0.0.1',r));
++ browser=await chromium.launch({executablePath:process.env.SWARM_CHROME_BINARY||'chrome-headless-shell',headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
++ const page=await browser.newPage();page.on('pageerror',e=>report.errors.push(String(e)));
++ await page.goto('http://127.0.0.1:'+server.address().port);
++ const checks=await page.evaluate(()=>{
++  const W=384,H=256,results=[];
++  const canvas=(w=W,h=H)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c;};
++  const pixels=c=>c.getContext('2d').getImageData(0,0,W,H).data;
++  function diff(a,b){let total=0,max=0,bad=0;for(let i=0;i<a.length;i++){
++   const d=Math.abs(a[i]-b[i]);total+=d;max=Math.max(max,d);if(d>2)bad++;
++  }return {mae:total/a.length,max,bad};}
++  for(const scenario of ['nested state and appended paths','layers and lifetimes','gradients and mutable images']){
++   const meta=Array.from({length:6},(_,i)=>({id:i+1,bornAt:i===4?.5:-Infinity,deadAt:i===5?.5:Infinity,
++    history:[{time:0,x:30+i*48,y:140},{time:1,x:52+i*48,y:150,discontinuous:i===3}]}));
++   function capture(S,t){
++    const c=canvas(),image=canvas(24,24),stable=canvas(24,24);
++    const g=image.getContext('2d');g.fillStyle=t?'#77ccff':'#ffaa33';g.fillRect(0,0,24,24);
++    const g2=stable.getContext('2d');g2.fillStyle='#abcdef';g2.fillRect(0,0,24,24);
++    if(S.markImmutable)S.markImmutable(stable);
++    const rec=new S.Recorder(c.getContext('2d'),{time:t,camera:{x:t*7,y:t*3},scale:1});
++    const ctx=rec.context;
++    rec.beginLayer('background',0,'screen');ctx.fillStyle='#132837';ctx.fillRect(0,0,W,H);
++    rec.beginLayer('shapes',1,'world');
++    if(scenario==='nested state and appended paths'){
++     ctx.save();ctx.translate(80+20*t,66);ctx.rotate(.17+t*.21);ctx.scale(t?-.9:1,1.1);
++     ctx.fillStyle='#53bc97';ctx.strokeStyle='#e9c647';ctx.lineWidth=3;ctx.setLineDash([3,5]);
++     ctx.beginPath();ctx.moveTo(-24,-21);ctx.lineTo(25,-12);ctx.lineTo(10,20);ctx.closePath();ctx.fill();
++     // Appending after a paint must not mutate the earlier retained path.
++     ctx.moveTo(-18,18);ctx.quadraticCurveTo(0,35,28,18);ctx.stroke();
++     ctx.save();ctx.globalAlpha=.4+t*.3;ctx.shadowColor='#ff3577';ctx.shadowBlur=3;ctx.fillRect(-9,-7,18,14);ctx.restore();
++     ctx.fillStyle='invalid-colour';ctx.globalAlpha=7;ctx.lineWidth=-1;ctx.fillRect(15,20,13,9);ctx.restore();
++     ctx.fillStyle='#dd88aa';ctx.font='15px monospace';ctx.fillText('state '+t,180,40);
++     ctx.resetTransform();ctx.fillRect(2,2,5,5);
++    }else if(scenario==='layers and lifetimes'){
++     // One path contains several owners, with a birth, death and teleport.
++     ctx.strokeStyle='#8febff';ctx.lineWidth=2;ctx.beginPath();
++     for(const m of meta){
++      if((t===0&&m.id===5)||(t===1&&m.id===6))continue;
++      const x=30+(m.id-1)*48+22*t,y=140+10*t;
++      rec.object({id:m.id,x,y,meta:m});ctx.moveTo(x,y);ctx.lineTo(x+14,y-17);
++     }ctx.stroke();
++     for(const m of meta){
++      if((t===0&&m.id===5)||(t===1&&m.id===6))continue;
++      const x=30+(m.id-1)*48+22*t;rec.object({id:m.id,x,y:140+10*t,meta:m});
++      ctx.fillStyle=t?'#f2816a':'#7295e8';ctx.fillRect(x,160,24,21);
++     }
++     // Unusual insertion order must still use the stable layer sort.
++     rec.beginLayer(t?'new':'old',t?2:4,'screen');ctx.fillStyle='#c3da79';ctx.fillRect(270,40,70,70);
++     rec.beginLayer('shared',3,'screen');ctx.fillStyle='#926bc4';ctx.fillRect(290,60,70,70);
++    }else{
++     ctx.save();ctx.translate(40+t*20,40);const grad=ctx.createLinearGradient(0,0,100+t*10,70);
++     grad.addColorStop(0,'#ffe986');grad.addColorStop(1,'#7299e8');ctx.fillStyle=grad;ctx.fillRect(0,0,100,70);
++     ctx.fillRect(6,80,100,15);ctx.restore();
++     ctx.drawImage(image,170+t*20,60,48,48);ctx.drawImage(stable,240+t*20,70,48,48);
++     rec.beginLayer('ambient',8,'screen',true);ctx.fillStyle=t?'rgba(20,50,180,.16)':'rgba(180,20,50,.16)';ctx.fillRect(0,0,W,H);
++    }
++    const frame=rec.finish();
++    // A mutable input may change as soon as capture returns.
++    g.fillStyle='#ff00ff';g.fillRect(0,0,24,24);
++    return frame;
++   }
++   const old=[capture(FG3,0),capture(FG3,1)],next=[capture(SwarmFrameSynthesis,0),capture(SwarmFrameSynthesis,1)];
++   for(const t of [0,.125,.49,.5,.875,1,.25,.75]){
++    const a=canvas(),b=canvas(),ctx=b.getContext('2d');ctx.translate(3,7);ctx.globalAlpha=.37;
++    const state=SwarmFrameSynthesis.readState(ctx);
++    FG3.replay(...old,t,a.getContext('2d'));SwarmFrameSynthesis.replay(...next,t,ctx);
++    const difference=diff(pixels(a),pixels(b)),restored=SwarmFrameSynthesis.readState(ctx);
++    results.push({name:scenario,t,...difference,contextRestored:state.globalAlpha===restored.globalAlpha&&state.matrix.every((n,i)=>n===restored.matrix[i])});
++   }
++   if(scenario==='gradients and mutable images')results.push({name:'write-once source saves one snapshot',
++    savedPixels:old[1].snapshotPixels-next[1].snapshotPixels,borrowed:next[1].borrowed.size});
++   for(const p of old)FG3.dispose(p);for(const p of next)SwarmFrameSynthesis.dispose(p);
++  }
++  // Immutable state sharing is observable here; later writes and saves must
++  // never alter a paint that has already been retained.
++  const rec=new SwarmFrameSynthesis.Recorder(canvas().getContext('2d'),{time:0,camera:{x:0,y:0}}),c=rec.context;
++  c.fillStyle='#ff0000';c.fillRect(1,1,5,5);c.save();c.translate(10,5);c.fillStyle='#0000ff';c.fillRect(1,1,5,5);c.restore();c.fillRect(2,2,5,5);
++  const p=rec.finish();results.push({name:'recorded state is immutable across save and restore',
++   colours:p.ops.map(o=>o.state.fillStyle),translations:p.ops.map(o=>o.state.matrix.slice(4))});
++  for(const linear of [[1,0,0,1],[0,0,0,1],[1,1,1,1],[1e-10,0,0,1],[-1,0,0,1],[.8,.6,-.6,.8]]){
++   for(const offset of [1e-11,12])for(const t of [.25,.75]){
++    const a=[...linear,0,0],b=[...linear,offset,offset/2];
++    const before=FG3.affine(a,b,t),after=SwarmFrameSynthesis.affine(a,b,t);
++    results.push({name:'affine boundary',linear,offset,t,affineError:Math.max(...before.map((n,i)=>Math.abs(n-after[i])))});
++   }
++  }
++  return results;
++ });
++ for(const check of checks){
++  if('mae'in check){assert(check.mae<.001&&check.bad===0,JSON.stringify(check));assert(check.contextRestored);}
++  else if('affineError'in check)assert(check.affineError<1e-12,JSON.stringify(check));
++  else if('savedPixels'in check){assert.equal(check.savedPixels,24*24);assert.equal(check.borrowed,1);}
++  else{assert.deepEqual(check.colours,['#ff0000','#0000ff','#ff0000']);assert.deepEqual(check.translations,[[0,0],[10,5],[0,0]]);}
++ }
++ report.checks=checks;assert.deepEqual(report.errors,[]);report.passed=true;
++ console.log('PASS fg.3 differential rendering and snapshot ownership',checks.length);
++})().catch(e=>{report.failure=e.stack;process.exitCode=1;console.error(e);}).finally(async()=>{
++ report.finishedAt=new Date().toISOString();fs.writeFileSync(path.join(out,'equivalence-results.json'),JSON.stringify(report,null,2));
++ if(browser)await browser.close();server.close();
++});
+--- /dev/null
++++ b/tests/framegen-off-performance.cjs
+@@ -0,0 +1,46 @@
++// Regression for the game's complete update/render callback with generation
++// disabled, using identical fixed timestamps and game RNG in both versions.
++const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
++const {chromium}=require(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES?path.join(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES,'playwright'):'playwright');
++const root=path.resolve(__dirname,'..'),out=path.join(root,'verification/framegen');
++const hook=`
++window.__offPerf=async function(quality){
++ multicore.setEnabled(false);frameGeneration.setMode('off');visualSettings.quality=quality;applyResize();
++ setGameSeed(24681357);newGame();suspendGameLoop();game.player.xpNext=1e12;game.player.hp=game.player.maxHp=1e9;
++ input.keys.clear();input.keys.add('KeyD');resetFrameClock(0);const times=[];
++ for(let i=1;i<=140;i++){
++  await new Promise(requestAnimationFrame);const begin=performance.now();loop(i*1000/60);suspendGameLoop();
++  if(i>40)times.push(performance.now()-begin);
++ }
++ input.keys.clear();return {times,combat:{t:game.t,rng:gameRandomDraws,kills:game.kills,hp:game.player.hp,
++  player:[game.player.x,game.player.y],enemies:game.enemies.map(e=>[e.id,e.x,e.y,e.hp])}};
++};
++`;
++const instrument=html=>{const at=html.lastIndexOf('\n})();');assert(at>0);return html.slice(0,at)+hook+html.slice(at);};
++const pages={fg3:instrument(require('./fixtures/fg3-reference.cjs')()),fg4:instrument(fs.readFileSync(path.join(root,'app/src/main/assets/index.html'),'utf8'))};
++const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/html; charset=utf-8');res.end(pages[req.url.slice(1)]||pages.fg4);});
++const summary=list=>{const s=list.slice().sort((a,b)=>a-b);return {median:s[Math.floor(s.length*.5)],p95:s[Math.floor(s.length*.95)],mean:s.reduce((a,b)=>a+b,0)/s.length};};
++const report={startedAt:new Date().toISOString(),cases:[],errors:[],conditions:{mode:'off',order:['fg3','fg4','fg4','fg3'],warmup:40,samplesPerVersion:200,timing:'whole game callback; Linux Chromium CPU timing, not Android FPS'}};
++let browser;
++(async()=>{
++ await new Promise(r=>server.listen(0,'127.0.0.1',r));
++ browser=await chromium.launch({executablePath:process.env.SWARM_CHROME_BINARY||'chrome-headless-shell',headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--mute-audio']});
++ const tabs={},contexts=[];
++ for(const version of ['fg3','fg4']){
++  const context=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:3,isMobile:true,hasTouch:true,locale:'ja-JP'});contexts.push(context);
++  await context.addInitScript(()=>{Object.defineProperty(navigator,'deviceMemory',{get:()=>4});Element.prototype.requestFullscreen=()=>Promise.resolve();window.ElementalNative={ready(){},setFrameGenerationActive(){}};});
++  const page=await context.newPage();page.on('pageerror',e=>report.errors.push(String(e)));tabs[version]=page;
++  await page.goto('http://127.0.0.1:'+server.address().port+'/'+version,{waitUntil:'load'});await page.waitForTimeout(400);
++ }
++ for(const quality of ['auto','ultra']){
++  const values={fg3:[],fg4:[]};let combat=null;
++  for(const version of report.conditions.order){
++   const r=await tabs[version].evaluate(q=>__offPerf(q),quality);values[version].push(...r.times);
++   if(combat)assert.deepEqual(r.combat,combat,'OFF combat must be identical across versions and repetitions');else combat=r.combat;
++  }
++  const result={quality,before:summary(values.fg3),after:summary(values.fg4),combatIdentical:true};report.cases.push(result);console.log('OFF callback',JSON.stringify(result));
++ }
++ assert.deepEqual(report.errors,[]);report.passed=true;for(const c of contexts)await c.close();
++})().catch(e=>{report.failure=e.stack;process.exitCode=1;console.error(e);}).finally(async()=>{
++ report.finishedAt=new Date().toISOString();fs.writeFileSync(path.join(out,'off-performance-results.json'),JSON.stringify(report,null,2));if(browser)await browser.close();server.close();
++});
+--- /dev/null
++++ b/tests/framegen-performance.cjs
+@@ -0,0 +1,122 @@
++// CPU timing and pixel regression against the exact uploaded fg.3 HTML.
++// Both versions use the same Chromium instance, viewport, fixtures and order.
++// Each measured pair is newly captured: pair-cache reuse alone cannot make
++// this comparison look faster than the production capture/replay cycle.
++const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict'),crypto=require('crypto');
++const {chromium}=require(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES?path.join(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES,'playwright'):'playwright');
++const root=path.resolve(__dirname,'..'),out=path.join(root,'verification/framegen');fs.mkdirSync(out,{recursive:true});
++const fixture=fs.readFileSync(path.join(__dirname,'framegen-game.cjs'),'utf8').match(/const hook=`([\s\S]*?)`;\nconst at=/);
++assert(fixture,'Game fixture hook is required');
++const hook=fixture[1]+`
++window.__fgPerf={
++ prepare(quality,pan,dense=false){
++  suspendGameLoop();multicore.setEnabled(false);frameGeneration.setMode('off');
++  visualSettings.quality=quality;visualSettings.lighting=false;visualSettings.markers=false;applyResize();
++  setGameSeed(424242);newGame();suspendGameLoop();__fgTest.fixtures();
++  if(dense){
++   for(let i=0;i<40;i++){spawnEnemy(i%10===0?'elite':'swarm');const e=game.enemies.at(-1);e.x=12870+(i%8)*38;e.y=12800+Math.floor(i/8)*65;e.vx=22;e.vy=9;e.telegraph=0;}
++   const friendly=game.projectiles.slice(),hostile=game.enemyProjectiles.slice(),orbs=game.xpOrbs.slice();
++   for(let i=0;i<220;i++)game.projectiles.push({...friendly[i%friendly.length],x:12870+(i%10)*28,y:12700+Math.floor(i/10)*26});
++   for(let i=0;i<200;i++)game.enemyProjectiles.push({...hostile[i%hostile.length],x:12870+(i%10)*28,y:12720+Math.floor(i/10)*26});
++   for(let i=0;i<200;i++)game.xpOrbs.push({...orbs[i%orbs.length],x:12870+(i%10)*28,y:12720+Math.floor(i/10)*26});
++   __fgTest.records=[];for(const k of ['enemies','projectiles','enemyProjectiles','xpOrbs','particles'])for(const o of game[k])__fgTest.records.push({o,x:o.x,y:o.y,vx:o.vx||30,vy:o.vy||0});
++  }
++  this.pan=pan;this.target=document.createElement('canvas');this.target.width=canvas.width;this.target.height=canvas.height;
++  this.ctx=this.target.getContext('2d',{alpha:false});__fgTest.pose(0,pan);frameGeneration.capture(performance.now());
++ },
++ async pairs(count=80,warmup=24){
++  const capture=[],observe=[],replay=[],total=[];
++  for(let i=1;i<=count+warmup;i++){
++   // Let Chromium submit each pair before producing the next one. Sending
++   // eight full pairs in one JS callback measures an artificial raster queue
++   // backlog, which is not the game's one-presentation-per-rAF workload.
++   await new Promise(requestAnimationFrame);
++   __fgTest.pose(i*.5,this.pan);
++   const begin=performance.now();frameGeneration.observeNow();const seen=performance.now();
++   const frame=frameGeneration.capture(seen);const captured=performance.now();
++   const stats=SwarmFrameSynthesis.replay(frameGeneration.previous,frame,.5,this.ctx);const end=performance.now();
++   if(frame.fault||stats.detached)throw new Error('Benchmark capture fault: '+frame.fault+' detached='+stats.detached);
++   if(i>warmup){observe.push(seen-begin);capture.push(captured-seen);replay.push(end-captured);total.push(end-begin);}
++  }
++  const f=frameGeneration.current;
++  return {capture,observe,replay,total,snapshotPixels:f.snapshotPixels,paints:f.ops.length,nodes:f.nodes.size,borrowed:f.borrowed.size,
++   buffer:[canvas.width,canvas.height],entities:{enemies:game.enemies.length,projectiles:game.projectiles.length,enemyProjectiles:game.enemyProjectiles.length,orbs:game.xpOrbs.length}};
++ },
++ image(){
++  __fgTest.pose(0,this.pan);frameGeneration.reset('pixel-fixture',true);frameGeneration.capture(performance.now());
++  __fgTest.pose(.5,this.pan);frameGeneration.observeNow();__fgTest.pose(1,this.pan);frameGeneration.capture(performance.now());
++  const pictures=[];for(const t of [0,.25,.5,.75,1]){
++   SwarmFrameSynthesis.replay(frameGeneration.previous,frameGeneration.current,t,this.ctx);
++   pictures.push(this.target.toDataURL());
++  }return pictures;
++ },
++ lifetime(){
++  this.prepare('auto',0);const a=frameGeneration.current,source=[...a.borrowed].find(x=>typeof x.getContext==='function');
++  if(!source)return {found:false};
++  const width=source.width;disposeVisualSurface(source);const held=source.width===width;
++  frameGeneration.reset('retained-source-test',true);const released=source.width===1&&source.height===1;
++  releaseVolatileRenderCaches();return {found:true,held,released};
++ }
++};
++`;
++function instrument(source){const at=source.lastIndexOf('\n})();');assert(at>0);return source.slice(0,at)+hook+source.slice(at);}
++const baselineHtml=require('./fixtures/fg3-reference.cjs')(),currentHtml=fs.readFileSync(path.join(root,'app/src/main/assets/index.html'),'utf8');
++const pages={'/fg3':instrument(baselineHtml),'/fg4':instrument(currentHtml)};
++const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/html; charset=utf-8');res.end(pages[req.url]||pages['/fg4']);});
++const percentile=(list,p)=>{const s=list.slice().sort((a,b)=>a-b);return s[Math.min(s.length-1,Math.floor(s.length*p))];};
++const summary=list=>({median:percentile(list,.5),p95:percentile(list,.95),mean:list.reduce((a,b)=>a+b,0)/list.length});
++const report={startedAt:new Date().toISOString(),sourceSha256:{fg3:crypto.createHash('sha256').update(baselineHtml).digest('hex'),fg4:crypto.createHash('sha256').update(currentHtml).digest('hex')},conditions:{order:['fg3','fg4','fg4','fg3'],count:80,warmup:24,
++ viewport:{width:390,height:844},dpr:3,deviceMemory:4,workers:'off for controlled comparison',cadence:'one new capture/replay pair per requestAnimationFrame',timing:'CPU callback/submission time; no Android FPS/power claim'},cases:[],errors:[]};
++let browser;
++(async()=>{
++ await new Promise(r=>server.listen(0,'127.0.0.1',r));
++ browser=await chromium.launch({executablePath:process.env.SWARM_CHROME_BINARY||'chrome-headless-shell',headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--mute-audio']});
++ report.browser=await browser.version();
++ const system=await (await browser.newBrowserCDPSession()).send('SystemInfo.getInfo');report.gpu=system.gpu;
++ const base='http://127.0.0.1:'+server.address().port,contexts={},tabs={};
++ for(const version of ['fg3','fg4']){
++  const context=await browser.newContext({viewport:report.conditions.viewport,deviceScaleFactor:3,isMobile:true,hasTouch:true,locale:'ja-JP'});
++  await context.addInitScript(()=>{Object.defineProperty(navigator,'deviceMemory',{get:()=>4});Element.prototype.requestFullscreen=()=>Promise.resolve();window.ElementalNative={ready(){},setFrameGenerationActive(){}};});
++  const page=await context.newPage();page.on('pageerror',e=>report.errors.push({version,error:String(e)}));
++  await page.goto(base+'/'+version,{waitUntil:'load'});await page.waitForFunction(()=>window.__fgPerf&&window.elementalFrameGeneration);
++  await page.waitForTimeout(400);contexts[version]=context;tabs[version]=page;
++ }
++ for(const o of [{quality:'eco',pan:0},{quality:'eco',pan:12},{quality:'auto',pan:0},{quality:'auto',pan:12},
++   {quality:'ultra',pan:0},{quality:'ultra',pan:12},{quality:'auto',pan:0,dense:true},{quality:'ultra',pan:12,dense:true}]){
++  const samples={fg3:{capture:[],observe:[],replay:[],total:[]},fg4:{capture:[],observe:[],replay:[],total:[]}},details={};
++  for(const version of report.conditions.order){
++   const page=tabs[version];await page.evaluate(o=>__fgPerf.prepare(o.quality,o.pan,o.dense),o);
++   const values=await page.evaluate(()=>__fgPerf.pairs());details[version]=values;
++   for(const key of ['capture','observe','replay','total'])samples[version][key].push(...values[key]);
++  }
++  const result={...o,samplesPerVersion:samples.fg3.total.length,before:{},after:{}};
++  for(const key of ['capture','observe','replay','total']){result.before[key]=summary(samples.fg3[key]);result.after[key]=summary(samples.fg4[key]);}
++  result.reductionPercent=100*(1-result.after.total.median/result.before.total.median);
++  for(const [version,key] of [['fg3','before'],['fg4','after']])for(const k of ['snapshotPixels','paints','nodes','borrowed','buffer','entities'])result[key][k]=details[version][k];
++  assert.equal(result.before.paints,result.after.paints);assert.equal(result.before.nodes,result.after.nodes);
++  const images={};for(const version of ['fg3','fg4']){
++   await tabs[version].evaluate(o=>__fgPerf.prepare(o.quality,o.pan,o.dense),o);
++   images[version]=await tabs[version].evaluate(()=>__fgPerf.image());
++  }
++  result.pixels=[];
++  for(let i=0;i<images.fg3.length;i++){
++   const comparison=await tabs.fg4.evaluate(async({a,b})=>{
++    const load=src=>new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=reject;im.src=src;});
++    const [x,y]=await Promise.all([load(a),load(b)]),c=document.createElement('canvas');c.width=x.width;c.height=x.height;
++    const g=c.getContext('2d',{willReadFrequently:true});g.drawImage(x,0,0);const p=g.getImageData(0,0,c.width,c.height).data;
++    g.clearRect(0,0,c.width,c.height);g.drawImage(y,0,0);const q=g.getImageData(0,0,c.width,c.height).data;
++    let sum=0,max=0,bad=0;for(let i=0;i<p.length;i+=4){let changed=false;for(let k=0;k<4;k++){const d=Math.abs(p[i+k]-q[i+k]);sum+=d;max=Math.max(max,d);if(d>3)changed=true;}if(changed)bad++;}
++    return {mae:sum/p.length,max,changedFraction:bad/(c.width*c.height)};
++   },{a:images.fg3[i],b:images.fg4[i]});
++   result.pixels.push({t:[0,.25,.5,.75,1][i],...comparison});
++   assert(comparison.mae<.01&&comparison.changedFraction<.0001,'fg.3 pixel regression: '+JSON.stringify({o,i,comparison}));
++  }
++  report.cases.push(result);console.log('CPU',JSON.stringify({quality:o.quality,pan:o.pan,dense:!!o.dense,before:result.before.total,after:result.after.total,reductionPercent:result.reductionPercent}));
++ }
++ const lifetime=await tabs.fg4.evaluate(()=>__fgPerf.lifetime());assert.deepEqual(lifetime,{found:true,held:true,released:true});report.lifetime=lifetime;
++ assert.deepEqual(report.errors,[]);report.passed=true;
++ for(const context of Object.values(contexts))await context.close();
++})().catch(e=>{report.failure=e.stack;process.exitCode=1;console.error(e);}).finally(async()=>{
++ report.finishedAt=new Date().toISOString();fs.writeFileSync(path.join(out,'performance-results.json'),JSON.stringify(report,null,2));
++ if(browser)await browser.close();server.close();
++});
+--- /dev/null
++++ b/tests/framegen-static-caches.cjs
+@@ -0,0 +1,50 @@
++const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
++const {chromium}=require(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES?path.join(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES,'playwright'):'playwright');
++const root=path.resolve(__dirname,'..'),out=path.join(root,'verification/framegen');
++const hook=`
++window.__cacheTest=function(){
++ multicore.setEnabled(false);frameGeneration.setMode('off');visualSettings.quality='auto';applyResize();setGameSeed(424242);newGame();suspendGameLoop();
++ game.enemies=[];game.projectiles=[];game.enemyProjectiles=[];game.particles=[];game.spriteFx=[];game.signatureFx=[];game.xpOrbs=[];
++ buildFlashAtlas('enemies',ART_IMAGES.enemies);
++ const sources=[ART_FLASH_IMAGES.enemies,lowResAtlasSource('effects','fire',18),rangeFxTintSource(0,'#fa8154')];
++ if(sources.some(x=>!x||!x.width))throw Error('Static cache fixture unavailable');
++ const test=sys('test/static-caches',FRAME_PHASE.FX,()=>{
++  ctx.drawImage(sources[0],0,0,64,64,50,80,64,64);ctx.drawImage(sources[1],150,80,48,48);ctx.drawImage(sources[2],70,190,120,120);
++ },'');RENDER_SYSTEMS.push(test);
++ let a,b;try{game.t=10;a=frameGeneration.capture(performance.now());game.t+=FIXED_DT;b=frameGeneration.capture(performance.now());}finally{RENDER_SYSTEMS.pop();}
++ const target=document.createElement('canvas');target.width=canvas.width;target.height=canvas.height;
++ const result={fault:a.fault||b.fault,snapshotPixels:b.snapshotPixels,borrowed:sources.map(s=>b.borrowed.has(s)),images:[]};
++ for(const t of [0,.25,.5,.75,1]){SwarmFrameSynthesis.replay(a,b,t,target.getContext('2d',{alpha:false}));result.images.push(target.toDataURL());}
++ releaseVolatileRenderCaches();result.released=sources.map(s=>s.width===1&&s.height===1);return result;
++};
++`;
++const instrument=html=>{const at=html.lastIndexOf('\n})();');return html.slice(0,at)+hook+html.slice(at);};
++const pages={fg3:instrument(require('./fixtures/fg3-reference.cjs')()),fg4:instrument(fs.readFileSync(path.join(root,'app/src/main/assets/index.html'),'utf8'))};
++const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/html; charset=utf-8');res.end(pages[req.url.slice(1)]||pages.fg4);});
++let browser;const report={startedAt:new Date().toISOString(),checks:[],errors:[]};
++(async()=>{
++ await new Promise(r=>server.listen(0,'127.0.0.1',r));
++ browser=await chromium.launch({executablePath:process.env.SWARM_CHROME_BINARY||'chrome-headless-shell',headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--mute-audio']});
++ const values={},contexts=[];let comparePage;
++ for(const version of ['fg3','fg4']){
++  const context=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:3,isMobile:true,hasTouch:true});contexts.push(context);
++  await context.addInitScript(()=>{Object.defineProperty(navigator,'deviceMemory',{get:()=>4});Element.prototype.requestFullscreen=()=>Promise.resolve();window.ElementalNative={ready(){},setFrameGenerationActive(){}};});
++  const page=await context.newPage();page.on('pageerror',e=>report.errors.push(String(e)));comparePage=page;
++  await page.goto('http://127.0.0.1:'+server.address().port+'/'+version,{waitUntil:'load'});await page.waitForTimeout(500);
++  values[version]=await page.evaluate(()=>__cacheTest());assert.equal(values[version].fault,'');assert(values[version].released.every(Boolean));
++ }
++ assert(values.fg3.snapshotPixels>0);assert.equal(values.fg4.snapshotPixels,0);assert(values.fg4.borrowed.every(Boolean));
++ for(let i=0;i<5;i++){
++  const result=await comparePage.evaluate(async({a,b})=>{
++   const load=src=>new Promise(resolve=>{const im=new Image();im.onload=()=>resolve(im);im.src=src;});const [x,y]=await Promise.all([load(a),load(b)]);
++   const c=document.createElement('canvas');c.width=x.width;c.height=x.height;const g=c.getContext('2d',{willReadFrequently:true});g.drawImage(x,0,0);const p=g.getImageData(0,0,c.width,c.height).data;
++   g.clearRect(0,0,c.width,c.height);g.drawImage(y,0,0);const q=g.getImageData(0,0,c.width,c.height).data;
++   let bad=0,max=0;for(let i=0;i<p.length;i++){const d=Math.abs(p[i]-q[i]);if(d)bad++;max=Math.max(max,d);}return {bad,max};
++  },{a:values.fg3.images[i],b:values.fg4.images[i]});assert.equal(result.bad,0);report.checks.push({t:[0,.25,.5,.75,1][i],...result});
++ }
++ for(const v of Object.values(values))delete v.images;report.sources=values;assert.deepEqual(report.errors,[]);report.passed=true;
++ console.log('PASS flash atlas, low-resolution FX and range FX: identical pixels, zero snapshots, cache release');
++ for(const c of contexts)await c.close();
++})().catch(e=>{report.failure=e.stack;process.exitCode=1;console.error(e);}).finally(async()=>{
++ report.finishedAt=new Date().toISOString();fs.writeFileSync(path.join(out,'static-cache-results.json'),JSON.stringify(report,null,2));if(browser)await browser.close();server.close();
++});

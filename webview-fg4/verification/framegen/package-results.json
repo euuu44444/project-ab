@@ -1,0 +1,26 @@
+{
+  "passed": true,
+  "versionName": "11.11.9-fg.4",
+  "versionCode": 1111195,
+  "apkName": "ElementalSwarm_11.11.9_framegen4.apk",
+  "apkBytes": 885164,
+  "apkSha256": "dd4ae5bed81198192346a29dcd037a1f531444da1695d7fd0939146c13b9b1a7",
+  "htmlSha256": "50d7bae5e7c6275e69b58fff2c197815400ce85399b677c892eba40b08c2a7e2",
+  "signatureVerified": true,
+  "zipalignVerified": true,
+  "sameCertificateAsFg3": true,
+  "certificateSha256": "8eaea0fb89a8ef2c5ea269ea2e3b95bfa8bd982ea36820daa5f603f486ae0abd",
+  "unchangedCompiledEntries": [
+    "res/drawable/icon_foreground.xml",
+    "res/mipmap-anydpi-v26/ic_launcher.xml",
+    "resources.arsc",
+    "classes.dex"
+  ],
+  "additionalPermissions": [],
+  "testApisInShippingHtml": false,
+  "patchVerified": true,
+  "patchSha256": "ef2c8aa66ac54c4e930f518a5fffbdb378b8562c85afdf6ef2097ac5dd52d070",
+  "limitations": [
+    "No Android device or emulator; actual installation/FPS/thermals are not verified."
+  ]
+}

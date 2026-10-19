@@ -1,0 +1,48 @@
+{
+  "startedAt": "2026-10-19T02:26:52.730Z",
+  "cases": [
+    {
+      "quality": "auto",
+      "before": {
+        "median": 0.5999999998603016,
+        "p95": 1.3000000000465661,
+        "mean": 0.6440000000072178
+      },
+      "after": {
+        "median": 0.5,
+        "p95": 1.3000000000465661,
+        "mean": 0.6225000000104773
+      },
+      "combatIdentical": true
+    },
+    {
+      "quality": "ultra",
+      "before": {
+        "median": 0.9000000001396984,
+        "p95": 2.699999999953434,
+        "mean": 1.1895000000006986
+      },
+      "after": {
+        "median": 0.8999999999068677,
+        "p95": 1.5,
+        "mean": 0.9375
+      },
+      "combatIdentical": true
+    }
+  ],
+  "errors": [],
+  "conditions": {
+    "mode": "off",
+    "order": [
+      "fg3",
+      "fg4",
+      "fg4",
+      "fg3"
+    ],
+    "warmup": 40,
+    "samplesPerVersion": 200,
+    "timing": "whole game callback; Linux Chromium CPU timing, not Android FPS"
+  },
+  "passed": true,
+  "finishedAt": "2026-10-19T02:27:13.692Z"
+}

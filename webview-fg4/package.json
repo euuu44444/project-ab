@@ -1,0 +1,14 @@
+{
+  "name": "elemental-swarm-android",
+  "version": "11.11.9-fg.4",
+  "private": true,
+  "scripts": {
+    "build:html": "node frame_generation/build_frame_generation.cjs",
+    "test": "node tests/mobile-regression.cjs && node tests/frame-synthesis.cjs && node tests/framegen-runtime.cjs && node tests/framegen-game.cjs && node tests/framegen-flicker.cjs && node tests/framegen-budget.cjs && node tests/framegen-equivalence.cjs && node tests/framegen-static-caches.cjs",
+    "test:performance": "node tests/framegen-performance.cjs && node tests/framegen-off-performance.cjs"
+  },
+  "devDependencies": {
+    "acorn": "8.15.0",
+    "playwright": "1.62.1"
+  }
+}
