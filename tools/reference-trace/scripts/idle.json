@@ -1,0 +1,8 @@
+{
+  "name": "idle",
+  "description": "No input at all: nothing touched, no key held. One idle step, repeated.",
+  "repeat": true,
+  "segments": [
+    {"label": "idle", "steps": 1}
+  ]
+}

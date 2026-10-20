@@ -1,0 +1,17 @@
+{
+  "name": "swarm-reference-trace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tooling that records reference traces of the original Elemental Swarm game in Chromium (design section 9.2).",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "playwright": "1.62.1"
+  },
+  "scripts": {
+    "test": "node --test ../test_compare_trace.mjs",
+    "capture": "node capture.mjs --all"
+  }
+}

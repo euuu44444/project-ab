@@ -223,20 +223,29 @@ character/berserker, character/sentinel, player/reaction-buffs, **player/movemen
 
 ### 9.2 参照トレースの比較（M1の中心となる受け入れ基準）
 
-1. `tools/reference-trace/` から元のゲーム（`webview-fg4/tests/fixtures/original.html`）を Playwright と Chromium（`/opt/pw-browsers`）で起動する。
-   - 既存テストと同じく、HTTP応答にだけテスト用フックを挿入する。配布用のHTMLは変更しない。
-2. 条件を固定する。シードは 424242 と 24681357、キャラは catalyst、難易度は normal とする。入力は台本で固定する（例：8方向へ1秒ずつ移動）。
-3. `update(FIXED_DT)` を1ステップずつ呼ぶ。各ステップで次の値を JSON Lines に記録する。
-   - `gameRandomDraws`
-   - プレイヤーの x, y, hp, xp, level
-   - 敵の数と、各敵の id, kind, x, y, hp
-   - 弾の数と位置
-   - 経験値オーブの数
-4. 最初のレベルアップ（`pendingLevelUps > 0`）が起きた時点で採取を止める。そこまでは M1 の範囲だけで再現できるためである。
-5. Godot の `sim` も同じ条件で実行し、同じ形式のトレースを出す。`tools/compare_trace.py` で比べる。
-   - 乱数の回数、敵の数、id、kind は完全に一致すること。
-   - 座標と hp の差は 1e-6 以下であること（相対・絶対のどちらか）。
-   - 一致しない場合は、最初に乖離したステップと項目を報告する。三角関数の差による乖離（§5.2）なら、その旨を明記したうえで扱いを相談する。
+S4 で実装した仕組みである。形式の詳細は `tools/reference-trace/FORMAT.md` にある。
+
+1. `tools/reference-trace/capture.mjs` が、元のゲーム（`webview-fg4/tests/fixtures/original.html`）を Playwright 1.62.1 と Chromium 141 で起動する。
+   - Android 相当の環境（390×844、タッチ操作、`IS_COARSE_POINTER=true`）をまねて動かす。
+   - HTTP応答にだけテスト用フックを挿入する。元のファイルは変更しない。
+2. 条件を固定する。
+   - シードは 424242 と 24681357、キャラは catalyst、難易度は normal とする。
+   - 入力の台本は3種類（`dirs8`：8方向へ1秒ずつ、`idle`、`zigzag`）で、元のタッチ操作の処理を通して与える。
+   - 演出用の `Math.random` もシードで固定する。
+3. `capturePreviousTransforms(); update(FIXED_DT)` を1ステップずつ呼ぶ。各ステップの終わりの状態を、gzip 圧縮した JSON Lines（形式 `swarm-trace/1`）に記録する。
+   - 浮動小数は IEEE 754 のビット列（16進）で記録する。
+   - **乱数の使用回数を、ステップごと・システムごとに記録する**（`slot_draws`）。どのシステムにも属さない使用は、すべてのトレースで0回であった。
+   - 項目の一覧はヘッダーに持たせる。S5・S6 で項目を足しても形式は変わらない。
+4. 最初のレベルアップ（`pendingLevelUps > 0`）が起きた時点で採取を止める。
+   - 加えて、検証専用の長時間版（`--long-run`）がある。経験値の必要量と体力を極端に上げてレベルアップと死亡を止め、W3 までと assassin の動きを記録する。
+5. 決定性を確かめた【事実：S4】。次のいずれでも、記録はバイト単位で同一であった。
+   - 同じ条件で2回採取した
+   - 演出用乱数のシードを変えた（粒子の数だけが変わる）
+   - CPU を6倍遅くした
+6. Godot 側は `SimTrace` が同じ形式を出力する。`tools/compare_trace.mjs` が、項目ごとに最初に乖離したステップと値（ビット列と ulp 差）を報告する。
+   - 乱数の回数と座標は、**ビット単位での一致**を求める（許容誤差なし）。
+   - 比較の範囲は、元にあって移植版にまだない処理の最初の影響（接触ダメージなど）までとする。この境界はトレース自身から求め、Node と Godot の両方の実装が同じ値を出すことをテストで確かめる。
+   - 一致しない場合は、最初に乖離したステップと項目を報告する。
 
 ### 9.3 レベルアップ以降
 
@@ -296,7 +305,7 @@ S1 で実際に組んだ構成である。
 | S2 | アセット抽出：`extract_assets.py` で WebP 14枚と `atlas_layout.json` を作る | Sonnet | 抽出した画像が元の data URI とバイト単位で一致する |
 | S3 | sim の基礎：`js_compat`、`rng`、定義データ、`game_state`、システム実行順、プレイヤーの移動とカメラ | Sonnet | §9.1 が合格する |
 | S4 | 参照トレースの採取ツール：元ゲームのトレースを JSON Lines で出力。**乱数の使用回数をステップごと・システムごとに記録する** | Sonnet | 2つのシードで、最初のレベルアップまで採取できる |
-| S5 | 敵とウェーブ：出現の指揮、敵の更新（接触ダメージと押し出しを含む）、空間グリッド、片付け | Sonnet | 敵が最初に出るステップから、トレースが一致する。S6 の担当で S5 時点では未移植のシステム（projectile/player、enemy/cleanup-2）は、記録した回数だけ乱数を空引きして代用する |
+| S5 | 敵とウェーブ：出現の指揮、敵の更新（接触ダメージと押し出しを含む）、空間グリッド、片付け | Sonnet | 敵が最初に出るステップから、7本の参照トレースと一致する。条件は次のとおり<br>・S6 の担当で未移植のシステム（projectile/player、enemy/cleanup-2）は、記録した回数（`slot_draws`）だけ乱数を空引きして代用する<br>・撃破は `TraceReader.removed_enemy_ids` に従って片付けの前に敵を外す<br>・ダメージだけで変わる項目（敵の hp など）は S6 まで比較から外す |
 | S6 | 武器・弾・ダメージ・経験値：catalytic_ring、pulse、blades、wand、撃破、回収 | Sonnet | §9.2 が最初のレベルアップまで合格する |
 | S7 | 描画と補間：MultiMesh、レイヤー、カメラ、軽量画質の地形 | Sonnet | §9.4 を確認できる（可能な範囲） |
 | S8 | UI と入力：HUD、仮想スティック、各画面、簡略版レベルアップ、W4 での終了 | Sonnet | §9.3 が合格する |

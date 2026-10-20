@@ -12,46 +12,21 @@
 // It is not part of tools/check_generated.sh (it needs Playwright and a Chromium).
 //
 // The reference browser is Chromium 141.0.7390.37 (V8 14.1.146.11), the one the reference traces are recorded with.
-// Environment:
-//   PLAYWRIGHT_DIR   directory that contains node_modules/playwright (default: the global npm root, then /opt/node22/lib/node_modules)
-//   CHROMIUM_PATH    chrome executable (default: /opt/pw-browsers/chromium-*/chrome-linux/chrome)
+// Playwright and Chromium are found by tools/lib/chromium.mjs (also used by the census and the reference-trace tools):
+//   Playwright   tools/reference-trace/node_modules, then $PLAYWRIGHT_DIR, then the global npm root
+//   Chromium     $SWARM_CHROME_BINARY (or the older $CHROMIUM_PATH), default /opt/pw-browsers/chromium-1194/chrome-linux/chrome
+// The page is the Android emulation of that helper (390x844, deviceScaleFactor 3, touch); Math does not depend on it.
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
-import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { CANARIES } from './golden/_canaries.mjs';
 import { cutByName } from './gen_golden.mjs';
+import { launchAndroidChromium, EXPECTED_CHROMIUM_MAJOR } from './lib/chromium.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GOLDEN = path.join(REPO_ROOT, 'godot/tests/golden/math.json');
 const GOLDEN_RNG = path.join(REPO_ROOT, 'godot/tests/golden/rng.json');
 const ORIGINAL = path.join(REPO_ROOT, 'webview-fg4/tests/fixtures/original.html');
-const EXPECTED_MAJOR = 141;
-
-function loadPlaywright() {
-  const candidates = [];
-  if (process.env.PLAYWRIGHT_DIR) candidates.push(process.env.PLAYWRIGHT_DIR);
-  try { candidates.push(execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim()); } catch { /* npm not available */ }
-  candidates.push('/opt/node22/lib/node_modules');
-  for (const dir of candidates) {
-    try {
-      // createRequire resolves relative to a file path; a trailing slash makes `dir` itself the starting directory
-      return createRequire(path.join(dir, '/'))('playwright');
-    } catch { /* try the next candidate */ }
-  }
-  throw new Error('Playwright not found (set PLAYWRIGHT_DIR to a directory that contains node_modules/playwright, or to node_modules itself)');
-}
-
-function findChromium() {
-  if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH;
-  const base = '/opt/pw-browsers';
-  for (const dir of fs.existsSync(base) ? fs.readdirSync(base).sort() : []) {
-    const exe = path.join(base, dir, 'chrome-linux/chrome');
-    if (dir.startsWith('chromium-') && fs.existsSync(exe)) return exe;
-  }
-  throw new Error('no Chromium found (set CHROMIUM_PATH)');
-}
 
 // Runs inside the page. `golden` is the parsed math.json; returns per-vector mismatch counts.
 function pageProgram(golden, canaries, rngGolden, makeSeededRandomSource) {
@@ -129,15 +104,13 @@ async function main(argv) {
   const golden = JSON.parse(fs.readFileSync(GOLDEN, 'utf8'));
   const rngGolden = JSON.parse(fs.readFileSync(GOLDEN_RNG, 'utf8'));
   const makeSeededRandomSource = cutByName(fs.readFileSync(ORIGINAL, 'utf8'), 'makeSeededRandom').text;
-  const { chromium } = loadPlaywright();
-  const browser = await chromium.launch({ executablePath: findChromium(), headless: true });
+  const { browser, page } = await launchAndroidChromium();
   try {
-    const page = await browser.newPage();
     await page.setContent('<!doctype html><title>verify</title>');
     const report = await page.evaluate(`(${pageProgram.toString()})(${JSON.stringify(golden)}, ${JSON.stringify(CANARIES.map(([fn, args]) => [fn, args]))}, ${JSON.stringify(rngGolden)}, ${JSON.stringify(makeSeededRandomSource)})`);
     const major = Number((/Chrome\/(\d+)/.exec(report.engine) || [])[1]);
     console.log(report.engine);
-    if (major !== EXPECTED_MAJOR) console.log(`WARNING: expected Chromium ${EXPECTED_MAJOR}, running ${major}; the sin/cos reference (glibc code) is specific to the V8 version`);
+    if (major !== EXPECTED_CHROMIUM_MAJOR) console.log(`WARNING: expected Chromium ${EXPECTED_CHROMIUM_MAJOR}, running ${major}; the sin/cos reference (glibc code) is specific to the V8 version`);
 
     if (canariesOnly) {
       console.log('export const CANARIES = [');

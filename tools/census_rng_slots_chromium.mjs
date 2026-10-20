@@ -16,14 +16,15 @@
 // Frames are counted from 1 (the first update() call). The output is deterministic and is committed as
 // verification/godot/s3/rng_slots.txt.
 //
-// Environment (as in tools/verify_golden_chromium.mjs):
-//   PLAYWRIGHT_DIR   directory that contains node_modules/playwright (default: the global npm root, then /opt/node22/lib/node_modules)
-//   CHROMIUM_PATH    chrome executable (default: /opt/pw-browsers/chromium-*/chrome-linux/chrome)
+// Playwright and Chromium are found by tools/lib/chromium.mjs, which also starts the Android emulation (390x844,
+// deviceScaleFactor 3, touch, fresh profile) and asserts the coarse pointer:
+//   Playwright   tools/reference-trace/node_modules, then $PLAYWRIGHT_DIR, then the global npm root
+//   Chromium     $SWARM_CHROME_BINARY (or the older $CHROMIUM_PATH), default /opt/pw-browsers/chromium-1194/chrome-linux/chrome
+// (tools/reference-trace/capture.mjs records the per-step reference traces; this tool is the older, coarser census.)
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
-import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { launchAndroidChromium, serveFromMemory } from './lib/chromium.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ORIGINAL = path.join(REPO_ROOT, 'webview-fg4/tests/fixtures/original.html');
@@ -34,29 +35,6 @@ const RUNS = [
   { seed: 24681357, idle: false },
   { seed: 24681357, idle: true },
 ];
-
-function loadPlaywright() {
-  const candidates = [];
-  if (process.env.PLAYWRIGHT_DIR) candidates.push(process.env.PLAYWRIGHT_DIR);
-  try { candidates.push(execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim()); } catch { /* npm not available */ }
-  candidates.push('/opt/node22/lib/node_modules');
-  for (const dir of candidates) {
-    try {
-      return createRequire(path.join(dir, '/'))('playwright');
-    } catch { /* try the next candidate */ }
-  }
-  throw new Error('Playwright not found (set PLAYWRIGHT_DIR to a directory that contains node_modules/playwright)');
-}
-
-function findChromium() {
-  if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH;
-  const base = '/opt/pw-browsers';
-  for (const dir of fs.existsSync(base) ? fs.readdirSync(base).sort() : []) {
-    const exe = path.join(base, dir, 'chrome-linux/chrome');
-    if (dir.startsWith('chromium-') && fs.existsSync(exe)) return exe;
-  }
-  throw new Error('no Chromium found (set CHROMIUM_PATH)');
-}
 
 // Appended inside the original's closure, so that it sees its functions and bindings (gameRandom is reassigned: every
 // caller reads the binding, so the wrapper sees every draw).
@@ -135,15 +113,11 @@ async function main(argv) {
   if (anchor < 0) throw new Error('anchor for the hook not found in the original');
   const html = source.slice(0, anchor) + '\n' + HOOK + '\n' + source.slice(anchor);
 
-  const { chromium } = loadPlaywright();
-  const browser = await chromium.launch({ executablePath: findChromium(), headless: true });
+  const { browser, page } = await launchAndroidChromium();
   const everDrew = new Set();
   try {
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 });
-    const page = await context.newPage();
     page.on('pageerror', (e) => { throw new Error(`page error: ${e.message}`); });
-    await page.route('http://census.local/**', (r) => r.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: html }));
-    await page.goto('http://census.local/index.html', { waitUntil: 'load' });
+    await page.goto(await serveFromMemory(page, 'http://census.local', html), { waitUntil: 'load' });
     await page.waitForFunction(() => window.__census);
     console.log(`census of gameRandom draws per update slot: Chromium ${browser.version()}`);
     console.log('M1: catalyst / normal / standard, 390x844, touch (IS_COARSE_POINTER = true); frames count from 1; slots that drew nothing are not listed');

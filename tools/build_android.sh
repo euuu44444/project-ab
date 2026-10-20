@@ -99,7 +99,7 @@ if [[ -n "$EVIDENCE_DIR" ]]; then
   mkdir -p -- "$EVIDENCE_DIR"
   # A reused directory must not keep passing evidence of an earlier run next to this run's result.
   (cd -- "$EVIDENCE_DIR" && rm -f -- summary.txt apk.sha256 apksigner-verify.txt signer-cert.txt zipalign-check.txt \
-    aapt2-badging.txt aapt2-badging.err aapt2-manifest.txt permissions.txt atlas-entries.txt godot-tests.log godot-import.log godot-export.log)
+    aapt2-badging.txt aapt2-badging.err aapt2-manifest.txt permissions.txt atlas-entries.txt sim-entries.txt godot-tests.log godot-import.log godot-export.log)
   OUT_DIR="$EVIDENCE_DIR"
 else
   OUT_DIR="$WORK_DIR"
@@ -408,6 +408,45 @@ else
   else
     record FAIL "atlas assets" "missing from the APK:$atlas_missing"
   fi
+fi
+
+# ---- 6. Sim definitions and scripts -------------------------------------------------------------
+# Derived from the repo, not from a fixed list: every godot/sim/defs/**/*.json is packed as-is
+# (assets/sim/defs/..., the preset's include_filter sim/defs/*.json); every godot/sim/**/*.gd is packed
+# as its binary-token export assets/sim/**/<name>.gdc (script_export_mode=2; the .gd.remap next to it
+# is not checked); nothing under godot/tests/ is packed (the preset's exclude_filter tests/*).
+apk_entries="$(unzip -Z1 "$APK")"
+sim_missing=""
+sim_defs_count=0
+sim_scripts_count=0
+while IFS= read -r sim_file; do
+  [[ -n "$sim_file" ]] || continue
+  sim_defs_count=$((sim_defs_count + 1))
+  sim_rel="${sim_file#"$PROJECT_DIR"/}"
+  grep -Fxq -- "assets/$sim_rel" <<<"$apk_entries" || sim_missing+=" $sim_rel"
+done < <(find "$PROJECT_DIR/sim/defs" -type f -name '*.json' 2>/dev/null | sort || true)
+while IFS= read -r sim_file; do
+  [[ -n "$sim_file" ]] || continue
+  sim_scripts_count=$((sim_scripts_count + 1))
+  sim_rel="${sim_file#"$PROJECT_DIR"/}"
+  grep -Fxq -- "assets/${sim_rel%.gd}.gdc" <<<"$apk_entries" || sim_missing+=" $sim_rel"
+done < <(find "$PROJECT_DIR/sim" -type f -name '*.gd' 2>/dev/null | sort || true)
+tests_entries="$(grep '^assets/tests/' <<<"$apk_entries" || true)"
+tests_count="$(sed '/^$/d' <<<"$tests_entries" | wc -l)"
+# Evidence: every APK entry under assets/sim/ or assets/tests/ (size, compressed size, name).
+unzip -v "$APK" | awk '$NF ~ "^assets/(sim|tests)/" { printf "%10d %10d  %s\n", $1, $3, $NF }' >"$OUT_DIR/sim-entries.txt"
+if ((sim_defs_count == 0 || sim_scripts_count == 0)); then
+  record FAIL "sim definitions" "repo has $sim_defs_count godot/sim/defs/*.json and $sim_scripts_count godot/sim/**/*.gd; both must be above 0"
+elif [[ -n "$sim_missing" ]] || ((tests_count > 0)); then
+  detail=""
+  [[ -z "$sim_missing" ]] || detail+="missing from the APK:$sim_missing"
+  if ((tests_count > 0)); then
+    [[ -z "$detail" ]] || detail+="; "
+    detail+="$tests_count godot/tests/ entr(ies) in the APK, must be 0: $(paste -sd' ' - <<<"$tests_entries" | cut -c1-200)"
+  fi
+  record FAIL "sim definitions" "$detail"
+else
+  record PASS "sim definitions" "$sim_defs_count defs JSON + $sim_scripts_count sim scripts (.gdc) in the APK, $tests_count godot/tests/ entries"
 fi
 
 finish
