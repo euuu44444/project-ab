@@ -153,6 +153,7 @@ character/berserker, character/sentinel, player/reaction-buffs, **player/movemen
     2. 数学関数だけ C++（GDExtension）に移す
     3. 検証用は移植版、配布版は組み込み関数と切り替える
        - 通常のプレイは乱数のシードを固定しないので、最下位ビットの差はゲームの挙動として問題にならない【推測】
+  - **ユーザーの判断（2026-10-20）：S5・S6 で実測してから決める。** それまでは移植版のまま進める。
 
 ## 6. 描画層
 
