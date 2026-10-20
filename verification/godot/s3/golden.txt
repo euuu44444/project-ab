@@ -1,0 +1,174 @@
+S3 evidence: generated data (definition tables + golden vectors) and the generators' --check mode
+date: 2026-10-19    node v22.22.0    source: webview-fg4/tests/fixtures/original.html (read only), sha256 647860b1d9b510c0cb7bd17d60da80b9a85fa46ab90fdf4c9cb83035e0408d73
+
+Principle: no expected value is typed by hand. Pure declarations/functions are cut out of the original BY NAME, evaluated in node:vm with an EMPTY
+sandbox (Math.random throws, DOM/Date/storage are ReferenceErrors) and written as deterministic JSON. --check regenerates in memory and
+compares byte for byte; tools/run_godot_tests.sh calls it (through tools/check_generated.sh) right after tools/check_assets.sh.
+
+----------------------------------------------------------------------
+1. --check output
+----------------------------------------------------------------------
+$ node tools/extract_defs.mjs --check                 -> exit code 0
+check OK: 5 files in godot/sim/defs are identical to a fresh extraction
+
+$ node tools/gen_golden.mjs --check                   -> exit code 0
+generated defs_bits.json (13479 bytes, 661 ms)
+generated formulas.json (406122 bytes, 663 ms)
+generated new_game.json (24684 bytes, 119 ms)
+generated sim_scripts.json (223544 bytes, 1039 ms)
+generated math.json (7793396 bytes, 430 ms)
+generated rng.json (147695 bytes, 910 ms)
+check OK: 6 golden file(s) in godot/tests/golden are identical to a fresh generation
+
+$ node tools/gen_golden.mjs --list
+defs_bits    tools/golden/defs_bits.mjs
+formulas     tools/golden/defs_formulas.mjs
+new_game     tools/golden/defs_new_game.mjs
+sim_scripts  tools/golden/defs_sim_scripts.mjs
+math         tools/golden/math.mjs
+rng          tools/golden/rng.mjs
+
+$ tools/check_generated.sh                            -> exit code 0 (about 32 s, of which 26 s are the two Node test suites)
+  [generated] 1/5 extract_defs.mjs --check
+      check OK: 5 files in godot/sim/defs are identical to a fresh extraction
+  [generated] 2/5 gen_golden.mjs --check
+      check OK: 6 golden file(s) in godot/tests/golden are identical to a fresh generation
+  [generated] 3/5 check_js_compat_consts.mjs
+      check OK: 95 constants of js_compat.gd = their CONST_BITS entries = the upstream literals; SINCOSTAB_BITS (440) and TOVERP (75) = tools/golden/_glibc_sin.mjs
+  [generated] 4/5 node --test tools/test_gen_golden.mjs
+      # tests 15 # pass 15 # fail 0
+  [generated] 5/5 node --test tools/test_extract_defs.mjs
+      # tests 17 # pass 17 # fail 0
+  [generated] PASS
+  
+  real	0m32.198s
+
+Determinism (measured again after the review fixes, which changed only formulas.json): the generators were run twice into fresh directories, once from the repo root and once from "/" (extract_defs
+from /tmp), and the outputs compared with diff -r: identical to each other and to the committed files. sha256 of the fresh output:
+  04e368606b44b7b6b83beaaab7e76f5786e260e1a268ab68b915fdee2f113904  g1/defs_bits.json
+  1014fb0fcf758068ec016a6ce59a5eeee48833f4c53a70e3721327da59d5acf8  g1/formulas.json
+  09b010bec3afb74bc466a260b1763161118a22c81cfc32312579f30d6a98b384  g1/math.json
+  96b310e01bc16d27da0c45a95183155f15995a6391db99c1a38fa358355b9e1b  g1/new_game.json
+  5215d2590f98b9439a1e2dd9be91e8e55f9b48ad6a0c825d314355e18369029c  g1/rng.json
+  b3dc624ed1a5c8fd6bb32158e9e89d1888de091a083c0a49b8ec0c1f02b95d7e  g1/sim_scripts.json
+  7c3498c5dfc281fe58ca6cad327abe86ddc10453dc8351d84a1c6408c79f69d7  d1/characters.json
+  156be9e80ba1c66dfe4e568c717362329d6a3b2afa812f98cfb102f0a1313927  d1/enemies.json
+  26b9bd03176160474a67617fe736d4d6512838734a6a02f08afdb7899c9f5cba  d1/limits.json
+  694153880633ae23be4a35bd8756be5660b06ff535d590e9e952f7220528c79b  d1/rules.json
+  b1aab150bf9b8b3822194325409db6baa14cc147fe1128576e40b477d9c217db  d1/weapons.json
+
+----------------------------------------------------------------------
+2. godot/sim/defs/*.json (tools/extract_defs.mjs; loader godot/sim/defs.gd class Defs)
+----------------------------------------------------------------------
+  10649 godot/sim/defs/characters.json
+   3623 godot/sim/defs/enemies.json
+   1196 godot/sim/defs/limits.json
+   5230 godot/sim/defs/rules.json
+  11171 godot/sim/defs/weapons.json
+  31869 total
+  characters.json  CHARACTERS (10 characters), SIGNATURE_WEAPON_BY_CHARACTER, SIGNATURE_WEAPON_IDS, CHARACTER_ANIMATION_FPS, BERSERKER_CONFIG
+  weapons.json     WEAPONS (24), ELEMENTS, ELEMENT_ID_LIST, DEFAULT_UNLOCKS, CAT_CHAIN
+  enemies.json     ENEMY_ARCHETYPES (7), ENEMY_KIND_ORDER, FEATURED_WAVE_CONFIG, DIRECTOR_BUDGET_CAP, spawn patterns, bullet tiers, armor bounds,
+                   endless steps/caps, steering and AI tuning (25 constants)
+  limits.json      MAP_W / MAP_H, BASE_MAX_ENEMIES, grid sizes (14 constants); the 6 IS_COARSE_POINTER-dependent constants (MAX_PROJECTILES,
+                   MAX_XP_ORBS, MAX_ENEMY_PROJECTILES, HUD_UPDATE_INTERVAL, WORLD_CHUNK_CACHE_MIN/MAX) are stored as
+                   "pointer": {"coarse": ..., "fine": ...}, BOTH variants; the sim reads "coarse" (520 / 480 / 420; fine: 900 / 900 / 720)
+  rules.json       DIFFICULTY_CONFIG, XP_CURVE, SCORE_RULES, MAX_WAVE, WAVE_DURATION, DAY_CYCLE_SECONDS, FIXED_DT, MAX_STEPS_PER_FRAME, MOVE_STICK_MAX,
+                   damage types and rules, FINAL_BONUS_STEP ... (22 constants)
+  Numbers that JSON cannot carry (Infinity, NaN, -0) and non-integers with more than 15 significant digits (1/60 comes back 1 ulp off from Godot's
+  JSON parser) are written as {"$num": "..."} markers (IEEE-754 bits); godot/tests/golden/defs_bits.json holds 180 such doubles taken from the
+  original and test_defs.gd compares every one bit for bit.
+  The Android export ships them: export_presets.cfg include_filter="sim/defs/*.json" (see apk.txt).
+
+----------------------------------------------------------------------
+3. godot/tests/golden/*.json (tools/gen_golden.mjs; one module per topic in tools/golden/)
+----------------------------------------------------------------------
+    13479 godot/tests/golden/defs_bits.json
+   406122 godot/tests/golden/formulas.json
+  7793396 godot/tests/golden/math.json
+    24684 godot/tests/golden/new_game.json
+   147695 godot/tests/golden/rng.json
+   223544 godot/tests/golden/sim_scripts.json
+  8608920 total
+  topic        module                          content
+  math         tools/golden/math.mjs           28 vectors: 20000 rows each for sin cos atan atan2 exp log hypot mod max min round trunc to_int32 to_uint32
+                                               imul shl sar shr_u max3 min3 max5 min5 clamp; 2048 rows for floor ceil sqrt abs; 490 rows for pow;
+                                               48 named pitfall cases. Doubles are stored as IEEE-754 bit patterns (base64 / hex), never as JSON numbers.
+  rng          tools/golden/rng.mjs            8 seeds x 1000 outputs of makeSeededRandom, later checkpoints, 17 seed normalisations, 5 gameRandom helper cases
+  formulas     tools/golden/defs_formulas.mjs  enemySpec 1140 rows (11 scenarios), XP curve 220 levels + 5 sequences, weaponDamage 360 rows,
+                                               weapon interval 6 scenarios, wave predicates / unlock / theme, inputVector 256 + 176 rows, camera 4 scripts
+  new_game     tools/golden/defs_new_game.mjs  the newGame literal (catalyst, normal), 15 variants, 8 seeded runs, the original's 5 / 43 / 5 system lists
+  sim_scripts  tools/golden/defs_sim_scripts.mjs 13 scripted input runs (idle 240 steps, stick_diag 180, keys_wasd 270, stick_and_keys_mixed 100,
+                                               stick_ramp 300, random_stick 200, edge clamps 120 + 120, variable_dt 26, screen_flash_decay 90,
+                                               reaction_buffs_decay 120, knock_out 160, knock_out_timer_preset 70) run through the ORIGINAL update()
+                                               / runSystems() with 28 recorded columns per step
+  defs_bits    tools/golden/defs_bits.mjs      180 doubles of the definition tables with their bit patterns
+
+----------------------------------------------------------------------
+4. Cross-check with a real Chromium (not part of --check: it needs Playwright)
+----------------------------------------------------------------------
+Node 22 uses fdlibm for Math.sin/cos while Chromium 141 (V8 14.1, the version the reference traces are recorded with) uses glibc's algorithm, so the sin/cos
+expectations come from a JavaScript transcription of V8's glibc s_sin.c (tools/golden/_glibc_sin.mjs), and a CANARIES table recorded from Chromium makes the
+generator refuse a Node that disagrees. tools/verify_golden_chromium.mjs feeds the SAME inputs to Math inside Chromium and compares bit for bit:
+
+$ node tools/verify_golden_chromium.mjs               -> exit code 0 (re-run in this step)
+Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36
+ok    sin         20000 rows  0 mismatch(es)
+ok    cos         20000 rows  0 mismatch(es)
+ok    atan        20000 rows  0 mismatch(es)
+ok    exp         20000 rows  0 mismatch(es)
+ok    log         20000 rows  0 mismatch(es)
+ok    atan2       20000 rows  0 mismatch(es)
+ok    hypot       20000 rows  0 mismatch(es)
+ok    mod         20000 rows  0 mismatch(es)
+ok    max         20000 rows  0 mismatch(es)
+ok    min         20000 rows  0 mismatch(es)
+ok    round       20000 rows  0 mismatch(es)
+ok    trunc       20000 rows  0 mismatch(es)
+ok    to_int32    20000 rows  0 mismatch(es)
+ok    to_uint32   20000 rows  0 mismatch(es)
+ok    floor        2048 rows  0 mismatch(es)
+ok    ceil         2048 rows  0 mismatch(es)
+ok    sqrt         2048 rows  0 mismatch(es)
+ok    abs          2048 rows  0 mismatch(es)
+ok    imul        20000 rows  0 mismatch(es)
+ok    shl         20000 rows  0 mismatch(es)
+ok    sar         20000 rows  0 mismatch(es)
+ok    shr_u       20000 rows  0 mismatch(es)
+ok    max3        20000 rows  0 mismatch(es)
+ok    min3        20000 rows  0 mismatch(es)
+ok    max5        20000 rows  0 mismatch(es)
+ok    min5        20000 rows  0 mismatch(es)
+ok    clamp       20000 rows  0 mismatch(es)
+ok    pow           490 rows  0 mismatch(es)
+named cases: 48/48 agree with Chromium
+ok    rng        8 streams x 1000 outputs and 17 seed normalisations: 0 mismatch(es)
+verify OK: the golden vectors equal the results of Chromium
+
+----------------------------------------------------------------------
+5. Tests of the generators (run by tools/check_generated.sh steps 4 and 5)
+----------------------------------------------------------------------
+node --test tools/test_gen_golden.mjs      # tests 15  # pass 15  # fail 0     (cutting by name, empty sandbox, codec, pow2 / no host pow, determinism,
+                                                                                 20000 rows per function, edge cases, --check detects missing / changed / stray files)
+node --test tools/test_extract_defs.mjs    # tests 17  # pass 17  # fail 0     (extraction, both pointer variants, JSON markers, exit code 2 on an unexpected
+                                                                                 game text, determinism, and the values analyst A measured in Chromium: swarm W1,
+                                                                                 assassin W4 hp 44.97500000000001, XP curve levels 1-13, catalytic ring damage/interval,
+                                                                                 the first frames of a diagonal walk, newGame cooldown 0.03861239980906248)
+
+Protected paths: git status shows no change under webview-fg4/ or docs/. The generators open original.html read-only.
+
+----------------------------------------------------------------------
+6. Review fixes (agent F)
+----------------------------------------------------------------------
+formulas.json (enemy_spec): the endless scenarios list waves 1, 10, 49, 50, 51, 99, 100, 101, 149, 150, 151 (endless_and_contract: 1, 10, 49, 50, 51), so that both sides of every
+  step of the defense milestone floor(max(0, wave - 1) / 50) are pinned. 910 -> 1140 enemySpec rows, formulas.json 355839 -> 406122 bytes; the other five golden files are
+  byte-identical to before (sha256 above). Mutation `maxi(0, wave - 1)` -> `maxi(0, wave)`: test_formulas FAILS now (it passed 118/118 before).
+
+tools/check_js_compat_consts.mjs (new, step 3/5 of tools/check_generated.sh): the 95 float constants of godot/sim/js_compat.gd, their CONST_BITS entries and the upstream literals of
+  glibc usncs.h / s_sin.c / branred.h and V8 ieee754.cc (decimal literals together with the hex words quoted in the C comments, hex floats, high words) must agree bit for bit; SINCOSTAB_BITS (440)
+  and TOVERP (75) must equal the copies in tools/golden/_glibc_sin.mjs (the transcription that tools/verify_golden_chromium.mjs checks against Chromium's Math.sin / Math.cos).
+  Six mutations were each caught (EX_P3 consistently changed in expression and CONST_BITS, AT_T5 expression only, LG_5 missing from CONST_BITS, SINCOSTAB entry, TOVERP digit, LG_THIRD).
+
+tools/census_rng_slots_chromium.mjs (new; needs Playwright + Chromium, so it is not part of check_generated.sh): runs the original in Chromium 141 with a gameRandom wrapper keyed by the
+  running slot and compares the slots that draw with the consumes_rng_in_m1 marks of godot/sim/system_runner.gd. Output: rng_slots.txt. It exits 1 on a difference (checked with the old,
+  wrong mark set: "check FAILED"). The output is deterministic (two runs identical).

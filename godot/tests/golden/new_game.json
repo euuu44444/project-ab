@@ -1,0 +1,748 @@
+{
+ "format": 1,
+ "generated_by": "tools/golden/defs_new_game.mjs",
+ "source": "webview-fg4/tests/fixtures/original.html",
+ "source_sha256": "647860b1d9b510c0cb7bd17d60da80b9a85fa46ab90fdf4c9cb83035e0408d73",
+ "snapshot_encoding": "integer -> JSON number; other numbers -> {\"f64\": bits}; array -> {\"@array\": n, \"items\": [...] (n <= 32)}; Map/Set -> {\"@map\"|\"@set\": size}; marker -> {\"@marker\": name, ...}; plain object -> object",
+ "dropped_fields": ["char","metaRun"],
+ "cases": {
+  "baseline": {
+   "t": 0,
+   "wave": 1,
+   "waveClock": 36,
+   "waveSpawnClock": 0,
+   "dayPhase": {"f64":"3fc70a3d70a3d70a"},
+   "mode": "normal",
+   "difficulty": "normal",
+   "difficultyLocked": true,
+   "progressEligible": false,
+   "endlessClears": 0,
+   "enemyStatMult": 1,
+   "enemySpeedMult": 1,
+   "spawnPaceMult": 1,
+   "eliteSpawnBudget": 0,
+   "enemyAiTier": 0,
+   "enemyAiSkill": 0,
+   "runUnlocks": {
+    "weapons": {"@array":3,"items":["pulse","blades","wand"]},
+    "elements": {"@array":4,"items":["fire","water","earth","wood"]}
+   },
+   "awaitingChoice": false,
+   "ended": false,
+   "camera": {"x":13000,"y":13000},
+   "player": {
+    "x": 13000,
+    "y": 13000,
+    "r": 13,
+    "hp": 100,
+    "maxHp": 100,
+    "speed": 180,
+    "generalDamageBonus": 0,
+    "directDamageBonus": {"f64":"bfc3333333333334"},
+    "dotDamageBonus": 0,
+    "reactionDamageBonus": {"f64":"bfc9999999999998"},
+    "structureDamageBonus": 0,
+    "trueDamageBonus": 0,
+    "elemMul": 1,
+    "baseElemMul": 1,
+    "arcanistReactionStacks": 0,
+    "arcanistReactionBonus": 0,
+    "arcanistReactionBoost": 0,
+    "arcanistReactionLastAtByKey": {},
+    "reactionGrowth": false,
+    "projectileSpeedMul": 1,
+    "reactionCooldownMul": {"f64":"3fe199999999999a"},
+    "afflictionDurationMul": 1,
+    "earthWoodReactionCooldownMul": 1,
+    "strataMax": 8,
+    "seedGrowthRateMul": 1,
+    "woodDirectDamagePenaltyImmune": false,
+    "woodDeathGroveIgnoreCooldown": false,
+    "woodGroveIgnoreDamageCap": false,
+    "woodGroveHealRatio": {"f64":"3fa47ae147ae147b"},
+    "allowedElements": null,
+    "defense": 0,
+    "hazardDefenseBonus": 0,
+    "xpMul": {"f64":"3ff8000000000000"},
+    "innateBank": false,
+    "bankDamagePerLevel": 0,
+    "bankCritPerLevel": 0,
+    "bankCritDamagePerLevel": 0,
+    "bankMaxHpPerLevel": 0,
+    "bankDefensePerLevel": 0,
+    "bankMoveSpeedPerLevel": 0,
+    "bankXpPenaltyPerLevel": 0,
+    "bankRegenPerLevel": 0,
+    "baseDefensePenalty": 0,
+    "archivistBankAppliedPower": 0,
+    "level": 1,
+    "xp": 0,
+    "xpBaseNext": 60,
+    "xpNext": 51,
+    "pickup": 88,
+    "crit": {"f64":"3fa999999999999a"},
+    "critMul": {"f64":"3ffc000000000000"},
+    "attackSpeed": 1,
+    "area": 1,
+    "knock": 1,
+    "controlSlow": 1,
+    "regen": 0,
+    "lastHit": -99,
+    "mikoShield": 0,
+    "finalAreaApplied": 1,
+    "walkPhase": 0,
+    "attackAnim": 0,
+    "attackAnimMax": {"f64":"3fd1eb851eb851ec"},
+    "attackAngle": 0,
+    "lastFacing": 0,
+    "lastAttackWeapon": null,
+    "koTimer": 0,
+    "koAnimMax": {"f64":"3feeb851eb851eb8"},
+    "contractBurn": 0,
+    "contractBurnDps": 0,
+    "contractPoison": 0,
+    "contractPoisonDps": 0,
+    "reactionBuffs": {"prismResonance":0,"voidEcho":0}
+   },
+   "enemies": {"@array":0,"items":[]},
+   "projectiles": {"@array":0,"items":[]},
+   "enemyProjectiles": {"@array":0,"items":[]},
+   "enemyBeams": {"@array":0,"items":[]},
+   "enemyGroundAttacks": {"@array":0,"items":[]},
+   "xpOrbs": {"@array":0,"items":[]},
+   "xpMergeCursor": 0,
+   "lootDrops": {"@array":0,"items":[]},
+   "particles": {"@array":0,"items":[]},
+   "spriteFx": {"@array":0,"items":[]},
+   "signatureFx": {"@array":0,"items":[]},
+   "signatureActions": {"@array":0,"items":[]},
+   "hazards": {"@array":0,"items":[]},
+   "turrets": {"@array":0,"items":[]},
+   "saplings": {"@array":0,"items":[]},
+   "rangeCircleReactionCooldowns": {},
+   "woodDeathGroveCdUntil": 0,
+   "weapons": {
+    "@array": 1,
+    "items": [{"@marker":"makeWeapon","id":"catalytic_ring","opts":{"ignoreBlueprint":true}}]
+   },
+   "screenFlash": 0,
+   "damageFlash": 0,
+   "bossDefeatedThisWave": false,
+   "bossClearTimer": 0,
+   "reactionEventSeq": 0,
+   "eliteDefeatedThisWave": false,
+   "eliteClearTimer": 0,
+   "eliteGateTotal": 0,
+   "enemyById": {"@map":0},
+   "rootLinkDamageQueue": {"@map":0},
+   "frameSolidHazards": {"@array":0,"items":[]},
+   "directDamageResult": {},
+   "archivistRecords": {"@map":0},
+   "signatureMetrics": {"catalystHits":{"@array":0,"items":[]},"recordReleases":0,"recordReleaseHits":0,"kidanHits":0},
+   "passives": {},
+   "equipment": {"head":null,"chest":null,"hands":null,"feet":null},
+   "rerolls": 0,
+   "choiceCount": 3,
+   "treasureChoiceCount": 3,
+   "bankerCharges": 0,
+   "bankedLevelUps": 0,
+   "bankedLevels": {"@array":0,"items":[]},
+   "forcedNextCategory": null,
+   "lastChoices": {"@array":0,"items":[]},
+   "pendingSpecialChoices": {"@array":0,"items":[]},
+   "blueprintNext": false,
+   "doublePickNext": false,
+   "currentLevelForcedCategory": null,
+   "currentLevelPickTarget": 1,
+   "currentLevelPicksMade": 0,
+   "currentLevelChoices": {"@array":0,"items":[]},
+   "currentLevelSelected": {"@set":0},
+   "currentLevelFromBank": false,
+   "weaponSlotMax": 6,
+   "contracts": {},
+   "contractEnemyStatMul": 1,
+   "arenaWave": 0,
+   "bannedElement": null,
+   "afflictionDurationMul": 1,
+   "timedContract": null,
+   "kills": 0,
+   "bossKills": 0,
+   "rawScore": 0,
+   "finalScore": 0,
+   "scoredWaves": {"@set":0},
+   "pendingLevelUps": 0,
+   "pendingChests": 0,
+   "levelUpChoiceReadyAt": 0,
+   "pendingLevelNumbers": {"@array":0,"items":[]},
+   "currentLevelNumber": 0,
+   "characterUpgradeStacks": 0,
+   "weaponOverflowById": {},
+   "specials": {
+    "@marker": "makeSpecialsState",
+    "charId": "catalyst",
+    "abilityIds": {"@array":5,"items":["cat_chain","cat_overload","cat_residue","cat_core","cat_haste"]}
+   },
+   "nextEnemyId": 1,
+   "squads": {"@map":0},
+   "nextSquadId": 1,
+   "openSquadId": 0,
+   "squadDirectorClock": 0,
+   "highThreatLockUntil": 0,
+   "supportReservations": {"@map":0},
+   "aiMetrics": {"individualUpdates":0,"decisionUpdates":0,"squadUpdates":0,"cpuMs":0,"lastCpuMs":0,"windowAt":0},
+   "newUnlocks": {"@array":0,"items":[]},
+   "messageUntil": 0,
+   "spawnBudget": {"f64":"4004000000000000"},
+   "directorClock": 0,
+   "waveFeaturedChangeChance": {"f64":"3fa999999999999a"},
+   "waveSpawnTheme": null,
+   "featuredEnemyHistory": {"@array":0,"items":[]},
+   "pendingDirectorEnemyKind": null,
+   "pendingDirectorComposition": null,
+   "spawnCompositionHistory": {"@array":0,"items":[]},
+   "specialEscortSeq": 0,
+   "miko": null,
+   "berserker": null,
+   "sentinel": null,
+   "striker": null,
+   "harmonizer": null,
+   "pathfinder": null,
+   "overhaulHudAt": {},
+   "char_id": "catalyst"
+  },
+  "variants": [
+   {
+    "character": "arcanist",
+    "mode": "normal",
+    "difficulty": "normal",
+    "diff": {
+     "player": {
+      "hp": 90,
+      "maxHp": 90,
+      "directDamageBonus": 0,
+      "reactionDamageBonus": 0,
+      "reactionGrowth": true,
+      "reactionCooldownMul": 1
+     },
+     "weapons": {
+      "@array": 1,
+      "items": [{"@marker":"makeWeapon","id":"infinite_codex","opts":{"ignoreBlueprint":true}}]
+     },
+     "specials": {
+      "@marker": "makeSpecialsState",
+      "charId": "arcanist",
+      "abilityIds": {"@array":5,"items":["cat_chain","cat_overload","cat_residue","cat_core","cat_haste"]}
+     },
+     "char_id": "arcanist"
+    }
+   },
+   {
+    "character": "ranger",
+    "mode": "normal",
+    "difficulty": "normal",
+    "diff": {
+     "player": {
+      "directDamageBonus": 0,
+      "reactionDamageBonus": 0,
+      "reactionCooldownMul": 1,
+      "earthWoodReactionCooldownMul": {"f64":"3fe999999999999a"},
+      "strataMax": 12,
+      "seedGrowthRateMul": 2,
+      "woodDirectDamagePenaltyImmune": true,
+      "woodDeathGroveIgnoreCooldown": true,
+      "woodGroveIgnoreDamageCap": true,
+      "woodGroveHealRatio": {"f64":"3fc999999999999a"},
+      "allowedElements": {"@array":2,"items":["earth","wood"]}
+     },
+     "weapons": {"@array":1,"items":[{"@marker":"makeWeapon","id":"terra_arbor","opts":{"ignoreBlueprint":true}}]},
+     "specials": {
+      "@marker": "makeSpecialsState",
+      "charId": "ranger",
+      "abilityIds": {"@array":5,"items":["cat_chain","cat_overload","cat_residue","cat_core","cat_haste"]}
+     },
+     "char_id": "ranger"
+    }
+   },
+   {
+    "character": "archivist",
+    "mode": "normal",
+    "difficulty": "normal",
+    "diff": {
+     "player": {
+      "hp": 60,
+      "maxHp": 60,
+      "directDamageBonus": {"f64":"bfe0000000000000"},
+      "reactionDamageBonus": 0,
+      "reactionCooldownMul": 1,
+      "xpMul": {"f64":"4015000000000000"},
+      "innateBank": true,
+      "bankDamagePerLevel": {"f64":"3fd0000000000000"},
+      "bankCritPerLevel": {"f64":"3f947ae147ae147b"},
+      "bankCritDamagePerLevel": {"f64":"3f9eb851eb851eb8"},
+      "bankMaxHpPerLevel": {"f64":"3fa999999999999a"},
+      "bankDefensePerLevel": {"f64":"3fb999999999999a"},
+      "bankMoveSpeedPerLevel": {"f64":"3f847ae147ae147b"},
+      "bankXpPenaltyPerLevel": {"f64":"3fa999999999999a"},
+      "bankRegenPerLevel": {"f64":"3f947ae147ae147b"},
+      "baseDefensePenalty": {"f64":"bfd999999999999a"}
+     },
+     "weapons": {
+      "@array": 1,
+      "items": [{"@marker":"makeWeapon","id":"chronicle_quill","opts":{"ignoreBlueprint":true}}]
+     },
+     "specials": {
+      "@marker": "makeSpecialsState",
+      "charId": "archivist",
+      "abilityIds": {"@array":5,"items":["cat_chain","cat_overload","cat_residue","cat_core","cat_haste"]}
+     },
+     "char_id": "archivist"
+    }
+   },
+   {
+    "character": "sentinel",
+    "mode": "normal",
+    "difficulty": "normal",
+    "diff": {
+     "player": {
+      "hp": 110,
+      "maxHp": 110,
+      "speed": 165,
+      "directDamageBonus": 0,
+      "reactionDamageBonus": 0,
+      "reactionCooldownMul": 1
+     },
+     "weapons": {
+      "@array": 1,
+      "items": [{"@marker":"makeWeapon","id":"fortress_shield","opts":{"ignoreBlueprint":true}}]
+     },
+     "specials": {
+      "@marker": "makeSpecialsState",
+      "charId": "sentinel",
+      "abilityIds": {"@array":5,"items":["cat_chain","cat_overload","cat_residue","cat_core","cat_haste"]}
+     },
+     "sentinel": {"@marker":"sentinelInitState"},
+     "char_id": "sentinel"
+    }
+   },
+   {
+    "character": "striker",
+    "mode": "normal",
+    "difficulty": "normal",
+    "diff": {
+     "player": {"speed":185,"directDamageBonus":0,"reactionDamageBonus":0,"reactionCooldownMul":1},
+     "weapons": {"@array":1,"items":[{"@marker":"makeWeapon","id":"siege_driver","opts":{"ignoreBlueprint":true}}]},
+     "specials": {
+      "@marker": "makeSpecialsState",
+      "charId": "striker",
+      "abilityIds": {"@array":5,"items":["cat_chain","cat_overload","cat_residue","cat_core","cat_haste"]}
+     },
+     "striker": {"@marker":"strikerInitState"},
+     "char_id": "striker"
+    }
+   },
+   {
+    "character": "harmonizer",
+    "mode": "normal",
+    "difficulty": "normal",
+    "diff": {
+     "player": {"directDamageBonus":0,"reactionDamageBonus":0,"reactionCooldownMul":1},
+     "weapons": {
+      "@array": 1,
+      "items": [{"@marker":"makeWeapon","id":"triune_instrument","opts":{"ignoreBlueprint":true}}]
+     },
+     "specials": {
+      "@marker": "makeSpecialsState",
+      "charId": "harmonizer",
+      "abilityIds": {"@array":5,"items":["cat_chain","cat_overload","cat_residue","cat_core","cat_haste"]}
+     },
+     "harmonizer": {"@marker":"harmonizerInitState"},
+     "char_id": "harmonizer"
+    }
+   },
+   {
+    "character": "pathfinder",
+    "mode": "normal",
+    "difficulty": "normal",
+    "diff": {
+     "player": {"speed":195,"directDamageBonus":0,"reactionDamageBonus":0,"reactionCooldownMul":1},
+     "weapons": {
+      "@array": 1,
+      "items": [{"@marker":"makeWeapon","id":"survey_piercer","opts":{"ignoreBlueprint":true}}]
+     },
+     "specials": {
+      "@marker": "makeSpecialsState",
+      "charId": "pathfinder",
+      "abilityIds": {"@array":5,"items":["cat_chain","cat_overload","cat_residue","cat_core","cat_haste"]}
+     },
+     "pathfinder": {"@marker":"pathfinderInitState"},
+     "char_id": "pathfinder"
+    }
+   },
+   {
+    "character": "miko",
+    "mode": "normal",
+    "difficulty": "normal",
+    "diff": {
+     "player": {
+      "hp": 92,
+      "maxHp": 92,
+      "speed": 176,
+      "directDamageBonus": 0,
+      "reactionDamageBonus": 0,
+      "reactionCooldownMul": 1
+     },
+     "weapons": {"@array":1,"items":[{"@marker":"makeWeapon","id":"hama_bow","opts":{"ignoreBlueprint":true}}]},
+     "specials": {
+      "@marker": "makeSpecialsState",
+      "charId": "miko",
+      "abilityIds": {"@array":5,"items":["cat_chain","cat_overload","cat_residue","cat_core","cat_haste"]}
+     },
+     "miko": {"@marker":"mikoInitState"},
+     "char_id": "miko"
+    }
+   },
+   {
+    "character": "berserker",
+    "mode": "normal",
+    "difficulty": "normal",
+    "diff": {
+     "player": {"directDamageBonus":0,"reactionDamageBonus":0,"reactionCooldownMul":1},
+     "weapons": {"@array":1,"items":[{"@marker":"makeWeapon","id":"kidan","opts":{"ignoreBlueprint":true}}]},
+     "specials": {
+      "@marker": "makeSpecialsState",
+      "charId": "berserker",
+      "abilityIds": {"@array":5,"items":["cat_chain","cat_overload","cat_residue","cat_core","cat_haste"]}
+     },
+     "berserker": {"@marker":"berserkerInitState"},
+     "char_id": "berserker"
+    }
+   },
+   {"character":"catalyst","mode":"normal","difficulty":"easy","diff":{"difficulty":"easy"}},
+   {"character":"catalyst","mode":"normal","difficulty":"hard","diff":{"difficulty":"hard"}},
+   {"character":"catalyst","mode":"normal","difficulty":"nightmare","diff":{"difficulty":"nightmare"}},
+   {"character":"catalyst","mode":"normal","difficulty":"bogus","diff":{}},
+   {
+    "character": "catalyst",
+    "mode": "endless",
+    "difficulty": "normal",
+    "diff": {
+     "mode": "endless",
+     "runUnlocks": {
+      "weapons": {
+       "@array": 14,
+       "items": [
+        "pulse", "blades", "wand", "boomerang", "nova", "mine", "slash", "seeker", "laser", "orbital",
+        "turret", "shotgun", "railgun", "mortar"
+       ]
+      },
+      "elements": {
+       "@array": 10,
+       "items": ["fire","water","ice","lightning","wind","poison","light","dark","earth","wood"]
+      }
+     }
+    }
+   },
+   {
+    "character": "ranger",
+    "mode": "endless",
+    "difficulty": "hard",
+    "diff": {
+     "mode": "endless",
+     "difficulty": "hard",
+     "runUnlocks": {
+      "weapons": {
+       "@array": 14,
+       "items": [
+        "pulse", "blades", "wand", "boomerang", "nova", "mine", "slash", "seeker", "laser", "orbital",
+        "turret", "shotgun", "railgun", "mortar"
+       ]
+      },
+      "elements": {
+       "@array": 10,
+       "items": ["fire","water","ice","lightning","wind","poison","light","dark","earth","wood"]
+      }
+     },
+     "player": {
+      "directDamageBonus": 0,
+      "reactionDamageBonus": 0,
+      "reactionCooldownMul": 1,
+      "earthWoodReactionCooldownMul": {"f64":"3fe999999999999a"},
+      "strataMax": 12,
+      "seedGrowthRateMul": 2,
+      "woodDirectDamagePenaltyImmune": true,
+      "woodDeathGroveIgnoreCooldown": true,
+      "woodGroveIgnoreDamageCap": true,
+      "woodGroveHealRatio": {"f64":"3fc999999999999a"},
+      "allowedElements": {"@array":2,"items":["earth","wood"]}
+     },
+     "weapons": {"@array":1,"items":[{"@marker":"makeWeapon","id":"terra_arbor","opts":{"ignoreBlueprint":true}}]},
+     "specials": {
+      "@marker": "makeSpecialsState",
+      "charId": "ranger",
+      "abilityIds": {"@array":5,"items":["cat_chain","cat_overload","cat_residue","cat_core","cat_haste"]}
+     },
+     "char_id": "ranger"
+    }
+   }
+  ]
+ },
+ "seeded": [
+  {
+   "seed": 424242,
+   "draws": 1,
+   "weapon": {
+    "id": "catalytic_ring",
+    "level": 1,
+    "cooldown": {"f64":"3fa3c50124cccccd"},
+    "ultimateCd": 0,
+    "shotSeq": 0,
+    "elements": {"@array":0,"items":[]},
+    "mods": {"pierce":0,"multishot":0,"explosive":0,"homing":0}
+   },
+   "theme": {
+    "wave": 1,
+    "baseKind": "swarm",
+    "featuredKind": "swarm",
+    "changed": false,
+    "changeChance": {"f64":"3fa999999999999a"},
+    "featuredShare": {"f64":"3fe0000000000000"},
+    "totalSpawned": 0,
+    "counts": {},
+    "recentMixed": {"@array":0,"items":[]}
+   },
+   "featuredEnemyHistory": {"@array":1,"items":["swarm"]},
+   "pendingDirectorEnemyKind": null,
+   "next": ["3fce3f9f2c000000","3fc7859f5f000000","3fe49a04cf400000"]
+  },
+  {
+   "seed": 24681357,
+   "draws": 1,
+   "weapon": {
+    "id": "catalytic_ring",
+    "level": 1,
+    "cooldown": {"f64":"3f98b3c6e5999999"},
+    "ultimateCd": 0,
+    "shotSeq": 0,
+    "elements": {"@array":0,"items":[]},
+    "mods": {"pierce":0,"multishot":0,"explosive":0,"homing":0}
+   },
+   "theme": {
+    "wave": 1,
+    "baseKind": "swarm",
+    "featuredKind": "swarm",
+    "changed": false,
+    "changeChance": {"f64":"3fa999999999999a"},
+    "featuredShare": {"f64":"3fe0000000000000"},
+    "totalSpawned": 0,
+    "counts": {},
+    "recentMixed": {"@array":0,"items":[]}
+   },
+   "featuredEnemyHistory": {"@array":1,"items":["swarm"]},
+   "pendingDirectorEnemyKind": null,
+   "next": ["3feaac60c6400000","3fe31175a9000000","3fecfc7760e00000"]
+  },
+  {
+   "seed": 0,
+   "draws": 1,
+   "weapon": {
+    "id": "catalytic_ring",
+    "level": 1,
+    "cooldown": {"f64":"3fbb90106a666666"},
+    "ultimateCd": 0,
+    "shotSeq": 0,
+    "elements": {"@array":0,"items":[]},
+    "mods": {"pierce":0,"multishot":0,"explosive":0,"homing":0}
+   },
+   "theme": {
+    "wave": 1,
+    "baseKind": "swarm",
+    "featuredKind": "swarm",
+    "changed": false,
+    "changeChance": {"f64":"3fa999999999999a"},
+    "featuredShare": {"f64":"3fe0000000000000"},
+    "totalSpawned": 0,
+    "counts": {},
+    "recentMixed": {"@array":0,"items":[]}
+   },
+   "featuredEnemyHistory": {"@array":1,"items":["swarm"]},
+   "pendingDirectorEnemyKind": null,
+   "next": ["3fbb1c79e4000000","3fe59bfac7800000","3fed5fb84bc00000"]
+  },
+  {
+   "seed": 1,
+   "draws": 1,
+   "weapon": {
+    "id": "catalytic_ring",
+    "level": 1,
+    "cooldown": {"f64":"3fc814633e0ccccd"},
+    "ultimateCd": 0,
+    "shotSeq": 0,
+    "elements": {"@array":0,"items":[]},
+    "mods": {"pierce":0,"multishot":0,"explosive":0,"homing":0}
+   },
+   "theme": {
+    "wave": 1,
+    "baseKind": "swarm",
+    "featuredKind": "swarm",
+    "changed": false,
+    "changeChance": {"f64":"3fa999999999999a"},
+    "featuredShare": {"f64":"3fe0000000000000"},
+    "totalSpawned": 0,
+    "counts": {},
+    "recentMixed": {"@array":0,"items":[]}
+   },
+   "featuredEnemyHistory": {"@array":1,"items":["swarm"]},
+   "pendingDirectorEnemyKind": null,
+   "next": ["3f66693920000000","3fe0e0d89d600000","3fef64c4ffa00000"]
+  },
+  {
+   "seed": 2147483648,
+   "draws": 1,
+   "weapon": {
+    "id": "catalytic_ring",
+    "level": 1,
+    "cooldown": {"f64":"3fcf829b0c333333"},
+    "ultimateCd": 0,
+    "shotSeq": 0,
+    "elements": {"@array":0,"items":[]},
+    "mods": {"pierce":0,"multishot":0,"explosive":0,"homing":0}
+   },
+   "theme": {
+    "wave": 1,
+    "baseKind": "swarm",
+    "featuredKind": "swarm",
+    "changed": false,
+    "changeChance": {"f64":"3fa999999999999a"},
+    "featuredShare": {"f64":"3fe0000000000000"},
+    "totalSpawned": 0,
+    "counts": {},
+    "recentMixed": {"@array":0,"items":[]}
+   },
+   "featuredEnemyHistory": {"@array":1,"items":["swarm"]},
+   "pendingDirectorEnemyKind": null,
+   "next": ["3fdcadd12ec00000","3fe91357f9800000","3fe062addda00000"]
+  },
+  {
+   "seed": 2654435769,
+   "draws": 1,
+   "weapon": {
+    "id": "catalytic_ring",
+    "level": 1,
+    "cooldown": {"f64":"3fbb90106a666666"},
+    "ultimateCd": 0,
+    "shotSeq": 0,
+    "elements": {"@array":0,"items":[]},
+    "mods": {"pierce":0,"multishot":0,"explosive":0,"homing":0}
+   },
+   "theme": {
+    "wave": 1,
+    "baseKind": "swarm",
+    "featuredKind": "swarm",
+    "changed": false,
+    "changeChance": {"f64":"3fa999999999999a"},
+    "featuredShare": {"f64":"3fe0000000000000"},
+    "totalSpawned": 0,
+    "counts": {},
+    "recentMixed": {"@array":0,"items":[]}
+   },
+   "featuredEnemyHistory": {"@array":1,"items":["swarm"]},
+   "pendingDirectorEnemyKind": null,
+   "next": ["3fbb1c79e4000000","3fe59bfac7800000","3fed5fb84bc00000"]
+  },
+  {
+   "seed": 4294967295,
+   "draws": 1,
+   "weapon": {
+    "id": "catalytic_ring",
+    "level": 1,
+    "cooldown": {"f64":"3fd13618afd33333"},
+    "ultimateCd": 0,
+    "shotSeq": 0,
+    "elements": {"@array":0,"items":[]},
+    "mods": {"pierce":0,"multishot":0,"explosive":0,"homing":0}
+   },
+   "theme": {
+    "wave": 1,
+    "baseKind": "swarm",
+    "featuredKind": "swarm",
+    "changed": false,
+    "changeChance": {"f64":"3fa999999999999a"},
+    "featuredShare": {"f64":"3fe0000000000000"},
+    "totalSpawned": 0,
+    "counts": {},
+    "recentMixed": {"@array":0,"items":[]}
+   },
+   "featuredEnemyHistory": {"@array":1,"items":["swarm"]},
+   "pendingDirectorEnemyKind": null,
+   "next": ["3fc840d2d2000000","3fe6e6a072000000","3fee35bd20800000"]
+  },
+  {
+   "seed": 123456789,
+   "draws": 1,
+   "weapon": {
+    "id": "catalytic_ring",
+    "level": 1,
+    "cooldown": {"f64":"3fb3cc5f4c333333"},
+    "ultimateCd": 0,
+    "shotSeq": 0,
+    "elements": {"@array":0,"items":[]},
+    "mods": {"pierce":0,"multishot":0,"explosive":0,"homing":0}
+   },
+   "theme": {
+    "wave": 1,
+    "baseKind": "swarm",
+    "featuredKind": "swarm",
+    "changed": false,
+    "changeChance": {"f64":"3fa999999999999a"},
+    "featuredShare": {"f64":"3fe0000000000000"},
+    "totalSpawned": 0,
+    "counts": {},
+    "recentMixed": {"@array":0,"items":[]}
+   },
+   "featuredEnemyHistory": {"@array":1,"items":["swarm"]},
+   "pendingDirectorEnemyKind": null,
+   "next": ["3fef1090ace00000","3fe9216837400000","3fca6399d8000000"]
+  }
+ ],
+ "system_lists_columns": ["id","phase","function called by run()","when predicate source or -"],
+ "system_lists": {
+  "UPDATE_INTRO_SYSTEMS": [
+   "frame/clock frame advanceFrameClock -", "frame/day-cycle frame updateDayCycle -",
+   "frame/ambient frame refreshAmbientState -", "hud/hp-ghost hud updateHudGhostState -",
+   "hud/message-expiry hud expireHudMessage -"
+  ],
+  "UPDATE_MAIN_SYSTEMS": [
+   "character/berserker character updateBerserker -", "character/sentinel character updateSentinel -",
+   "player/reaction-buffs player tickPlayerReactionBuffs -", "player/movement player updatePlayerMovement -",
+   "player/camera player followPlayerWithCamera -", "wave/progress wave updateWave -",
+   "index/enemy-by-id index rebuildEnemyIndex -", "index/separation-1 index rebuildEnemySeparationGrid -",
+   "damage/root-link-reset damage resetRootLinkDamageQueue -", "weapon/hazards weapon updateHazards -",
+   "enemy/cleanup-1 enemy cleanupDeadEnemies -",
+   "character/archivist-records character updateArchivistRecords -",
+   "character/archivist-bank character syncArchivistBankMaxHp -",
+   "character/miko-barrier character updateMikoBarrier ()=>mikoActive()",
+   "enemy/squads enemy updateNightmareSquads -", "enemy/update enemy updateEnemies -",
+   "enemy/ground-attacks enemy updateEnemyGroundAttacks -",
+   "index/separation-2 index rebuildEnemySeparationGrid -", "character/striker character updateStriker -",
+   "character/harmonizer character updateHarmonizer -",
+   "character/harmony-fields character updateHarmonyResonanceFields -",
+   "character/pathfinder character updatePathfinder -",
+   "character/ranger-catalyst character rangerAutoCatalystUpdate -", "ability/update ability abilityUpdate -",
+   "ability/meta-progression ability updateMetaProgression -", "weapon/update weapon updateWeapons -",
+   "weapon/signature-actions weapon updateSignatureActions -", "weapon/turrets weapon updateTurrets -",
+   "weapon/saplings weapon updateSaplings -", "projectile/player projectile updateProjectiles -",
+   "damage/root-link-flush damage flushRootLinkDamage -", "enemy/cleanup-2 enemy cleanupDeadEnemies -",
+   "projectile/enemy projectile updateEnemyProjectiles -",
+   "projectile/enemy-beams projectile updateEnemyBeams -", "pickup/loot pickup updateLootDrops -",
+   "pickup/xp pickup updateXp -", "player/contract-dots player updatePlayerContractDots -",
+   "fx/particles fx updateParticles -", "hud/pending-choice hud openNextPendingChoice -",
+   "fx/screen-flash fx decayScreenFlashes -", "player/regen player applyPlayerRegen -",
+   "hud/tutorial hud updateTutorial -", "hud/update hud updateHud -"
+  ],
+  "UPDATE_KO_SYSTEMS": [
+   "player/ko-motion player tickKnockOutMotion -", "fx/particles fx updateParticles -",
+   "fx/screen-flash fx decayScreenFlashes -", "hud/update hud updateHud -",
+   "frame/end-run frame endRun ()=>game.player.koTimer<=0"
+  ]
+ }
+}

@@ -7,11 +7,14 @@
 #
 # Before Godot starts, tools/check_assets.sh verifies that the committed atlas assets (godot/assets/atlas)
 # still equal a fresh extraction from the original game and that the extraction tool's own tests pass
-# (Node 22). A drifted asset therefore fails this script, not only the test it affects.
+# (Node 22). A drifted asset therefore fails this script, not only the test it affects. In the same way
+# tools/check_generated.sh verifies that the committed definition tables (godot/sim/defs) and golden test vectors
+# (godot/tests/golden) still equal a fresh generation from the original game.
 #
 # Usage: tools/run_godot_tests.sh [test-file-name-filter]
 # Environment:
 #   SWARM_SKIP_ASSET_CHECK=1         skip tools/check_assets.sh (for a machine without Node)
+#   SWARM_SKIP_GENERATED_CHECK=1     skip tools/check_generated.sh (for a machine without Node)
 #   SWARM_SKIP_IMPORT=1              skip the import (only for a quick re-run when no asset changed)
 #   SWARM_IMPORT_TIMEOUT=<seconds>   limit for the import (default 600)
 #   SWARM_TEST_TIMEOUT=<seconds>     limit for the test run (default 300)
@@ -73,6 +76,14 @@ if [[ "${SWARM_SKIP_ASSET_CHECK:-0}" == "1" ]]; then
 else
   log "checking the atlas assets against the original game ..."
   "$SCRIPT_DIR/check_assets.sh" || die "tools/check_assets.sh failed (the atlas assets drifted from the original game)"
+fi
+
+# 0b. The committed definition tables and golden vectors must equal what the original game yields (Node only).
+if [[ "${SWARM_SKIP_GENERATED_CHECK:-0}" == "1" ]]; then
+  log "skipping the generated-data check (SWARM_SKIP_GENERATED_CHECK=1)"
+else
+  log "checking the generated definition tables and golden vectors against the original game ..."
+  "$SCRIPT_DIR/check_generated.sh" || die "tools/check_generated.sh failed (generated data drifted from the original game)"
 fi
 
 # 1. Import the project (creates godot/.godot, which is gitignored). Godot only redoes what changed,
