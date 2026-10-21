@@ -138,7 +138,7 @@ async function captureOnce(page, opts, script, source) {
     stats: result.stats,
     stop: result.stop,
   };
-  // The first steps with an effect that the port does not have yet (the two boundaries of the port comparison). The Godot test
+  // The first steps with an effect that the port does not have yet (the boundaries of the port comparison). The Godot test
   // (godot/tests/test_reference_trace.gd first_effects) computes them again from the rows and fails if the two disagree.
   const steps = result.body.length > 0 ? result.body.split('\n').map((line) => JSON.parse(line)) : [];
   header.boundaries = firstEffects({ header, steps });
@@ -193,7 +193,7 @@ export function summarizeTrace(file) {
   lines.push(`  first events: enemy ${firstEnemy ?? '-'}; player hp changes ${firstHit ?? '-'}; player attackAnim changes ${firstAttack ?? '-'}; first draw per slot: ${Object.entries(firstDraw).sort((a, b) => a[1] - b[1]).map(([k, n]) => `${k}@${n}`).join(' ') || '-'}`);
   const effects = firstEffects({ header, steps });
   const at = (n) => (n > steps.length ? 'none' : `step ${n}`);
-  lines.push(`  first effects the port lacks (design 9.2 boundaries): contact hit ${at(effects.contact)}, weapon shot ${at(effects.fire)}`);
+  lines.push(`  first effects the port lacks (design 9.2 boundaries): weapon shot ${at(effects.fire)}, experience picked up ${at(effects.pickup)}`);
   lines.push(`  maxima: enemies ${maxEnemies}, projectiles ${maxProjectiles}, xp orbs ${maxOrbs}, particles ${maxParticles}`);
   lines.push(`  size: ${fileBytes} bytes on disk, ${rawBytes} bytes uncompressed, sha256 of the file ${sha256(fs.readFileSync(file))}`);
   lines.push(`  source ${header.source.path} sha256 ${header.source.sha256}; ${header.chromium_version}; playwright ${header.playwright_version}`);

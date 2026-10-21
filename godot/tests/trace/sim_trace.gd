@@ -100,6 +100,8 @@ static func entity_sample(group: String) -> Object:
 	match group:
 		"enemy":
 			return EnemyState.new()
+		"xp_orb":
+			return XpOrbState.new()
 	return null
 
 
@@ -442,22 +444,30 @@ static func apply_overrides(game: GameState, overrides: Dictionary) -> bool:
 
 ## Replays the inputs of `reference` through a fresh Sim (same seed, character, difficulty, mode, view, and the overrides of a
 ## non-standard variant) for the first `until_step` steps (all of them when it is 0 or less). Returns
-## { "header": Dictionary, "rows": Array of step Dictionaries }, empty when the sim cannot start the run.
-static func replay(reference: TraceReader, until_step: int = 0) -> Dictionary:
+## { "header": Dictionary, "rows": Array of step Dictionaries, "oracle": ReplayOracle or null }, empty when the sim cannot start the run.
+##
+## With `use_oracle` the run follows the reference past the effects that belong to a later step (tests/trace/replay_oracle.gd, the
+## test-only replay oracle of design section 11, step S5): placeholder slots draw what the reference's slot drew, the enemies the
+## reference removed are killed in front of enemy/cleanup-2, the projectile list is the reference's. The oracle is installed here, from
+## outside; the simulation has no hook for it.
+static func replay(reference: TraceReader, until_step: int = 0, use_oracle: bool = false) -> Dictionary:
 	var sim: Sim = Sim.new()
 	var config: SimConfig = config_from_header(reference.header)
 	if not sim.new_game(config):
 		return {}
 	if not apply_overrides(sim.game, reference.header.get("overrides", {}) as Dictionary):
 		return {}
+	var oracle: ReplayOracle = ReplayOracle.install(sim, reference) if use_oracle else null
 	var trace: SimTrace = SimTrace.new(sim)
 	var count: int = reference.steps.size() if until_step <= 0 else mini(until_step, reference.steps.size())
 	var rows: Array = []
 	rows.resize(count)
 	for i: int in range(count):
 		var ref_step: Dictionary = reference.steps[i]
+		if oracle != null:
+			oracle.begin_step(i)
 		rows[i] = trace.step_and_record(int(ref_step["n"]), ref_step["input"])
-	return {"header": trace.make_header(reference, count), "rows": rows}
+	return {"header": trace.make_header(reference, count), "rows": rows, "oracle": oracle}
 
 
 # --- writing -------------------------------------------------------------------------------------------------------------

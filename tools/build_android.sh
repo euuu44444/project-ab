@@ -13,7 +13,7 @@
 #                        test, or a main scene that does not compile, stops the build)
 #   --skip-import        do not run the headless import before exporting (the tests import anyway)
 # Environment: SWARM_IMPORT_TIMEOUT / SWARM_EXPORT_TIMEOUT / SWARM_TEST_TIMEOUT (seconds, default
-#   600 / 900 / 300), SWARM_ALLOW_ENGINE_ERRORS=1 (report "ERROR:" lines in the Godot output as
+#   600 / 900 / 600), SWARM_ALLOW_ENGINE_ERRORS=1 (report "ERROR:" lines in the Godot output as
 #   warnings only), SWARM_ADB_PORT (private adb server port, default 5199).
 # Exit code 0 only if every check passes (WARN lines do not fail the build).
 set -euo pipefail
@@ -175,7 +175,7 @@ else
   "$SCRIPT_DIR/run_godot_tests.sh" >"$OUT_DIR/godot-tests.log" 2>&1 || tests_rc=$?
   if ((tests_rc != 0)); then
     show_log "$OUT_DIR/godot-tests.log"
-    record FAIL "tests" "$(describe_failure "run_godot_tests.sh" "$tests_rc" "${SWARM_TEST_TIMEOUT:-300}" SWARM_TEST_TIMEOUT)"
+    record FAIL "tests" "$(describe_failure "run_godot_tests.sh" "$tests_rc" "${SWARM_TEST_TIMEOUT:-600}" SWARM_TEST_TIMEOUT)"
     finish
   fi
   record PASS "tests" "$(grep -m1 '^Summary:' "$OUT_DIR/godot-tests.log" | sed 's/^Summary: //' || true)"

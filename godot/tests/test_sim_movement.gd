@@ -49,6 +49,9 @@ func _golden() -> Dictionary:
 	return GoldenCodec.load_json("sim_scripts")
 
 
+var _golden_cache: Dictionary = {}
+
+
 func _new_sim(rng_seed: int = SEED, view_w: float = 390.0, view_h: float = 844.0) -> Sim:
 	var config: SimConfig = SimConfig.new()
 	config.rng_seed = rng_seed
@@ -56,6 +59,22 @@ func _new_sim(rng_seed: int = SEED, view_w: float = 390.0, view_h: float = 844.0
 	config.view_h = view_h
 	var sim: Sim = Sim.new()
 	assert_true(sim.new_game(config), "new_game")
+	return sim
+
+
+## The golden file ran the original with the functions of later steps stubbed out (`stubbed_noop`: updateWave, cleanupDeadEnemies,
+## rebuildEnemySeparationGrid ...) and its scripts have no enemies. Step S5 has implemented some of those slots, and they would spawn
+## enemies and make draws that the golden run did not have, so a run that is compared with the golden gets a no-op in their place again
+## (the slot keeps its id, phase and function name). The S3 slots stay real.
+func _new_sim_like_the_golden(rng_seed: int = SEED) -> Sim:
+	var sim: Sim = _new_sim(rng_seed)
+	if _golden_cache.is_empty():
+		_golden_cache = _golden()
+	var stubbed: Array = _golden_cache["stubbed_noop"]
+	for list: Array[SystemSlot] in [sim.runner.intro, sim.runner.main, sim.runner.ko]:
+		for slot: SystemSlot in list:
+			if stubbed.has(slot.system.original_function) and slot.system.is_implemented():
+				slot.system = StubSystem.new(sim.game, slot.system.original_function, "S5", "the golden run's no-op, see _new_sim_like_the_golden")
 	return sim
 
 
@@ -202,7 +221,7 @@ func test_scripted_input_matches_the_original_update() -> void:
 		var rows_by_step: Dictionary = {}
 		for row: Variant in script["rows"]:
 			rows_by_step[int(GoldenTable.tokens(String(row))[COL_STEP])] = String(row)
-		var sim: Sim = _new_sim()
+		var sim: Sim = _new_sim_like_the_golden()
 		var mismatches: GoldenTable.Mismatches = GoldenTable.Mismatches.new()
 		for index: int in steps:
 			var step_number: int = index + 1
@@ -228,7 +247,7 @@ func test_no_slot_of_step_s3_draws_a_random_number() -> void:
 	# (clock, movement, camera, KO, ...) must leave the draw counter alone,
 	# whatever the input - after newGame's single draw (the starting weapon's cooldown) it stays 1.
 	for rng_seed: int in [SEED, 24681357]:
-		var sim: Sim = _new_sim(rng_seed)
+		var sim: Sim = _new_sim_like_the_golden(rng_seed)
 		assert_eq(sim.draws(), 1, "seed %d: newGame draws once" % rng_seed)
 		for step_number: int in 600:
 			_apply_input(sim.game.input, 2 if step_number < 200 else (4 if step_number < 400 else 0), 0.3, -0.2)
@@ -261,16 +280,21 @@ func test_port_stubs_are_not_slots_the_golden_runs_for_real() -> void:
 			assert_true(stubbed.has(function_name), "%s: the placeholder %s was stubbed in the golden's runs" % [slot.id, function_name])
 
 
-func test_implemented_slots_are_the_ones_the_design_assigns_to_s3() -> void:
+func test_implemented_slots_are_the_ones_the_design_assigns_to_s3_and_s5() -> void:
 	var sim: Sim = _new_sim()
 	var implemented: PackedStringArray = PackedStringArray()
 	for list: Array[SystemSlot] in [sim.runner.intro, sim.runner.main, sim.runner.ko]:
 		for slot: SystemSlot in list:
 			if slot.system.is_implemented():
 				implemented.append(slot.id)
+	# S3: the clock, movement, camera, KO. S5: the wave director, the enemy index and grid, the cleanup of dead enemies, the squads guard, the
+	# enemy update (AI, movement, contact damage). enemy/ground-attacks (an empty list in M1) and projectile/enemy (swarm and assassin fire
+	# nothing) stay placeholders: nothing ever fills their lists.
 	var expected: Array = [
 		"frame/clock", "frame/day-cycle",
-		"player/reaction-buffs", "player/movement", "player/camera", "fx/screen-flash", "player/regen",
+		"player/reaction-buffs", "player/movement", "player/camera",
+		"wave/progress", "index/enemy-by-id", "index/separation-1", "enemy/cleanup-1", "enemy/squads", "enemy/update", "index/separation-2", "enemy/cleanup-2",
+		"fx/screen-flash", "player/regen",
 		"player/ko-motion", "fx/screen-flash", "frame/end-run",
 	]
 	assert_eq(Array(implemented), expected, "implemented slots in list order (intro, main, ko)")
@@ -385,7 +409,7 @@ class ProbeSystem extends SimSystem:
 ## opens) stops everything after it in the same step. The slots after it draw random numbers in the original
 ## (projectile/player, enemy/cleanup-2), so a lost check would change the draw count.
 func _probe_sim(killer_action: int, killer_index: int) -> Array:
-	var sim: Sim = _new_sim()
+	var sim: Sim = _new_sim_like_the_golden()  # the draw counts below are the probes' own: the director of step S5 would add its draws
 	var killer: ProbeSystem = ProbeSystem.new(sim.game, killer_action)
 	var after: ProbeSystem = ProbeSystem.new(sim.game, 3)
 	var last: ProbeSystem = ProbeSystem.new(sim.game, 3)

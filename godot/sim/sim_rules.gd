@@ -22,10 +22,13 @@ var final_bonus_step_cooldown: float = 0.0   # FINAL_BONUS_STEP.cooldown
 var walk_fps_min: float = 0.0                # CHARACTER_ANIMATION_FPS.walkMin / walkMax
 var walk_fps_max: float = 0.0
 var berserker_attack_speed_per_stack: float = 0.0  # BERSERKER_CONFIG.attackSpeedPerStack
+var player_defense_min: float = 0.0          # PLAYER_DEFENSE_MIN
+var player_defense_max: float = 0.0          # PLAYER_DEFENSE_MAX
 
 # enemies.json
 var featured_initial_change_chance: float = 0.0  # FEATURED_WAVE_CONFIG
 var featured_share: float = 0.0
+var featured_change_chance_per_clear: float = 0.0  # FEATURED_WAVE_CONFIG.changeChancePerClear
 var director_budget_cap: float = 0.0         # DIRECTOR_BUDGET_CAP
 var enemy_armor_max: float = 0.0             # ENEMY_ARMOR_MAX
 var endless_enemy_stat_cap: float = 0.0      # ENDLESS_ENEMY_STAT_CAP
@@ -33,6 +36,15 @@ var endless_enemy_speed_cap: float = 0.0     # ENDLESS_ENEMY_SPEED_CAP
 var endless_action_cooldown_min: float = 0.0  # ENDLESS_ACTION_COOLDOWN_MIN
 var endless_armor_per_50_waves: float = 0.0  # ENDLESS_ARMOR_PER_50_WAVES
 var endless_evasion_per_50_waves: float = 0.0  # ENDLESS_EVASION_PER_50_WAVES
+var world_tree_threat_rate_multiplier: float = 0.0  # WORLD_TREE_THREAT_RATE_MULTIPLIER
+## ENEMY_FIELD_SPAWN_PATTERNS: the formations the director draws from once wave 7 is reached (the pools of waves 1-6 are inline in the original).
+var enemy_field_spawn_patterns: PackedStringArray = PackedStringArray()
+
+# rules.json: SCORE_RULES
+var score_normal_kill: float = 0.0
+var score_elite_kill: float = 0.0
+var score_boss_kill: float = 0.0
+var score_wave_clear: float = 0.0
 
 
 func _init() -> void:
@@ -51,6 +63,8 @@ func _init() -> void:
 	xp_requirement_multiplier = float(xp_curve["requirementMultiplier"])
 	safe_attack_interval = _num("rules.json", "SAFE_ATTACK_INTERVAL")
 	final_bonus_step_cooldown = float((Defs.value("rules.json", "FINAL_BONUS_STEP") as Dictionary)["cooldown"])
+	player_defense_min = _num("rules.json", "PLAYER_DEFENSE_MIN")
+	player_defense_max = _num("rules.json", "PLAYER_DEFENSE_MAX")
 	var fps: Dictionary = Defs.value("characters.json", "CHARACTER_ANIMATION_FPS")
 	walk_fps_min = float(fps["walkMin"])
 	walk_fps_max = float(fps["walkMax"])
@@ -59,6 +73,7 @@ func _init() -> void:
 	var featured: Dictionary = Defs.value("enemies.json", "FEATURED_WAVE_CONFIG")
 	featured_initial_change_chance = float(featured["initialChangeChance"])
 	featured_share = float(featured["featuredShare"])
+	featured_change_chance_per_clear = float(featured["changeChancePerClear"])
 	director_budget_cap = _num("enemies.json", "DIRECTOR_BUDGET_CAP")
 	enemy_armor_max = _num("enemies.json", "ENEMY_ARMOR_MAX")
 	endless_enemy_stat_cap = _num("enemies.json", "ENDLESS_ENEMY_STAT_CAP")
@@ -66,6 +81,14 @@ func _init() -> void:
 	endless_action_cooldown_min = _num("enemies.json", "ENDLESS_ACTION_COOLDOWN_MIN")
 	endless_armor_per_50_waves = _num("enemies.json", "ENDLESS_ARMOR_PER_50_WAVES")
 	endless_evasion_per_50_waves = _num("enemies.json", "ENDLESS_EVASION_PER_50_WAVES")
+	world_tree_threat_rate_multiplier = _num("enemies.json", "WORLD_TREE_THREAT_RATE_MULTIPLIER")
+	for pattern: Variant in Defs.value("enemies.json", "ENEMY_FIELD_SPAWN_PATTERNS") as Array:
+		enemy_field_spawn_patterns.append(String(pattern))
+	var score: Dictionary = Defs.value("rules.json", "SCORE_RULES")
+	score_normal_kill = float(score["normalKill"])
+	score_elite_kill = float(score["eliteKill"])
+	score_boss_kill = float(score["bossKill"])
+	score_wave_clear = float(score["waveClear"])
 
 
 static func _num(file_name: String, constant: String) -> float:

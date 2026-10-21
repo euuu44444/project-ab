@@ -14,13 +14,18 @@
 #        the tests of the golden generator itself.
 #   5. node --test tools/test_extract_defs.mjs
 #        the tests of extract_defs.mjs and of the S3 golden modules (defs_*.mjs), including values measured in Chromium.
+#   6. node --test tools/test_compare_trace.mjs
+#        the self-test of the trace comparator (tools/compare_trace.mjs, tools/lib/trace_io.mjs) on small synthetic traces.
+#   7. node --test tools/test_golden_enemies.mjs
+#        the node:vm harness of the enemy golden (tools/golden/defs_enemies.mjs) reproduces the enemy director of the reference traces
+#        recorded in Chromium (draws per step, spawned ids and kinds, clocks, budget), so that golden is the original's, not a model of it.
 #
 # After a deliberate change of a generator, run it without --check (node tools/extract_defs.mjs, node tools/gen_golden.mjs)
 # and commit the result. tools/verify_golden_chromium.mjs (needs Playwright, not run here) compares the math vectors with a
 # real Chromium.
 #
 # Usage: tools/check_generated.sh [--no-tool-tests]
-#   --no-tool-tests   skip steps 4 and 5 (about 25 s)
+#   --no-tool-tests   skip steps 4 to 7 (about 45 s)
 # tools/run_godot_tests.sh runs this script after check_assets.sh; SWARM_SKIP_GENERATED_CHECK=1 there skips it.
 # Needs Node 22 or newer (standard library only, no npm packages). Exit code 0 only if everything passes. All checks are
 # run even if one fails, so that one run reports every drifted file.
@@ -65,22 +70,26 @@ run_check() {
   fi
 }
 
-log "1/5 extract_defs.mjs --check"
+log "1/7 extract_defs.mjs --check"
 run_check "tools/extract_defs.mjs --check (re-run: node tools/extract_defs.mjs)" node "$SCRIPT_DIR/extract_defs.mjs" --check
 
-log "2/5 gen_golden.mjs --check"
+log "2/7 gen_golden.mjs --check"
 run_check "tools/gen_golden.mjs --check (re-run: node tools/gen_golden.mjs)" node "$SCRIPT_DIR/gen_golden.mjs" --check
 
-log "3/5 check_js_compat_consts.mjs"
+log "3/7 check_js_compat_consts.mjs"
 run_check "tools/check_js_compat_consts.mjs (a constant of godot/sim/js_compat.gd differs from its upstream literal)" node "$SCRIPT_DIR/check_js_compat_consts.mjs"
 
 if ((RUN_TOOL_TESTS)); then
-  log "4/5 node --test tools/test_gen_golden.mjs"
+  log "4/7 node --test tools/test_gen_golden.mjs"
   run_check "tools/test_gen_golden.mjs" node --test "$SCRIPT_DIR/test_gen_golden.mjs"
-  log "5/5 node --test tools/test_extract_defs.mjs"
+  log "5/7 node --test tools/test_extract_defs.mjs"
   run_check "tools/test_extract_defs.mjs" node --test "$SCRIPT_DIR/test_extract_defs.mjs"
+  log "6/7 node --test tools/test_compare_trace.mjs"
+  run_check "tools/test_compare_trace.mjs" node --test "$SCRIPT_DIR/test_compare_trace.mjs"
+  log "7/7 node --test tools/test_golden_enemies.mjs"
+  run_check "tools/test_golden_enemies.mjs" node --test "$SCRIPT_DIR/test_golden_enemies.mjs"
 else
-  log "4/5 and 5/5 skipped (--no-tool-tests)"
+  log "4/7 to 7/7 skipped (--no-tool-tests)"
 fi
 
 if ((failures > 0)); then

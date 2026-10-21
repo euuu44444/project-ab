@@ -82,22 +82,22 @@ const ZERO_BITS = '0000000000000000';
 /**
  * The first steps (1-based; steps + 1 when it never happens) at which a reference trace shows an effect that the port does not
  * have yet, computed from the trace alone (the same definition as godot/tests/test_reference_trace.gd):
- *   contact  enemy/update draws from gameRandom, or the player's hp differs from its value at step 1, or the damage flash is on:
- *            a contact hit, which also pushes the player 22 px (writes x and y);
- *   fire     the player's attackAnim is not 0: a weapon shot (triggerPlayerAttackAnimation sets attackAnim, attackAngle, lastFacing).
+ *   fire     the player's attackAnim is not 0: a weapon shot (triggerPlayerAttackAnimation sets attackAnim, attackAngle, lastFacing);
+ *   pickup   the player's xp differs from its value at step 1: the first experience orb collected (pickup/xp, step S6), which is
+ *            also where the level and the requirement of the next level start to change.
+ * (Until step S5 there was a third boundary, `contact`, the first contact hit on the player: the hit pushes the player 22 px, lowers its
+ * hp and sets the damage flash. enemy/update is ported now, so the port reproduces the hits and nothing is bounded by them.)
  */
 export function firstEffects(trace) {
   const { header, steps } = trace;
   const none = steps.length + 1;
   const index = (group, name) => (header.fields[group] || []).findIndex((s) => s.split(':')[0] === name);
-  const enemyUpdate = (header.slots?.main || []).indexOf('enemy/update');
-  const slotKey = enemyUpdate >= 0 ? `main:${enemyUpdate}` : null;
-  const hp = index('player', 'hp'); const attack = index('player', 'attackAnim'); const flash = index('wave', 'damageFlash');
-  let contact = none; let fire = none;
-  for (let i = 0; i < steps.length && (contact === none || fire === none); i++) {
+  const attack = index('player', 'attackAnim'); const xp = index('player', 'xp');
+  let fire = none; let pickup = none;
+  for (let i = 0; i < steps.length && (fire === none || pickup === none); i++) {
     const s = steps[i];
-    if (contact === none && ((slotKey && (s.slot_draws[slotKey] || 0) !== 0) || (hp >= 0 && s.player[hp] !== steps[0].player[hp]) || (flash >= 0 && s.wave[flash] !== ZERO_BITS))) contact = i + 1;
     if (fire === none && attack >= 0 && s.player[attack] !== ZERO_BITS) fire = i + 1;
+    if (pickup === none && xp >= 0 && s.player[xp] !== steps[0].player[xp]) pickup = i + 1;
   }
-  return { contact, fire, steps: steps.length };
+  return { fire, pickup, steps: steps.length };
 }

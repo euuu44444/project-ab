@@ -1,21 +1,29 @@
 extends "res://tests/test_case.gd"
 ## The reference traces (tests/reference/*.jsonl.gz, recorded from the ORIGINAL game in Chromium 141 by tools/reference-trace/capture.mjs;
 ## format: tools/reference-trace/FORMAT.md) against the port: Sim is run on the very inputs of each trace (same seed, character,
-## difficulty, mode and 390x844 view) and what step S3 ported has to match the reference bit for bit.
+## difficulty, mode and 390x844 view), and what the port has ported has to match the reference bit for bit.
 ##
-## Where the port may differ. The port still has placeholders for the enemy director, enemy AI, weapons, projectiles and pickups,
-## so from the first step in which the reference shows an effect that the port does not have, the two runs part. That boundary is
-## computed from the reference trace itself (and must agree with the one that capture.mjs wrote into the header, computed by
-## tools/lib/trace_io.mjs firstEffects: the two implementations check each other on every committed trace):
-##   * contact: the first step in which enemy/update draws from gameRandom (contact damage: showDamageNumber), or the player's hp
-##     differs from its first value, or the damage flash is on. The hit pushes the player 22 px away (writes x and y), so the movement
-##     fields (player position, velocity, acceleration, walk phase, camera, game time, day phase, hp) are compared up to the step
-##     before it.
+## The replay follows the reference with the TEST-ONLY replay oracle (tests/trace/replay_oracle.gd, design section 11, step S5), because
+## the port does not have weapons, projectiles, damage and experience pickup yet (step S6): the placeholder slot projectile/player draws what
+## the reference's slot drew, the enemies the reference removed are killed in front of enemy/cleanup-2, the projectile list is the reference's
+## (the assassin dodges it). What the oracle cannot supply is left out of the comparison, and each exclusion has a reason:
+##   * enemy hp and flash (only damage changes them, step S6), the projectile group, counts.projectiles / counts.particles;
+##   * the experience orbs after the first pickup, the player's experience and level, pendingLevelUps and levelUpChoiceReadyAt: compared
+##     up to the first pickup (the "pickup" boundary, the first step in which player.xp changes);
+##   * the animation fields attackAnim, attackAngle, lastFacing: weapons set them; teacher-forced tier (_compare_animation).
+## Everything else is compared at every step from step 1 to the last: the draw counter and the draws of every slot (enemy/update's contact
+## damage draws included: it is ported, so they are the port's own), the clock, the wave and the whole enemy director (budget, clocks, theme,
+## ids, spawn order), the list of enemies with their ids in the original's order (spawns append, killEnemy swap-pops from the end) and EVERY
+## field of every enemy except hp and flash (position, velocity, facing, AI state and timers, the values spawnEnemy draws), the kills, and the
+## player's position, velocity, hp, lastHit, the camera and the damage flash (which contact hits push, hurt and flash).
+##
+## The boundaries printed for every trace (and stored in the header as `boundaries`, where the test checks that tools/lib/trace_io.mjs
+## firstEffects and first_effects() below agree) are the first steps with an effect that belongs to step S6:
 ##   * weapon fire: the first step in which the player's attackAnim is not 0 (triggerPlayerAttackAnimation sets attackAnim,
-##     attackAngle and lastFacing). Weapons are step S6. A shot does not move the player, so it does not end the comparison of the
-##     movement fields (the catalytic ring fires at step 2 or 3), and the animation fields are compared on EVERY step before the
-##     contact boundary in which no shot happened (see _compare_animation).
-## The boundaries are printed for every trace. A trace without a contact hit (idle, zigzag) is compared to its last step.
+##     attackAngle and lastFacing). Weapons are step S6.
+##   * pickup: the first step in which the player's xp is not its first value (an orb was collected: pickup/xp, step S6).
+## The contact hits on the player (the 22 px push, hp, the damage flash, the 3 draws) were a third boundary until enemy/update was ported (step
+## S5); they are compared now, and _coverage_of counts them (and the assassin's dodges and states) from the reference rows.
 ##
 ## Traces of the non-standard "long_run" variant (header "variant"; player.xpNext, hp and maxHp set to 1e9 so that the run goes on
 ## through waves 3 and 4) are replayed with the same overrides (SimTrace.apply_overrides) and checked the same way.
@@ -25,14 +33,43 @@ const MANDATORY_TRACES: PackedStringArray = ["dirs8_424242.jsonl.gz", "dirs8_246
 const ORIGINAL_RELATIVE: String = "../webview-fg4/tests/fixtures/original.html"
 const ZERO_BITS: String = "0000000000000000"
 
-## Fields that only movement, the camera, the clock and the day cycle write (step S3), up to the first contact hit.
+## Fields of the player, the camera and the damage flash that movement, the camera and a contact hit write, compared at every step.
 const MOVEMENT_FIELDS: Dictionary = {
 	"player": ["x", "y", "vx", "vy", "ax", "ay", "prevX", "prevY", "walkPhase", "controlSlow", "hp", "maxHp", "koTimer", "lastHit"],
 	"camera": ["x", "y", "prevX", "prevY"],
-	"wave": ["t", "dayPhase"],
+	"wave": ["damageFlash"],
 }
+## The clock, the day cycle, the wave and the whole enemy director: compared at EVERY step from step 1, whatever happens to the player
+## (the director's draws do not depend on where the player was pushed; its spawn positions do, and are not in this list).
+const DIRECTOR_FIELDS: Dictionary = {
+	"wave": [
+		"t", "wave", "waveClock", "directorClock", "spawnBudget", "dayPhase", "nextEnemyId", "screenFlash", "kills",
+		"pendingDirectorEnemyKind", "waveFeaturedChangeChance", "enemyAiTier", "enemyAiSkill", "enemiesVersion",
+		"themeWave", "themeBaseKind", "themeFeaturedKind", "themeChanged", "themeChangeChance", "themeTotalSpawned", "themeCounts",
+		"themeRecentMixed", "featuredEnemyHistory",
+	],
+}
+## Fields that the collection of experience orbs changes (pickup/xp, step S6), compared up to the step before the first pickup.
+const PICKUP_FIELDS: Dictionary = {
+	"player": ["xp", "level", "xpNext", "xpBaseNext"],
+	"wave": ["pendingLevelUps", "levelUpChoiceReadyAt"],
+}
+## The fields of an enemy that the comparison covers, at every step for every enemy (the order of the list is compared with them): every field
+## of the reference schema (SimTrace.REFERENCE_FIELDS["enemy"]) except hp and flash, which only damage changes (step S6). maxHp (poison only),
+## r, speed, damage, spawnWave, shootCd, strafeDir, aiSeed and animPhase are fixed by spawnEnemy and nothing in M1 changes them; the rest is
+## what enemy/update writes: the position and velocity, the facing, the AI state and its timers, the cooldowns that tick every step.
+const ENEMY_COMPARED_FIELDS: PackedStringArray = [
+	"id", "kind", "x", "y", "vx", "vy", "maxHp", "prevX", "prevY", "r", "speed", "facing", "aiState", "shootCd", "aiTimer", "abilityCd",
+	"strafeDir", "aiSeed", "thinkCd", "animPhase", "tacticCd", "dotNumberTimer", "damage", "spawnWave", "telegraph", "attackAnim", "tacticPulse",
+]
+## The enemy fields that are NOT compared, each with its reason.
+const ENEMY_EXCLUDED_FIELDS: PackedStringArray = ["hp", "flash"]
 ## At least this many steps must be compared per trace, or the test would prove nothing.
 const MIN_COMPARED_STEPS: int = 100
+## What the committed traces must hold, summed (the long run alone has 30 contact hits and 58 steps with a dodging assassin): contact hits
+## (hurtPlayer, the push, the 3 draws), steps in which an assassin dodges a projectile (enemyProjectileAvoidance).
+const MIN_CONTACT_HITS: int = 20
+const MIN_DODGE_STEPS: int = 20
 ## Animation tier: at least this many steps in which attackAnim is counting down (so that the decrement is checked), and, in the
 ## traces whose player moves, this many steps in which lastFacing is set from the velocity (atan2) to a non-zero angle.
 const MIN_DECREMENT_STEPS: int = 50
@@ -41,6 +78,8 @@ const MIN_FACING_STEPS: int = 100
 const LONG_RUN_KEYS: PackedStringArray = ["player.hp", "player.maxHp", "player.xpNext"]
 
 var _cache: Dictionary = {}
+## What the committed traces exercise of the enemy code, summed over the traces of one run of the comparison (see _coverage_of).
+var _coverage_total: Dictionary = {}
 
 
 func _trace_files() -> PackedStringArray:
@@ -118,8 +157,11 @@ func _check_trace(file_name: String, ref: TraceReader, original_hash: String) ->
 	# the Node implementation of the boundaries (capture.mjs, trace_io.mjs firstEffects) and this file's agree
 	var declared: Dictionary = h.get("boundaries", {})
 	var computed: Dictionary = first_effects(ref)
-	assert_eq(int(declared.get("contact", -1)), int(computed["contact"]), "%s: header boundaries.contact equals first_effects()" % file_name)
+	var declared_keys: Array = declared.keys()
+	declared_keys.sort()
+	assert_eq(declared_keys, ["fire", "pickup", "steps"], "%s: the header has exactly the boundaries fire, pickup and steps (contact is no boundary since step S5)" % file_name)
 	assert_eq(int(declared.get("fire", -1)), int(computed["fire"]), "%s: header boundaries.fire equals first_effects()" % file_name)
+	assert_eq(int(declared.get("pickup", -1)), int(computed["pickup"]), "%s: header boundaries.pickup equals first_effects()" % file_name)
 	assert_eq(int(declared.get("steps", -1)), ref.steps.size(), "%s: header boundaries.steps" % file_name)
 	# a field that the game never defined would have been recorded as zeros
 	assert_eq((h["stats"] as Dictionary).get("never_defined", ["missing"]), [], "%s: every recorded field was defined by the game at least once" % file_name)
@@ -176,45 +218,220 @@ func _check_trace(file_name: String, ref: TraceReader, original_hash: String) ->
 
 # --- the port against the reference -----------------------------------------------------------------------------------
 
-func test_the_sim_matches_each_reference_trace_up_to_the_first_effect_it_does_not_have() -> void:
+func test_the_sim_matches_each_reference_trace_with_the_replay_oracle() -> void:
 	var files: PackedStringArray = _trace_files()
 	assert_true(files.size() >= MANDATORY_TRACES.size(), "reference traces are present")
+	_coverage_total = {"hits": 0, "dodge_steps": 0, "states": {}}
 	for file_name: String in files:
 		var ref: TraceReader = _load(file_name)
 		if ref == null:
 			fail("%s did not load" % file_name)
 			continue
 		_compare_with_the_port(file_name, ref)
+	# the comparison only proves something about the enemy code that the traces exercise (worked out from the reference rows, see _coverage_of)
+	var states: Dictionary = _coverage_total["states"]
+	print("      all traces: %d contact hits, %d steps with a dodging assassin, assassin states %s" % [int(_coverage_total["hits"]), int(_coverage_total["dodge_steps"]), str(states.keys())])
+	assert_true(int(_coverage_total["hits"]) >= MIN_CONTACT_HITS, "the traces hold at least %d contact hits (got %d)" % [MIN_CONTACT_HITS, int(_coverage_total["hits"])])
+	assert_true(int(_coverage_total["dodge_steps"]) >= MIN_DODGE_STEPS, "the traces hold at least %d steps in which an assassin dodges a projectile (got %d)" % [MIN_DODGE_STEPS, int(_coverage_total["dodge_steps"])])
+	for state: String in ["idle", "windup", "dash", "recover"]:
+		assert_true(states.has(state), "an assassin is seen in the state '%s' (got %s)" % [state, str(states.keys())])
+
+
+func test_the_enemy_comparison_covers_every_reference_field_except_the_excluded_ones() -> void:
+	var covered: Dictionary = {}
+	for field_name: String in ENEMY_COMPARED_FIELDS:
+		covered[field_name] = true
+	for field_name: String in ENEMY_EXCLUDED_FIELDS:
+		assert_false(covered.has(field_name), "%s is excluded and not compared" % field_name)
+		covered[field_name] = true
+	var schema: Array = SimTrace.REFERENCE_FIELDS["enemy"]
+	assert_eq(covered.size(), schema.size(), "compared + excluded = the reference's enemy fields")
+	for spec: Variant in schema:
+		assert_true(covered.has(TraceReader.split_spec(String(spec))[0]), "%s is compared or excluded" % spec)
 
 
 func _compare_with_the_port(file_name: String, ref: TraceReader) -> void:
 	var boundary: Dictionary = first_effects(ref)
-	var contact: int = boundary["contact"]
 	var fire: int = boundary["fire"]
+	var pickup: int = boundary["pickup"]
 	var last: int = ref.steps.size()
-	var movement_steps: int = mini(contact - 1, last)
-	print("      %s%s: first contact effect at step %s, first weapon shot at step %s, %d steps; movement and animation fields compared for steps 1..%d" % [
+	var pickup_steps: int = mini(pickup - 1, last)
+	var coverage: Dictionary = _coverage_of(ref)
+	_coverage_total["hits"] = int(_coverage_total.get("hits", 0)) + int(coverage["hits"])
+	_coverage_total["dodge_steps"] = int(_coverage_total.get("dodge_steps", 0)) + int(coverage["dodge_steps"])
+	for state: Variant in (coverage["states"] as Dictionary).keys():
+		(_coverage_total["states"] as Dictionary)[state] = true
+	print("      %s%s: first weapon shot at step %s, first pickup at step %s, %d steps; everything but enemy hp and flash compared for steps 1..%d (%d contact hits from step %s, %d steps with a dodging assassin, assassin states %s), experience fields for 1..%d" % [
 		file_name, " (long run)" if String(ref.header.get("variant", "")) == "long_run" else "",
-		str(contact) if contact <= last else "none", str(fire) if fire <= last else "none", last, movement_steps,
+		str(fire) if fire <= last else "none", str(pickup) if pickup <= last else "none",
+		last, last, int(coverage["hits"]), str(coverage["first_hit"]) if int(coverage["hits"]) > 0 else "-", int(coverage["dodge_steps"]),
+		str((coverage["states"] as Dictionary).keys()), pickup_steps,
 	])
-	assert_true(movement_steps >= MIN_COMPARED_STEPS, "%s: at least %d steps before the first contact effect (got %d)" % [file_name, MIN_COMPARED_STEPS, movement_steps])
-	if movement_steps < 1:
-		return
-	var replay: Dictionary = SimTrace.replay(ref, movement_steps)
+	assert_true(last >= MIN_COMPARED_STEPS, "%s: at least %d steps are compared (got %d)" % [file_name, MIN_COMPARED_STEPS, last])
+	var replay: Dictionary = SimTrace.replay(ref, 0, true)
 	assert_false(replay.is_empty(), "%s: the sim starts the run" % file_name)
 	if replay.is_empty():
 		return
 	var port_header: Dictionary = replay["header"]
 	var rows: Array = replay["rows"]
-	assert_eq(rows.size(), movement_steps, "%s: replayed steps" % file_name)
-	var outside: int = 0
-	for r: Variant in rows:
-		outside += int((r as Dictionary)["outside_draws"])
-	assert_eq(outside, 0, "%s: the port draws outside its slots never" % file_name)
+	var oracle: ReplayOracle = replay["oracle"]
+	assert_eq(rows.size(), last, "%s: replayed steps" % file_name)
+	assert_eq(oracle.problems, PackedStringArray(), "%s: the replay oracle found nothing wrong (%s)" % [file_name, "; ".join(oracle.problems)])
+	_check_oracle_debt(file_name, ref, oracle)
 
-	var failures: int = _compare_fields(file_name, ref, port_header, rows, MOVEMENT_FIELDS, movement_steps)
-	assert_eq(failures, 0, "%s: the movement, camera and clock fields equal the reference" % file_name)
-	_compare_animation(file_name, ref, movement_steps)
+	_compare_draws(file_name, ref, rows)
+	assert_eq(_compare_fields(file_name, ref, port_header, rows, DIRECTOR_FIELDS, last), 0, "%s: the clock, the wave and the enemy director equal the reference at every step" % file_name)
+	assert_eq(_compare_fields(file_name, ref, port_header, rows, MOVEMENT_FIELDS, last), 0, "%s: the player, camera and damage flash (movement and contact hits) equal the reference at every step" % file_name)
+	assert_eq(_compare_fields(file_name, ref, port_header, rows, PICKUP_FIELDS, pickup_steps), 0, "%s: the experience fields equal the reference up to the first pickup" % file_name)
+	_compare_enemy_lists(file_name, ref, port_header, rows, last)
+	_compare_animation(file_name, ref, last)
+
+
+## What a reference trace exercises of the enemy code, worked out from the reference rows alone (not from the port), so that the comparison above
+## cannot pass by comparing nothing: `hits` the contact hits (steps in which enemy/update drew), `states` the AI states of assassins, and
+## `dodge_steps` the steps in which an assassin had a player projectile of the step before within 120 px that was flying toward it (the
+## condition of enemyProjectileAvoidance with the radius not yet widened by the skill, so a lower bound).
+func _coverage_of(ref: TraceReader) -> Dictionary:
+	var update_key: String = ref.slot_key("main", "enemy/update")
+	var kind_i: int = ref.field_index("enemy", "kind")
+	var state_i: int = ref.field_index("enemy", "aiState")
+	var x_i: int = ref.field_index("enemy", "x")
+	var y_i: int = ref.field_index("enemy", "y")
+	var px_i: int = ref.field_index("projectile", "x")
+	var py_i: int = ref.field_index("projectile", "y")
+	var pvx_i: int = ref.field_index("projectile", "vx")
+	var pvy_i: int = ref.field_index("projectile", "vy")
+	var hits: int = 0
+	var first_hit: int = 0
+	var dodge_steps: int = 0
+	var states: Dictionary = {}
+	for n: int in range(ref.steps.size()):
+		if ref.slot_draws(n, update_key) > 0:
+			hits += 1
+			if first_hit == 0:
+				first_hit = n + 1
+		var step: Dictionary = ref.steps[n]
+		var assassins: Array = []
+		for row: Variant in (step["enemies"] as Array):
+			if String((row as Array)[kind_i]) == "assassin":
+				states[String((row as Array)[state_i])] = true
+				assassins.append(row)
+		if n == 0 or assassins.is_empty():
+			continue
+		var before: Dictionary = ref.steps[n - 1]
+		var dodging: bool = false
+		for row: Variant in (before["enemies"] as Array):
+			if String((row as Array)[kind_i]) != "assassin" or dodging:
+				continue
+			var ex: float = SimTrace.from_hex(String((row as Array)[x_i]))
+			var ey: float = SimTrace.from_hex(String((row as Array)[y_i]))
+			for projectile: Variant in (before["projectiles"] as Array):
+				var pr: Array = projectile
+				var dx: float = ex - SimTrace.from_hex(String(pr[px_i]))
+				var dy: float = ey - SimTrace.from_hex(String(pr[py_i]))
+				var d2: float = dx * dx + dy * dy
+				if d2 > 1.0 and d2 <= 14400.0 and SimTrace.from_hex(String(pr[pvx_i])) * dx + SimTrace.from_hex(String(pr[pvy_i])) * dy > 0.0:
+					dodging = true
+					break
+		if dodging:
+			dodge_steps += 1
+	return {"hits": hits, "first_hit": first_hit, "states": states, "dodge_steps": dodge_steps}
+
+
+## The oracle's debt is what step S6 still owes: the draws it injected are exactly the reference's draws of the slots that are still placeholders in a
+## production Sim (projectile/player), and it killed exactly the enemies the reference removed. Every other slot that draws (wave/progress,
+## enemy/update, enemy/cleanup-2) has to be a real system: its draws are the port's own and compared with the reference in _compare_draws.
+func _check_oracle_debt(file_name: String, ref: TraceReader, oracle: ReplayOracle) -> void:
+	var config: SimConfig = SimTrace.config_from_header(ref.header)
+	var sim: Sim = Sim.new()
+	assert_true(sim.new_game(config), "%s: a production sim for the list of placeholders" % file_name)
+	var placeholders: Array[String] = []
+	var lists: Array = [sim.runner.intro, sim.runner.main, sim.runner.ko]
+	for l: int in range(lists.size()):
+		var list: Array = lists[l]
+		for i: int in range(list.size()):
+			if not (list[i] as SystemSlot).system.is_implemented():
+				placeholders.append("%s:%d" % [SimTrace.LIST_NAMES[l], i])
+	for id: String in ["wave/progress", "enemy/update", "enemy/cleanup-2"]:
+		assert_false(placeholders.has(ref.slot_key("main", id)), "%s: %s is a real system, not a placeholder" % [file_name, id])
+	var expected: Dictionary = {}
+	for key: String in placeholders:
+		var total: int = 0
+		for i: int in range(ref.steps.size()):
+			total += ref.slot_draws(i, key)
+		if total > 0:
+			expected[key] = total
+	assert_eq(oracle.injected, expected, "%s: the oracle drew only for the placeholders (%s) and drew what the reference's slots drew" % [file_name, ", ".join(placeholders)])
+	var kills_i: int = ref.field_index("wave", "kills")
+	var final_kills: int = int((ref.steps[ref.steps.size() - 1]["wave"] as Array)[kills_i])
+	assert_eq(oracle.forced_kills, final_kills, "%s: the oracle killed exactly the enemies the reference removed (wave.kills at the end)" % file_name)
+	print("      %s: replay oracle injected %s dry draws (the debt of step S6), forced %d kills" % [file_name, str(oracle.injected_total()), oracle.forced_kills])
+
+
+## `draws` (cumulative), the draws of every slot and the draws outside any slot, step by step. Placeholders are filled by the oracle, so a
+## difference here is a difference of an implemented slot: the director, the kills, ... (the first one is reported).
+func _compare_draws(file_name: String, ref: TraceReader, rows: Array) -> void:
+	for i: int in range(ref.steps.size()):
+		var ref_step: Dictionary = ref.steps[i]
+		var port_step: Dictionary = rows[i]
+		if int(ref_step["draws"]) != int(port_step["draws"]):
+			fail("%s step %d: gameRandomDraws reference %d, port %d" % [file_name, i + 1, int(ref_step["draws"]), int(port_step["draws"])])
+			return
+		var ref_slots: Dictionary = ref_step["slot_draws"]
+		var port_slots: Dictionary = port_step["slot_draws"]
+		var keys: Dictionary = {}
+		for key: Variant in ref_slots.keys():
+			keys[key] = true
+		for key: Variant in port_slots.keys():
+			keys[key] = true
+		for key: Variant in keys.keys():
+			if int(ref_slots.get(key, 0)) != int(port_slots.get(key, 0)):
+				fail("%s step %d: slot %s draws: reference %d, port %d" % [file_name, i + 1, key, int(ref_slots.get(key, 0)), int(port_slots.get(key, 0))])
+				return
+		if int(port_step["outside_draws"]) != 0:
+			fail("%s step %d: the port drew %d values outside its slots" % [file_name, i + 1, int(port_step["outside_draws"])])
+			return
+		if String(ref_step["state"]) != String(port_step["state"]):
+			fail("%s step %d: state reference %s, port %s" % [file_name, i + 1, ref_step["state"], port_step["state"]])
+			return
+	assert_true(true, "%s: draws, slot draws and state equal at all %d steps" % [file_name, ref.steps.size()])
+
+
+## The enemy list at every step: the same ids in the same order (spawns append, kills swap-pop from the end) and ENEMY_COMPARED_FIELDS of each
+## enemy: everything but hp and flash, which only damage changes (step S6).
+func _compare_enemy_lists(file_name: String, ref: TraceReader, port_header: Dictionary, rows: Array, up_to: int) -> void:
+	var names: PackedStringArray = ENEMY_COMPARED_FIELDS.duplicate()
+	var ref_index: Array[int] = []
+	var port_index: Array[int] = []
+	var types: Array[String] = []
+	var port_specs: Array = (port_header["fields"] as Dictionary)["enemy"]
+	for field_name: String in names:
+		var r: int = ref.field_index("enemy", field_name)
+		var p: int = _spec_index(port_specs, field_name)
+		if r < 0 or p < 0:
+			fail("%s: enemy.%s is missing (reference index %d, port index %d)" % [file_name, field_name, r, p])
+			return
+		ref_index.append(r)
+		port_index.append(p)
+		types.append(TraceReader.split_spec(String((ref.header["fields"] as Dictionary)["enemy"][r]))[1])
+	var compared_rows: int = 0
+	for n: int in range(1, up_to + 1):
+		var ref_rows: Array = ref.steps[n - 1]["enemies"]
+		var port_rows: Array = (rows[n - 1] as Dictionary)["enemies"]
+		if ref_rows.size() != port_rows.size():
+			fail("%s step %d: the enemy list has %d enemies in the reference, %d in the port" % [file_name, n, ref_rows.size(), port_rows.size()])
+			return
+		for j: int in range(ref_rows.size()):
+			var ref_row: Array = ref_rows[j]
+			var port_row: Array = port_rows[j]
+			for k: int in range(names.size()):
+				if not SimTrace.same_value(types[k], ref_row[ref_index[k]], port_row[port_index[k]]):
+					fail("%s step %d enemies[%d] (id %s).%s: reference %s, port %s" % [
+						file_name, n, j, str(ref_row[ref_index[0]]), names[k], _describe(types[k], ref_row[ref_index[k]]), _describe(types[k], port_row[port_index[k]]),
+					])
+					return
+			compared_rows += 1
+	assert_true(compared_rows > 0, "%s: enemy rows were compared (%d)" % [file_name, compared_rows])
 
 
 ## Compares the named fields of the replayed rows with the reference for steps 1..up_to; reports the first difference of the trace.
@@ -238,7 +455,7 @@ func _compare_fields(file_name: String, ref: TraceReader, port_header: Dictionar
 	return 0
 
 
-## The animation fields attackAnim, attackAngle and lastFacing, step by step up to `up_to` (the contact boundary).
+## The animation fields attackAnim, attackAngle and lastFacing, step by step up to `up_to`.
 ##
 ## The port has no weapons, so after the reference's first shot (which sets all three: triggerPlayerAttackAnimation) the two runs
 ## differ in these fields by construction. The comparison is therefore teacher-forced: before every step n > 1 the port's three
@@ -254,6 +471,7 @@ func _compare_animation(file_name: String, ref: TraceReader, up_to: int) -> void
 	if not sim.new_game(config) or not SimTrace.apply_overrides(sim.game, ref.header.get("overrides", {}) as Dictionary):
 		fail("%s: the sim does not start the run for the animation tier" % file_name)
 		return
+	var oracle: ReplayOracle = ReplayOracle.install(sim, ref)  # the run stays in step with the reference, whatever else the port has ported
 	var anim_i: int = ref.field_index("player", "attackAnim")
 	var angle_i: int = ref.field_index("player", "attackAngle")
 	var facing_i: int = ref.field_index("player", "lastFacing")
@@ -276,6 +494,7 @@ func _compare_animation(file_name: String, ref: TraceReader, up_to: int) -> void
 		var countdown: String = SimTrace.hex_of(maxf(0.0, SimTrace.from_hex(before_anim) - Sim.FIXED_DT))
 		var shot: bool = String(row[anim_i]) != countdown or String(row[angle_i]) != before_angle
 		SimTrace.apply_input(sim.game, step["input"] as Dictionary)
+		oracle.begin_step(n - 1)
 		sim.step(Sim.FIXED_DT)
 		if shot:
 			shots += 1
@@ -321,30 +540,28 @@ func _describe(type: String, value: Variant) -> String:
 
 
 ## The first step (1-based; steps + 1 when it never happens) at which the reference shows
-##   "contact": enemy/update draws from gameRandom, or hp differs from its first value, or the damage flash is on (the hit pushes the player);
-##   "fire":    the player's attackAnim is not 0 (a weapon shot).
+##   "fire":    the player's attackAnim is not 0 (a weapon shot);
+##   "pickup":  the player's xp differs from its first value (an experience orb was collected).
+## The same definition as tools/lib/trace_io.mjs firstEffects. (There used to be a third boundary, "contact", the first contact hit on the
+## player; enemy/update is ported since step S5, so the port reproduces the hits and nothing is bounded by them. _coverage_of counts them.)
 func first_effects(ref: TraceReader) -> Dictionary:
 	var steps: Array[Dictionary] = ref.steps
 	var none: int = steps.size() + 1
-	var contact: int = none
 	var fire: int = none
-	var slot_key: String = ref.slot_key("main", "enemy/update")
-	var hp_i: int = ref.field_index("player", "hp")
+	var pickup: int = none
 	var attack_i: int = ref.field_index("player", "attackAnim")
-	var flash_i: int = ref.field_index("wave", "damageFlash")
-	var hp_start: String = String((steps[0]["player"] as Array)[hp_i])
+	var xp_i: int = ref.field_index("player", "xp")
+	var xp_start: String = String((steps[0]["player"] as Array)[xp_i])
 	for i: int in range(steps.size()):
 		var s: Dictionary = steps[i]
 		var n: int = i + 1
-		if contact == none:
-			var hit_draws: int = int((s["slot_draws"] as Dictionary).get(slot_key, 0))
-			if hit_draws != 0 or String((s["player"] as Array)[hp_i]) != hp_start or String((s["wave"] as Array)[flash_i]) != ZERO_BITS:
-				contact = n
 		if fire == none and String((s["player"] as Array)[attack_i]) != ZERO_BITS:
 			fire = n
-		if contact != none and fire != none:
+		if pickup == none and String((s["player"] as Array)[xp_i]) != xp_start:
+			pickup = n
+		if fire != none and pickup != none:
 			break
-	return {"contact": contact, "fire": fire}
+	return {"fire": fire, "pickup": pickup}
 
 
 # --- the tracing code itself -------------------------------------------------------------------------------------------
@@ -375,6 +592,10 @@ func test_the_port_schema_is_a_partition_of_the_reference_schema() -> void:
 	for group: String in ["player", "camera", "wave"]:
 		assert_eq(trace.unported_specs(group).size(), 0, "%s: the port has every field of the group" % group)
 	assert_true(trace.ported_specs("enemy").has("x:f"), "enemy.x is ported (EnemyState)")
+	# step S5: EnemyState has every field of the enemy group, XpOrbState every field of the xp_orb group; the projectile group waits for S6
+	assert_eq(trace.unported_specs("enemy").size(), 0, "enemy: the port has every field of the group (step S5)")
+	assert_eq(trace.unported_specs("xp_orb").size(), 0, "xp_orb: the port has every field of the group (step S5)")
+	assert_eq(trace.unported_specs("projectile").size(), 9, "projectile: nothing yet (step S6)")
 	assert_eq(SimTrace.snake_case("prevX"), "prev_x", "prevX -> prev_x")
 	assert_eq(SimTrace.snake_case("xpBaseNext"), "xp_base_next", "xpBaseNext -> xp_base_next")
 	assert_eq(SimTrace.snake_case("levelUpChoiceReadyAt"), "level_up_choice_ready_at", "levelUpChoiceReadyAt")

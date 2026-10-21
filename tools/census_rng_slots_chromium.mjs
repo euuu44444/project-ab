@@ -102,6 +102,13 @@ function flaggedSlots() {
   return out;
 }
 
+// The slots that system_runner.gd has ported: the _slot(...) calls (real systems). A slot that draws in the original and is ported is
+// accounted for by its own draws (the reference traces compare them), so it needs no mark.
+function portedSlots() {
+  const text = fs.readFileSync(RUNNER, 'utf8');
+  return [...text.matchAll(/^\t_slot\(\w+, "([^"]+)"/gm)].map((m) => m[1]);
+}
+
 async function main(argv) {
   let frames = 5000;
   for (let i = 0; i < argv.length; i++) {
@@ -143,11 +150,15 @@ async function main(argv) {
     }
     const observed = [...everDrew].sort();
     const flagged = flaggedSlots().sort();
+    const ported = portedSlots();
+    // a slot that drew is either still a placeholder (and marked) or ported (a real system: _slot); a marked slot must have drawn
+    const stillPlaceholders = observed.filter((s) => !ported.includes(s));
     console.log('');
     console.log(`slots that drew in at least one run: ${observed.join(', ')}`);
+    console.log(`  ported since (real systems in godot/sim/system_runner.gd): ${observed.filter((s) => ported.includes(s)).join(', ') || 'none'}`);
     console.log(`slots marked consumes_rng_in_m1 in godot/sim/system_runner.gd: ${flagged.join(', ')}`);
-    const same = observed.length === flagged.length && observed.every((s, i) => s === flagged[i]);
-    console.log(same ? 'check OK: the marked slots are exactly the slots that drew' : 'check FAILED: the marked slots differ from the slots that drew');
+    const same = stillPlaceholders.length === flagged.length && stillPlaceholders.every((s, i) => s === flagged[i]);
+    console.log(same ? 'check OK: the marked slots are exactly the slots that drew and are still placeholders' : 'check FAILED: the marked slots differ from the slots that drew and are still placeholders');
     return same ? 0 : 1;
   } finally {
     await browser.close();

@@ -23,7 +23,8 @@ const PLAYER_FIELDS_OUTSIDE_THE_LITERAL: PackedStringArray = ["vx", "vy", "ax", 
 ## port's own bookkeeping.
 const GAME_FIELDS_OUTSIDE_THE_LITERAL: PackedStringArray = [
 	"rng", "fx_rng", "input", "view_w", "view_h", "limits", "state", "run_won", "char_id", "char_def",
-	"run_unlocks_weapons", "run_unlocks_elements", "enemies_version", "spawn_composition_history", "special_escort_seq",
+	"run_unlocks_weapons", "run_unlocks_elements", "enemies_version", "spawn_composition_history", "special_escort_seq", "enemy_grid",
+	"projectile_avoidance_epoch",
 ]
 
 
@@ -314,10 +315,12 @@ func test_system_lists_equal_the_originals() -> void:
 
 func test_stubs_say_where_the_original_draws_random_numbers() -> void:
 	# The census of tools/census_rng_slots_chromium.mjs (the real original in Chromium, a gameRandom wrapper that credits each
-	# draw to the running slot; verification/godot/s3/rng_slots.txt): in the M1 configuration only these four slots draw.
-	# enemy/update draws through contact damage (hurtPlayer -> showDamageNumber, 3 per hit); weapon/update draws nothing for
-	# the M1 weapons. A stub that is marked is the reason the port's draw count lags the original until its step lands; the
-	# tool fails if this set and the real draws ever differ.
+	# draw to the running slot; verification/godot/s3/rng_slots.txt): in the M1 configuration only four slots draw: wave/progress,
+	# enemy/update, projectile/player and enemy/cleanup-2. enemy/update draws through contact damage (hurtPlayer -> showDamageNumber,
+	# 3 per hit); weapon/update draws nothing for the M1 weapons. A stub that is marked is the reason the port's draw count lags the
+	# original until its step lands. Step S5 ported wave/progress, enemy/cleanup-2 and enemy/update, so those three are real slots now
+	# (the census tool, which needs Chromium, still lists all four as the slots that draw and checks that the drawing slots are exactly
+	# the marked placeholders and the real slots; the marked set is empty once S6 has landed).
 	var sim: Sim = _new_sim(_config())
 	var drawing: PackedStringArray = PackedStringArray()
 	for slot: SystemSlot in sim.runner.stub_slots():
@@ -326,7 +329,8 @@ func test_stubs_say_where_the_original_draws_random_numbers() -> void:
 		assert_true(stub.reason.length() > 10, "%s documents why it does nothing (%s)" % [slot.id, stub.owner_step])
 		if stub.consumes_rng_in_m1:
 			drawing.append(slot.id)
-	assert_eq(Array(drawing), ["wave/progress", "enemy/update", "projectile/player", "enemy/cleanup-2"], "stubs that draw random numbers in the original")
+	# step S5 ported wave/progress, enemy/cleanup-2 and enemy/update (their draws are real now); projectile/player (hits) waits for S6
+	assert_eq(Array(drawing), ["projectile/player"], "stubs that draw random numbers in the original")
 
 
 # --- the generator after newGame ------------------------------------------------------------------------

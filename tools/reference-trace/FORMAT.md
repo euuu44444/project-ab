@@ -6,7 +6,7 @@ A trace records a run of the simulation step by step, in a form that two impleme
 ```
 node tools/reference-trace/capture.mjs --all            # the 6 standard traces -> godot/tests/reference/<script>_<seed>.jsonl.gz
 node tools/reference-trace/capture.mjs --script zigzag --seed 424242 --long-run --max-steps 5400   # the non-standard long run (below)
-tools/emit_port_trace.sh REF.jsonl.gz OUT.jsonl.gz      # the port's trace for the same run (replays REF's inputs through Sim)
+tools/emit_port_trace.sh REF.jsonl.gz OUT.jsonl.gz [--oracle]   # the port's trace for the same run (replays REF's inputs through Sim; --oracle: see below)
 node tools/compare_trace.mjs REF.jsonl.gz OUT.jsonl.gz  # first diverging step per field group, with both values
 ```
 
@@ -43,7 +43,7 @@ node tools/compare_trace.mjs REF.jsonl.gz OUT.jsonl.gz  # first diverging step p
 | `count_fields` | the keys of `counts` |
 | `unported` | port traces only: the reference fields the port has no property for (they are not in `fields` and not in the rows) |
 | `environment`, `stats`, `emulate_loop` | reference only: what the page reported (pointer, view, quality, adaptive tier, entity caps), the maxima of the run, and the validation flag. `stats.never_defined` lists the fields that were read at least once and never found defined in the game's objects (empty in every committed trace; `capture.mjs` refuses to write a trace where it is not: see "Undefined values") |
-| `boundaries` | reference only: `{contact, fire, steps}`, the first steps with an effect the port does not have yet (see "Using the traces"), computed by `tools/lib/trace_io.mjs` `firstEffects`; `test_reference_trace.gd` computes them again and fails if the two differ |
+| `boundaries` | reference only: `{fire, pickup, steps}`, the first steps with an effect the port does not have yet (see "Using the traces"): `fire` the first weapon shot, `pickup` the first experience orb collected (player `xp` changes); computed by `tools/lib/trace_io.mjs` `firstEffects`; `test_reference_trace.gd` computes them again and fails if the two differ. (Until step S5 there was a third key, `contact`, the first contact hit on the player; `enemy/update` is ported now, so the port reproduces the hits and no comparison is bounded by them) |
 | `variant`, `overrides` | only in a non-standard trace (`"long_run"`, below): which deviation from the game was applied and the values (`{"player.xpNext": hex, ...}`). A port trace copies both from the reference it replays |
 | `replayed_from` | port traces only: the reference file the inputs came from |
 | `stop` | `{reason, step}`: `level_up` (first step with `pendingLevelUps > 0`), `state:<state>`, `wave:<n>` (`--until-wave`), `max_steps` (4000, or `--max-steps`) for the reference; `replayed` for the port |
@@ -167,17 +167,22 @@ The original reads its environment, so the capture fixes or asserts every input 
 ## Using the traces in the next steps
 
 * `godot/tests/test_reference_trace.gd` replays every committed trace through `Sim` and compares what the port has ported with the
-  reference, bit for bit, up to the first effect the port does not have yet (computed from the trace itself: the first contact hit
-  and the first weapon shot; the boundaries are printed per trace and stored in the header as `boundaries`, where the test
-  checks that the Node and the GDScript computations agree). The movement/camera/clock fields are compared up to the contact
-  hit. The animation fields (`attackAnim`, `attackAngle`, `lastFacing`) are compared on every step before that boundary in which the
-  reference shows no shot, **teacher-forced**: the port's three values are set to the reference's values of the step before, so
-  the countdown and the `atan2` facing rule are checked against hundreds of reference values although the port cannot shoot.
-  As S5/S6 port more, move the boundary by adding fields to `MOVEMENT_FIELDS` / the boundary rules there (in
-  `trace_io.mjs` `firstEffects` too), not by loosening a comparison.
+  reference, bit for bit. Since step S5 the replay runs with the test-only replay oracle (below), so the director, the enemy list with
+  every enemy field but `hp` and `flash` (position, velocity, facing, AI state and timers), the draws of every slot (the contact hits'
+  three draws included: `enemy/update` is ported), the kills, and the player (position, velocity, `hp`, `lastHit`), the camera and the
+  damage flash are compared from step 1 to the end of every trace. What the port still lacks bounds only the fields it writes (the
+  boundaries are computed from the trace itself, printed per trace and stored in the header as `boundaries`, where the test checks that
+  the Node and the GDScript computations agree): the experience fields are compared up to the first `pickup`, and the animation fields
+  (`attackAnim`, `attackAngle`, `lastFacing`) on every step in which the reference shows no shot, **teacher-forced**: the port's three
+  values are set to the reference's values of the step before, so the countdown and the `atan2` facing rule are checked against hundreds
+  of reference values although the port cannot shoot. As S6 ports more, move a boundary by editing the field sets in the test and the
+  boundary rules there (in `trace_io.mjs` `firstEffects` too), not by loosening a comparison. The test also counts what the traces
+  exercise (contact hits, steps in which an assassin dodges a projectile, the assassin's states) from the reference rows, and fails when
+  they hold less than the long run is known to.
 * The draws per slot are in `slot_draws`: `TraceReader.slot_key("main", "projectile/player")` gives the key and
-  `TraceReader.slot_draws(step_index, key)` the count. Step S5 uses them to make the placeholders of `projectile/player` and
-  `enemy/cleanup-2` draw the recorded number of values until S6 ports them (design section 11).
+  `TraceReader.slot_draws(step_index, key)` the count. The replay oracle (`godot/tests/trace/replay_oracle.gd`, step S5) uses them to make
+  the placeholders (`projectile/player` until S6 ports it) draw the recorded number of values (design section 11); an implemented slot is
+  never topped up, so the comparison of the slot draws checks the port's own draws.
 * `tools/emit_port_trace.sh` + `tools/compare_trace.mjs` give the first diverging step per group and per field with both values:
   `node tools/compare_trace.mjs REF PORT --fields player,camera --until 585`. The comparator fails (exit 1) when the traces do not
   have the steps that `--until` asks for, when no step is compared, and (without `--until`) when their lengths differ, whatever is
@@ -185,25 +190,29 @@ The original reads its environment, so the capture fixes or asserts every input 
   effects (`fxRandom` is shared with audio and rendering) and is only compared when named.
 * The standard reference traces stop at the first level-up (`pendingLevelUps > 0`), the limit of what M1 can reproduce (design 9.2).
 
-### Following the reference past the first kill (step S5, before S6)
+### Following the reference past the first kill (step S5, before S6): the replay oracle
 
-Kills come from `projectile/player` (main:29) and `enemy/cleanup-2` (main:31), which are S6's. The trace records the state at the
+Kills come from `projectile/player` (main:29) and `enemy/cleanup-2` (main:31); the damage is S6's. The trace records the state at the
 end of each step only, but the enemy list follows a rule that holds at **every step of every committed trace** (checked by
 `test_the_enemy_list_follows_the_spawn_and_removal_rule_in_every_committed_trace`): `wave/progress` appends the new enemies
 (`spawnEnemy`, ascending ids), then `cleanupDeadEnemies` walks the list from the last index and removes each dead enemy by
 swap-pop (`last = list.pop(); if (i < list.length) list[i] = last`); every removal is a kill (`wave.kills` grows by the number of
-removed ids; no despawns), at most one enemy goes per step in these traces. For S5:
+removed ids; no despawns), at most one enemy goes per step in these traces.
 
 * `TraceReader.removed_enemy_ids(step_index)` / `spawned_enemy_ids(step_index)` / `enemy_ids(step_index)` give the ids that left,
   arrived and are present, and `TraceReader.next_enemy_order(before, spawned, removed)` is the rule as a function.
-* To keep the port's enemy list equal to the reference's after the first kill without S6's damage code: before the port's cleanup
-  slot, set `hp = 0` on the enemies of `removed_enemy_ids(n)` and let the port's own `cleanupDeadEnemies` remove them (it must
-  walk from the end, like the original); the order then comes out as the reference's. The kill's own side effects (xp orbs, the
-  RNG draws of `killEnemy`) stay with the `slot_draws` of `main:31` as in design section 11.
-* Fields that only damage changes (`hp`, `flash`, afflictions, knockback) differ in the port after the first hit even then; compare
-  positions, velocities and timers (`vx`, `vy`, `aiState`, `shootCd`, ... ) of the enemies present in both lists, matched by id.
-  The trace has no snapshot between slots (e.g. after `enemy/update`); S5 should compare end-of-step rows, which `updateEnemies`
-  writes and the later slots only touch through damage.
+* The **replay oracle** (`godot/tests/trace/replay_oracle.gd` and `oracle_system.gd`, TEST ONLY) follows the reference with three
+  actions, installed from outside by replacing `SystemSlot.system` (`SimTrace.replay(reference, until, true)`, `tools/emit_port_trace.sh ... --oracle`):
+  (a) a placeholder slot (`SimSystem.is_implemented()` false) draws from `gameRandom` as many values as the reference's slot drew in that step
+  (`slot_draws`), after it ran; an implemented slot is never topped up, so the comparison of the slot draws checks its own draws;
+  (b) before `enemy/cleanup-2`, `hp = 0` is set on the enemies of `removed_enemy_ids(n)` and the port's own `cleanupDeadEnemies` removes them
+  (swap-pop from the end, `killEnemy`: kills, score, the experience orb and its two draws); the order comes out as the reference's;
+  (c) at the start of step n, `game.projectiles` is rebuilt from the reference's projectile rows of step n - 1 (the assassin dodges player
+  projectiles; nothing before `enemy/update` changes the list).
+  It counts what it injects (`injected`, `forced_kills`), so the debt of step S6 stays visible. It cannot be enabled in the exported game:
+  `godot/tests/` is excluded from the export, and nothing the export includes mentions it (`tests/test_replay_oracle.gd` checks both).
+* Fields that only damage changes (`hp`, `flash`, afflictions, knockback) differ in the port after the first hit even then; they are left
+  out of the comparison until S6, as are the experience orbs after the first pickup and the player's experience.
 
 What the committed files cannot check, by design (see "The long-run variant"): enemy projectiles, hazards, the KO list, waves 4
 and later; assassin spawns and wave 3's theme draws are covered by the long-run trace only.

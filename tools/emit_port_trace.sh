@@ -3,8 +3,13 @@
 # view, with the reference's input of every step replayed through the sim. The result is a swarm-trace/1 file that
 # tools/compare_trace.mjs can compare with the reference.
 #
-#   tools/emit_port_trace.sh <reference.jsonl.gz> <out.jsonl[.gz]> [until-step]
+#   tools/emit_port_trace.sh <reference.jsonl.gz> <out.jsonl[.gz]> [until-step] [--oracle]
 #   node tools/compare_trace.mjs <reference.jsonl.gz> <out.jsonl.gz> --fields player,camera --until 585
+#
+# --oracle follows the reference past the effects of later steps (the TEST-ONLY replay oracle, godot/tests/trace/replay_oracle.gd: dry
+# draws for the placeholder slots, the reference's kills, the reference's projectile list), so that the comparison shows the first
+# divergence of what step S5 has ported instead of the first effect it has not. The oracle lives under godot/tests, which the export
+# excludes; the simulation cannot enable it.
 #
 # A non-standard reference (the long run, header "variant": "long_run") is replayed with the overrides of its header
 # (player.xpNext / hp / maxHp), and the port trace carries the same "variant" and "overrides".
@@ -25,7 +30,13 @@ case "${1:-}" in
     exit 0
     ;;
 esac
-(($# >= 2 && $# <= 3)) || die "usage: tools/emit_port_trace.sh <reference.jsonl.gz> <out.jsonl[.gz]> [until-step]"
+ORACLE=()
+POSITIONAL=()
+for argument in "$@"; do
+  if [[ "$argument" == "--oracle" ]]; then ORACLE=(--oracle); else POSITIONAL+=("$argument"); fi
+done
+set -- "${POSITIONAL[@]}"
+(($# >= 2 && $# <= 3)) || die "usage: tools/emit_port_trace.sh <reference.jsonl.gz> <out.jsonl[.gz]> [until-step] [--oracle]"
 [[ -f "$1" ]] || die "no such reference trace: $1"
 REFERENCE="$(readlink -f -- "$1")"
 mkdir -p -- "$(dirname -- "$2")"
@@ -46,7 +57,7 @@ log="$(mktemp)"
 trap 'rm -f "${import_log:-}" "$log"' EXIT
 rc=0
 timeout --kill-after=15 "${SWARM_TEST_TIMEOUT:-300}" bash -c 'swarm_godot "$@"' swarm_godot \
-  --headless --path "$PROJECT_DIR" -s res://tests/trace/emit_port_trace.gd -- "$REFERENCE" "$OUT" "$UNTIL" >"$log" 2>&1 || rc=$?
+  --headless --path "$PROJECT_DIR" -s res://tests/trace/emit_port_trace.gd -- "$REFERENCE" "$OUT" "$UNTIL" ${ORACLE[@]+"${ORACLE[@]}"} >"$log" 2>&1 || rc=$?
 sed 's/\x1b\[[0-9;]*m//g' "$log" | grep -E '^emit_port_trace' || true
 errors="$(sed 's/\x1b\[[0-9;]*m//g' "$log" | grep -E '^(SCRIPT ERROR|ERROR|USER ERROR|Parse Error)' | grep -Ev 'resources? still in use at exit|ObjectDB instances leaked|RIDs? of type .* leaked' || true)"
 if ((rc != 0)) || [[ -n "$errors" ]]; then

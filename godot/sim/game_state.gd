@@ -20,6 +20,8 @@ const CATALYST_ABILITY_IDS: PackedStringArray = ["cat_chain", "cat_overload", "c
 # --- environment (the original's globals) --------------------------------------------------------
 var rng: GameRng = null
 var fx_rng: FxRng = null
+## The enemy spatial grid (the original keeps it in game.enemySeparationGrid and friends; rebuilt by the index/separation slots).
+var enemy_grid: EnemyGrid = null
 var input: SimInput = SimInput.new()
 var view_w: float = 390.0
 var view_h: float = 844.0
@@ -57,13 +59,18 @@ var char_def: CharacterDef = null
 
 # --- entities ----------------------------------------------------------------------------------------
 var enemies: Array[EnemyState] = []
-## Bumped whenever an enemy is added or removed (S5).
+## Bumped whenever an enemy is added or removed (spawnEnemy, killEnemy).
 var enemies_version: int = 0
-var projectiles: Array = []
+## Bumped at the start of every updateEnemies (`game.projectileAvoidanceEpoch = (game.projectileAvoidanceEpoch || 0) + 1`). The original's cache of
+## projectile avoidance candidates (>= 64 projectiles) is rebuilt when it changes; the port scans the projectile list instead (same result, see
+## EnemySteering.projectile_avoidance), so only the counter exists.
+var projectile_avoidance_epoch: int = 0
+## The player's projectiles. Step S6 owns them; step S5 only has what the enemy AI reads (see ProjectileState).
+var projectiles: Array[ProjectileState] = []
 var enemy_projectiles: Array = []
 var enemy_beams: Array = []
 var enemy_ground_attacks: Array = []
-var xp_orbs: Array = []
+var xp_orbs: Array[XpOrbState] = []
 var xp_merge_cursor: int = 0
 var loot_drops: Array = []
 var particles: Array = []
@@ -86,7 +93,8 @@ var reaction_event_seq: int = 0
 var elite_defeated_this_wave: bool = false
 var elite_clear_timer: float = 0.0
 var elite_gate_total: int = 0
-var enemy_by_id: Dictionary = {}
+## id -> enemy, a snapshot taken by index/enemy-by-id (rebuildEnemyIndex); an enemy that dies later in the step stays in it until the next rebuild.
+var enemy_by_id: Dictionary[int, EnemyState] = {}
 var root_link_damage_queue: Dictionary = {}
 var frame_solid_hazards: Array = []
 var direct_damage_result: Dictionary = {}
@@ -187,6 +195,7 @@ static func create(config: SimConfig, p_rng: GameRng, p_fx_rng: FxRng) -> GameSt
 	g.view_w = config.view_w
 	g.view_h = config.view_h
 	g.limits = Defs.limits(config.coarse_pointer)
+	g.enemy_grid = EnemyGrid.new(g.limits)
 	g.state = RunState.PLAYING
 
 	g.t = 0.0
@@ -266,6 +275,17 @@ func current_difficulty() -> DifficultyDef:
 	return Defs.difficulty(difficulty)
 
 
+## # port: currentDifficultyKey. `DIFFICULTY_CONFIG[game.difficulty] ? game.difficulty : ... : "normal"` (create() already turns an unknown
+## key into "normal", so the stored key is always valid; the original's selectedDifficulty fallback is a menu setting).
+func current_difficulty_key() -> String:
+	return difficulty if Defs.has_difficulty(difficulty) else "normal"
+
+
+## # port: isDifficulty
+func is_difficulty(key: String) -> bool:
+	return current_difficulty_key() == key
+
+
 ## # port: enterKnockOutIfDead
 func enter_knock_out_if_dead() -> void:
 	var p: PlayerState = player
@@ -321,3 +341,20 @@ func capture_previous_transforms() -> void:
 		e.prev_y = e.y
 	camera.prev_x = camera.x
 	camera.prev_y = camera.y
+
+
+# --- the enemy grid, on this game's enemies -----------------------------------------------------------------------------
+
+## # port: queryEnemiesAabb (see EnemyGrid). The grid is the snapshot of the last rebuild; the enemies are the live list.
+func query_enemies_aabb(min_x: float, min_y: float, max_x: float, max_y: float, out: Array[EnemyState], cell_margin: int = 0) -> Array[EnemyState]:
+	return enemy_grid.query_aabb(enemies, min_x, min_y, max_x, max_y, out, cell_margin)
+
+
+## # port: queryEnemiesCircleBroad
+func query_enemies_circle_broad(x: float, y: float, r: float, out: Array[EnemyState], cell_margin: int = 0) -> Array[EnemyState]:
+	return enemy_grid.query_circle_broad(enemies, x, y, r, out, cell_margin)
+
+
+## # port: nearestEnemy
+func nearest_enemy(x: float, y: float, range_limit: float) -> EnemyState:
+	return enemy_grid.nearest_enemy(enemies, x, y, range_limit)

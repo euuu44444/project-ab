@@ -10,10 +10,10 @@ extends SimSystem
 ##   pathfinderAddDistance        returns at once unless the character is the pathfinder      -> guard only
 ##   metaAbilityOnMove            loops over specials.metaActive, which is empty in M1         -> guard only
 ##
-## This slot is not the only writer of the player's x/y: enemy/update (updateEnemies -> contact damage) pushes the player
-## 22 px away from the enemy that hit (`p.x = clamp(p.x + ndx / nd * 22, 18, MAP_W - 18)`, same for y), together with the hp
-## loss, the damage flash and three gameRandom draws per hit. Until step S5 ports that push, the port's player position leaves
-## the original's at the first hit (frame 586 for seed 424242 with the design 9.2 input), and S5 has to port it.
+## This slot is not the only writer of the player's x/y: enemy/update (updateEnemies -> contact damage, EnemyUpdateSystem) pushes the player
+## 22 px away from the enemy that hit (`p.x = clamp(p.x + ndx / nd * 22, 18, MAP_W - 18)`, same for y), together with the hp loss, the damage
+## flash and three gameRandom draws per hit. Ported in step S5: the player's position stays the original's through the hits (frame 586 is the
+## first of them for seed 424242 with the design 9.2 input).
 
 
 func _init(p_game: GameState) -> void:

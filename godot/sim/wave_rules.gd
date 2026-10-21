@@ -7,6 +7,12 @@ extends RefCounted
 ## The "anomaly factor" af_early (it moves every unlock wave) is a meta-progress feature outside M1; the unlock waves
 ## here are the plain ones.
 
+## Not in the original: the last wave that the milestone-1 prototype plays (design section 8: the result screen comes after wave 4).
+## The original goes on to wave 5, an elite wave (clearForSpecialWave, spawnEnemy("elite"), escorts), which milestone 1 does not have.
+## WaveProgressSystem ends the run as a win when this wave's clock runs out, the way the original's `endRun(true)` ends a standard run
+## at MAX_WAVE (30), instead of calling advanceWave.
+const M1_LAST_WAVE: int = 4
+
 
 ## # port: isStandardEliteWave
 static func is_standard_elite_wave(wave: int) -> bool:
@@ -147,3 +153,14 @@ static func _last_index_of(list: PackedStringArray, value: String) -> int:
 			return i
 		i -= 1
 	return -1
+
+
+## # port: enemyAiTier. `Math.max(0, Math.floor((Math.max(1, wave) - 1) / 5))`: 0 for waves 1-5, 1 for 6-10, ...
+static func enemy_ai_tier(wave: int) -> int:
+	return maxi(0, int(floorf(float(maxi(1, wave) - 1) / 5.0)))
+
+
+## # port: enemyAiSkill. `clamp(1 - Math.exp(-w / 28), 0, 0.985)` with w = max(1, wave) - 1: how well the enemies of this wave play.
+static func enemy_ai_skill(wave: int) -> float:
+	var w: float = float(maxi(1, wave) - 1)
+	return JsMath.clamp(1.0 - JsMath.exp(-w / 28.0), 0.0, 0.985)

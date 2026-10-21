@@ -17,7 +17,7 @@
 #   SWARM_SKIP_GENERATED_CHECK=1     skip tools/check_generated.sh (for a machine without Node)
 #   SWARM_SKIP_IMPORT=1              skip the import (only for a quick re-run when no asset changed)
 #   SWARM_IMPORT_TIMEOUT=<seconds>   limit for the import (default 600)
-#   SWARM_TEST_TIMEOUT=<seconds>     limit for the test run (default 300)
+#   SWARM_TEST_TIMEOUT=<seconds>     limit for the test run (default 600; the run takes about 2.5 minutes since step S5 replays every reference trace twice)
 #   SWARM_ALLOW_ENGINE_ERRORS=1      report "ERROR:" lines as a warning instead of a failure
 set -euo pipefail
 
@@ -107,7 +107,7 @@ TEST_LOG="$WORK_DIR/tests.log"
 runner_args=(--headless --path "$PROJECT_DIR" -s res://tests/run_tests.gd)
 [[ -z "$TEST_FILTER" ]] || runner_args+=(-- "$TEST_FILTER")
 godot_rc=0
-run_godot "${SWARM_TEST_TIMEOUT:-300}" "$TEST_LOG" 1 "${runner_args[@]}" || godot_rc=$?
+run_godot "${SWARM_TEST_TIMEOUT:-600}" "$TEST_LOG" 1 "${runner_args[@]}" || godot_rc=$?
 
 # 3. Judge the run.
 status=0

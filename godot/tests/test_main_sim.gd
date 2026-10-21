@@ -63,7 +63,10 @@ func test_each_fixed_step_steps_the_simulation_and_the_label_shows_it() -> void:
 	assert_true(label.text.contains("ticks: 60 (60 Hz)"), "tick count in the label: %s" % label.text)
 	assert_true(label.text.contains("player: 13000.0, 13000.0"), "player position in the label: %s" % label.text)
 	assert_true(label.text.contains("camera: 13000.0, 13000.0"), "camera position in the label: %s" % label.text)
-	assert_true(label.text.contains("draws: 1"), "draw count in the label: %s" % label.text)
+	# since step S5 the enemy director spawns from the first step and draws (newGame drew once)
+	assert_true(sim.draws() > 1, "the director has drawn (%d draws)" % sim.draws())
+	assert_true(label.text.contains("draws: %d" % sim.draws()), "draw count in the label: %s" % label.text)
+	assert_true(sim.game.enemies.size() > 0, "the director has spawned enemies (%d)" % sim.game.enemies.size())
 	_stop_main(main)
 
 
