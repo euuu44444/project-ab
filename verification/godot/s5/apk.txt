@@ -1,0 +1,55 @@
+S5 evidence: tools/build_android.sh --skip-tests (debug APK, no Gradle), after the S5 work
+godot 4.7.2.stable.official.ed1daf0bf    HEAD 59247d8 (the S5 work is uncommitted in the working tree)
+command: tools/build_android.sh --skip-tests --evidence-dir <scratch>/apk_evidence
+exit code: 0
+wall time: 0m38.125s
+tests were run separately (tests.txt: 203/203, exit code 0); --skip-tests only skips the second run inside this script.
+
+----------------------------------------------------------------------
+Build summary (summary.txt of the script)
+----------------------------------------------------------------------
+Elemental Swarm Engine - Android debug build
+apk: /home/user/project-ab/export/ElementalSwarm_engine_s1_debug.apk
+
+PASS export - 58381681 bytes
+PASS apksigner verify - v2,v3 verified
+PASS signed with the debug keystore - certificate sha256 351abaa1580f2fbd...
+PASS zipalign -c -P 16 -v 4 - stored entries are 16 KiB / 4-byte aligned
+PASS package name - com.elementalswarm.engine
+PASS versionCode - 1
+PASS versionName - 0.1.0-s1
+PASS application label - Elemental Swarm Engine
+PASS native-code ABIs - arm64-v8a armeabi-v7a
+PASS launcher intent - MAIN + LAUNCHER declared
+PASS screenOrientation - 13 (fullUser), accepted by the user on 2026-10-19 (design 6.1): the system rotation lock applies; Godot 4.7.2's non-Gradle exporter cannot emit 10
+PASS SDK levels - minSdkVersion=24 targetSdkVersion=36
+PASS ELF 16 KiB alignment - 2 64-bit librar(ies), every LOAD segment aligned to >= 0x4000
+PASS permissions - none requested or declared
+WARN provider authorities - duplicate authority in the exported manifest: com.elementalswarm.engine.fileprovider (Godot 4.7.2 exporter behaviour; see tools/build_android.sh)
+PASS atlas assets - 14 textures (.ctex, 493134 bytes) + atlas_layout.json + atlas_manifest.json are in the APK
+PASS sim definitions - 5 defs JSON + 57 sim scripts (.gdc) in the APK, 0 godot/tests/ entries
+
+RESULT: PASS
+
+apk sha256: ada358220252aa9c58343035927757f268afa6607d804ef5a3a025b3b4782bd2  ElementalSwarm_engine_s1_debug.apk
+
+----------------------------------------------------------------------
+What the 'sim definitions' check counts, and what is NOT in the APK
+----------------------------------------------------------------------
+godot/sim/**/*.gd in the repository:      57
+assets/sim/**/*.gdc in the APK:           57   (script_export_mode=2, binary tokens)
+godot/sim/defs/*.json in the repository:  5    in the APK: 5
+new S5 scripts in the APK:                enemy_ai enemy_director enemy_grid enemy_lifecycle enemy_spawn_plan enemy_spawn_point enemy_special_state enemy_status enemy_steering player_damage projectile_state sim_util xp_orb_state systems/enemy_update_system systems/enemy_cleanup_system systems/enemy_index_system systems/enemy_separation_grid_system systems/nightmare_squads_system systems/wave_progress_system 
+entries under assets/tests/ (the whole of godot/tests/, so the replay oracle, the trace tools, the reference traces, the golden files and tests/bench): 0
+entries whose name contains oracle, bench, replay, traced_system, sim_trace, emit_port, test_ or reference: 0
+export_presets.cfg exclude_filter: exclude_filter="tests/*"
+
+The script's own listing of entries under assets/sim and assets/tests (sim-entries.txt): 119 lines, first 8:
+     10649       3928  assets/sim/defs/characters.json
+      3623       1368  assets/sim/defs/enemies.json
+      1196        492  assets/sim/defs/limits.json
+      5230       1378  assets/sim/defs/rules.json
+     11171       3714  assets/sim/defs/weapons.json
+       517        522  assets/sim/systems/camera_follow_system.gdc
+       458        463  assets/sim/systems/day_cycle_system.gdc
+       963        968  assets/sim/systems/end_run_system.gdc

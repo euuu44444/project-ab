@@ -1,0 +1,23 @@
+# Signing material (never commit)
+.signing/
+*.p12
+*.jks
+*.keystore
+key.properties
+
+# Build output / dependencies
+dist/
+node_modules/
+build/
+
+# Godot (upcoming port)
+# Note: *.import files are intentionally NOT ignored; Godot needs them committed.
+.godot/
+export/
+godot/.godot/
+
+# Godot port: engine signing keys and build artifacts (the toolchain cache lives outside the repo)
+.signing-engine/
+*.apk
+*.aab
+*.idsig

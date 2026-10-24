@@ -1,0 +1,527 @@
+{
+  "checks": [
+    {
+      "name": "virtual pacing auto 60Hz",
+      "mode": "auto",
+      "hz": 60,
+      "seconds": 1.9999999999999978,
+      "handled": 0,
+      "real": 0,
+      "generated": 0,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "name": "virtual pacing auto 90Hz",
+      "mode": "auto",
+      "hz": 90,
+      "seconds": 1.9999999999999978,
+      "handled": 180,
+      "real": 60,
+      "generated": 120,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "name": "virtual pacing auto 120Hz",
+      "mode": "auto",
+      "hz": 120,
+      "seconds": 1.9999999999999978,
+      "handled": 240,
+      "real": 120,
+      "generated": 120,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "name": "virtual pacing auto 144Hz",
+      "mode": "auto",
+      "hz": 144,
+      "seconds": 1.9999999999999978,
+      "handled": 288,
+      "real": 63,
+      "generated": 224,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "name": "virtual pacing 2x 60Hz",
+      "mode": "2x",
+      "hz": 60,
+      "seconds": 1.9999999999999978,
+      "handled": 120,
+      "real": 60,
+      "generated": 59,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "name": "virtual pacing 2x 90Hz",
+      "mode": "2x",
+      "hz": 90,
+      "seconds": 1.9999999999999978,
+      "handled": 180,
+      "real": 60,
+      "generated": 120,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "name": "virtual pacing 2x 120Hz",
+      "mode": "2x",
+      "hz": 120,
+      "seconds": 1.9999999999999978,
+      "handled": 240,
+      "real": 120,
+      "generated": 120,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "name": "virtual pacing 2x 144Hz",
+      "mode": "2x",
+      "hz": 144,
+      "seconds": 1.9999999999999978,
+      "handled": 288,
+      "real": 63,
+      "generated": 224,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "name": "600-step active generation combat and RNG regression",
+      "sha256": "b4cd672cb63d40e5ada7bc3b7745f6e3120c174eda78306bd6cb6f4b46f41f21",
+      "generated": 599,
+      "rngDraws": 583,
+      "seconds": 10.000000000000076
+    },
+    {
+      "name": "all character startup render smoke",
+      "characters": 10,
+      "ids": [
+        "catalyst",
+        "arcanist",
+        "ranger",
+        "archivist",
+        "sentinel",
+        "striker",
+        "harmonizer",
+        "pathfinder",
+        "miko",
+        "berserker"
+      ]
+    },
+    {
+      "name": "camera cut, callback stall, resize and disable",
+      "control": 3,
+      "cut": {
+        "generated": 0,
+        "rejected": 1
+      },
+      "stall": {
+        "late": 1,
+        "generated": 0
+      },
+      "resumed": 4,
+      "resize": {
+        "resets": 1,
+        "cache": 0
+      },
+      "off": {
+        "active": false,
+        "cache": 0
+      },
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "name": "real oversized canvas resource falls back safely",
+      "handled": false,
+      "fallback": true,
+      "reason": "snapshot-budget",
+      "active": false,
+      "cache": 0,
+      "errors": 1
+    },
+    {
+      "name": "active generation native pause and manual resume",
+      "timeFrozen": true,
+      "cacheReleased": true,
+      "resumed": true,
+      "nativeRequests": [
+        true,
+        false,
+        true,
+        false,
+        true
+      ]
+    },
+    {
+      "name": "visible mode controls and persistent selection",
+      "statusText": "2x（プレイ中に動作）",
+      "persistedMode": "2x"
+    }
+  ],
+  "pacing": [
+    {
+      "mode": "auto",
+      "hz": 60,
+      "seconds": 1.9999999999999978,
+      "handled": 0,
+      "real": 0,
+      "generated": 0,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "mode": "auto",
+      "hz": 90,
+      "seconds": 1.9999999999999978,
+      "handled": 180,
+      "real": 60,
+      "generated": 120,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "mode": "auto",
+      "hz": 120,
+      "seconds": 1.9999999999999978,
+      "handled": 240,
+      "real": 120,
+      "generated": 120,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "mode": "auto",
+      "hz": 144,
+      "seconds": 1.9999999999999978,
+      "handled": 288,
+      "real": 63,
+      "generated": 224,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "mode": "2x",
+      "hz": 60,
+      "seconds": 1.9999999999999978,
+      "handled": 120,
+      "real": 60,
+      "generated": 59,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "mode": "2x",
+      "hz": 90,
+      "seconds": 1.9999999999999978,
+      "handled": 180,
+      "real": 60,
+      "generated": 120,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "mode": "2x",
+      "hz": 120,
+      "seconds": 1.9999999999999978,
+      "handled": 240,
+      "real": 120,
+      "generated": 120,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    },
+    {
+      "mode": "2x",
+      "hz": 144,
+      "seconds": 1.9999999999999978,
+      "handled": 288,
+      "real": 63,
+      "generated": 224,
+      "warmup": 0,
+      "rejected": 0,
+      "errors": 0,
+      "nonMonotonic": 0
+    }
+  ],
+  "errors": [],
+  "startedAt": "2026-10-19T02:21:48.341Z",
+  "deterministic": {
+    "off": {
+      "combat": {
+        "state": "playing",
+        "t": 10.000000000000076,
+        "wave": 1,
+        "waveClock": 26.00000000000057,
+        "kills": 5,
+        "player": {
+          "x": 13360,
+          "y": 12640,
+          "hp": 100,
+          "level": 1,
+          "xp": 0
+        },
+        "enemies": [
+          {
+            "id": 1,
+            "x": 12952.730390562327,
+            "y": 12773.144792688658,
+            "hp": 5.738500000000002
+          },
+          {
+            "id": 12,
+            "x": 13236.970374809798,
+            "y": 12056.268274115515,
+            "hp": 23.053
+          },
+          {
+            "id": 5,
+            "x": 13630.2299261365,
+            "y": 13090.426334777469,
+            "hp": 8.212000000000003
+          },
+          {
+            "id": 6,
+            "x": 13145.057188013281,
+            "y": 13005.508506008218,
+            "hp": 28
+          },
+          {
+            "id": 10,
+            "x": 13239.61427545329,
+            "y": 12253.141292203594,
+            "hp": 18.106
+          },
+          {
+            "id": 11,
+            "x": 12896.741700011591,
+            "y": 12730.854149680785,
+            "hp": 18.106
+          },
+          {
+            "id": 9,
+            "x": 13115.89128679101,
+            "y": 12412.015249160651,
+            "hp": 8.212000000000003
+          },
+          {
+            "id": 13,
+            "x": 12737.39352592646,
+            "y": 12379.276905666133,
+            "hp": 28
+          },
+          {
+            "id": 14,
+            "x": 12758.224736619715,
+            "y": 12841.428715451188,
+            "hp": 28
+          }
+        ],
+        "projectiles": [
+          {
+            "x": 13140.972454757824,
+            "y": 12435.483463317998,
+            "vx": -452.72157266813826,
+            "vy": -423.60733898374286
+          }
+        ],
+        "enemyProjectiles": [],
+        "rngDraws": 583
+      },
+      "generated": 0,
+      "errors": 0,
+      "faults": []
+    },
+    "on": {
+      "combat": {
+        "state": "playing",
+        "t": 10.000000000000076,
+        "wave": 1,
+        "waveClock": 26.00000000000057,
+        "kills": 5,
+        "player": {
+          "x": 13360,
+          "y": 12640,
+          "hp": 100,
+          "level": 1,
+          "xp": 0
+        },
+        "enemies": [
+          {
+            "id": 1,
+            "x": 12952.730390562327,
+            "y": 12773.144792688658,
+            "hp": 5.738500000000002
+          },
+          {
+            "id": 12,
+            "x": 13236.970374809798,
+            "y": 12056.268274115515,
+            "hp": 23.053
+          },
+          {
+            "id": 5,
+            "x": 13630.2299261365,
+            "y": 13090.426334777469,
+            "hp": 8.212000000000003
+          },
+          {
+            "id": 6,
+            "x": 13145.057188013281,
+            "y": 13005.508506008218,
+            "hp": 28
+          },
+          {
+            "id": 10,
+            "x": 13239.61427545329,
+            "y": 12253.141292203594,
+            "hp": 18.106
+          },
+          {
+            "id": 11,
+            "x": 12896.741700011591,
+            "y": 12730.854149680785,
+            "hp": 18.106
+          },
+          {
+            "id": 9,
+            "x": 13115.89128679101,
+            "y": 12412.015249160651,
+            "hp": 8.212000000000003
+          },
+          {
+            "id": 13,
+            "x": 12737.39352592646,
+            "y": 12379.276905666133,
+            "hp": 28
+          },
+          {
+            "id": 14,
+            "x": 12758.224736619715,
+            "y": 12841.428715451188,
+            "hp": 28
+          }
+        ],
+        "projectiles": [
+          {
+            "x": 13140.972454757824,
+            "y": 12435.483463317998,
+            "vx": -452.72157266813826,
+            "vy": -423.60733898374286
+          }
+        ],
+        "enemyProjectiles": [],
+        "rngDraws": 583
+      },
+      "generated": 599,
+      "errors": 0,
+      "faults": []
+    }
+  },
+  "characters": [
+    {
+      "id": "catalyst",
+      "state": "playing",
+      "generated": 29,
+      "errors": 0,
+      "faults": []
+    },
+    {
+      "id": "arcanist",
+      "state": "playing",
+      "generated": 29,
+      "errors": 0,
+      "faults": []
+    },
+    {
+      "id": "ranger",
+      "state": "playing",
+      "generated": 29,
+      "errors": 0,
+      "faults": []
+    },
+    {
+      "id": "archivist",
+      "state": "playing",
+      "generated": 29,
+      "errors": 0,
+      "faults": []
+    },
+    {
+      "id": "sentinel",
+      "state": "playing",
+      "generated": 29,
+      "errors": 0,
+      "faults": []
+    },
+    {
+      "id": "striker",
+      "state": "playing",
+      "generated": 29,
+      "errors": 0,
+      "faults": []
+    },
+    {
+      "id": "harmonizer",
+      "state": "playing",
+      "generated": 29,
+      "errors": 0,
+      "faults": []
+    },
+    {
+      "id": "pathfinder",
+      "state": "playing",
+      "generated": 29,
+      "errors": 0,
+      "faults": []
+    },
+    {
+      "id": "miko",
+      "state": "playing",
+      "generated": 29,
+      "errors": 0,
+      "faults": []
+    },
+    {
+      "id": "berserker",
+      "state": "playing",
+      "generated": 29,
+      "errors": 0,
+      "faults": []
+    }
+  ],
+  "passed": true,
+  "finishedAt": "2026-10-19T02:21:53.298Z"
+}

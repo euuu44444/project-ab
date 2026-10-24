@@ -1,0 +1,235 @@
+S2 evidence: tests (design 9.1; asset checks of step S2)
+date: 2026-10-19    Godot 4.7.2-stable    node v22.22.0
+
+----------------------------------------------------------------------
+1. tools/run_godot_tests.sh       -> exit code 0, RESULT: PASS (39/39)
+   runs: tools/check_assets.sh (node), incremental headless import, then the GDScript runner
+   (review round 1: 36 -> 39 tests; 21 -> 24 tests in test_atlas_assets.gd)
+----------------------------------------------------------------------
+[tests] checking the atlas assets against the original game ...
+[assets] 1/3 extract_assets.mjs --check --compare-fg4
+    check OK: 16 files in godot/assets/atlas are identical to a fresh extraction
+    compare-fg4 OK: all 14 data URIs occur exactly once, byte for byte
+[assets] 2/3 node --test tools/test_extract_assets.mjs
+    # tests 23 # pass 23 # fail 0
+[assets] 3/3 import files
+    14 .webp files, each with a .import file
+[assets] PASS
+[tests] importing project (headless, incremental) ...
+[tests] running tests with 4.7.2.stable.official.ed1daf0bf
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+Godot 4.7.2-stable (official) - running 3 test file(s)
+PASS  test_atlas_assets.gd::test_art_ids_are_aliases_of_the_idle1_cell (36 assertions)
+PASS  test_atlas_assets.gd::test_art_maps_and_generated_fx (38 assertions)
+PASS  test_atlas_assets.gd::test_every_atlas_has_a_texture_through_atlas_layout (21 assertions)
+PASS  test_atlas_assets.gd::test_every_manifest_image_loads_as_a_texture_of_the_manifest_size (84 assertions)
+PASS  test_atlas_assets.gd::test_expected_misses_in_overhaul_and_meta_atlases_are_not_errors (23 assertions)
+PASS  test_atlas_assets.gd::test_geometry_equals_the_json_and_lies_inside_the_texture (1635 assertions)
+PASS  test_atlas_assets.gd::test_geometry_follows_buildAtlasDrawGeometry (623 assertions)
+PASS  test_atlas_assets.gd::test_geometry_is_read_only (1 assertions)
+PASS  test_atlas_assets.gd::test_geometry_spot_checks_from_the_game_function (27 assertions)
+PASS  test_atlas_assets.gd::test_godot_decodes_the_webp_files_exactly (42 assertions)
+PASS  test_atlas_assets.gd::test_id_order_matches_the_game (37 assertions)
+PASS  test_atlas_assets.gd::test_ids_are_unique_and_fit_the_grid (382 assertions)
+PASS  test_atlas_assets.gd::test_import_settings_are_pixel_art_lossless (141 assertions)
+PASS  test_atlas_assets.gd::test_imported_textures_keep_every_texel (28 assertions)
+PASS  test_atlas_assets.gd::test_layout_sheets_reference_manifest_images (93 assertions)
+PASS  test_atlas_assets.gd::test_manifest_lists_the_14_images (29 assertions)
+PASS  test_atlas_assets.gd::test_meta_atlas_frames (522 assertions)
+PASS  test_atlas_assets.gd::test_overhaul_character_icon_and_range_cells (11 assertions)
+PASS  test_atlas_assets.gd::test_pointer_dependent_constants_hold_both_modes (2 assertions)
+PASS  test_atlas_assets.gd::test_runtime_derived_image_parameters (27 assertions)
+PASS  test_atlas_assets.gd::test_shared_instance_is_created_once (3 assertions)
+PASS  test_atlas_assets.gd::test_unknown_lookups_return_empty_values_without_crashing (51 assertions)
+PASS  test_atlas_assets.gd::test_unusable_layout_files_fail_quietly_for_every_helper (76 assertions)
+PASS  test_atlas_assets.gd::test_webp_files_are_the_bytes_of_the_data_uris (28 assertions)
+PASS  test_project_settings.gd::test_android_preset_identity (5 assertions)
+PASS  test_project_settings.gd::test_android_preset_options (10 assertions)
+PASS  test_project_settings.gd::test_android_preset_requests_no_permissions (156 assertions)
+PASS  test_project_settings.gd::test_application_identity (7 assertions)
+PASS  test_project_settings.gd::test_engine_version_is_4_7 (3 assertions)
+PASS  test_project_settings.gd::test_export_presets_hold_no_secrets (1 assertions)
+PASS  test_project_settings.gd::test_fixed_step_is_60hz_without_engine_interpolation (7 assertions)
+PASS  test_project_settings.gd::test_gdscript_is_statically_typed (1 assertions)
+PASS  test_project_settings.gd::test_orientation_follows_the_sensor (2 assertions)
+PASS  test_project_settings.gd::test_pixel_art_filtering_and_screen_on (2 assertions)
+PASS  test_project_settings.gd::test_project_file_is_config_version_5 (3 assertions)
+PASS  test_project_settings.gd::test_renderer_is_compatibility_everywhere (3 assertions)
+PASS  test_project_settings.gd::test_stretch_and_viewport (6 assertions)
+PASS  test_scenes.gd::test_main_scene_loads_and_runs_one_frame (8 assertions)
+PASS  test_scenes.gd::test_scene_nodes_carry_unique_ids (1 assertions)
+Summary: 39/39 passed, 0 failed, 4175 assertions
+RESULT: PASS
+[tests] PASS
+
+----------------------------------------------------------------------
+2. node --test --test-reporter=spec tools/test_extract_assets.mjs     -> exit code 0 (23/23)
+   (also run by tools/check_assets.sh, step 2/3, as shown above; 3 new: pinned hit-flash guard, effect position snap and effect grid rule)
+----------------------------------------------------------------------
+✔ finds the 14 images under the expected expressions with the pinned hashes
+✔ geometry equals the game's buildAtlasDrawGeometry (real data: no insets)
+✔ geometry equals the game's function for synthetic insets and fractional cell sizes
+✔ the output is deterministic and complete
+✔ the layout holds the numbers the renderers need
+✔ fails loudly for a data URI of another MIME type
+✔ fails loudly for a missing image
+✔ fails loudly for a duplicated image
+✔ fails loudly for an image under another expression
+✔ fails loudly for a corrupted image
+✔ fails loudly for a truncated image
+✔ fails loudly for a pure declaration that touches the DOM
+✔ fails loudly for a pure declaration that calls a game function
+✔ fails loudly for a changed run-time image parameter (range ring radius)
+✔ fails loudly for a changed run-time image parameter (flash decay)
+✔ fails loudly for a changed hit-flash guard
+✔ fails loudly for a changed effect position snap
+✔ fails loudly for a changed effect grid rule
+✔ fails loudly for a removed declaration
+✔ fails loudly for a doubled declaration
+✔ --compare-fg4 reports a missing or changed image in the shipped file
+✔ --check passes for fresh output and exits 1 for drift
+✔ usage errors exit with code 2
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms (varies)
+
+----------------------------------------------------------------------
+3. Drift detection through the test runner (a byte of a committed .webp was flipped on purpose, then restored)
+----------------------------------------------------------------------
+$ (one byte of godot/assets/atlas/art_hits.webp flipped on purpose; re-run after review round 1)
+$ tools/run_godot_tests.sh
+[tests] checking the atlas assets against the original game ...
+[assets] 1/3 extract_assets.mjs --check --compare-fg4
+    extracted 14 images from webview-fg4/tests/fixtures/original.html
+      enemy_fx_elite_shockwave    256x256    9368 bytes  45cd9c81c4b0  GENERATED_ENEMY_FX_SOURCES.eliteShockwave
+      enemy_fx_boss_charge        384x192    5202 bytes  5d061d83fbe7  GENERATED_ENEMY_FX_SOURCES.bossCharge
+      overhaul_characters         896x256   24802 bytes  24e2be597e91  OVERHAUL_CHAR_ATLAS_SOURCE
+      overhaul_fx                 512x1280  74146 bytes  2ff76ba4f6a1  OVERHAUL_FX_SOURCE
+      overhaul_weapon_icons       256x64     2672 bytes  a64b0a486c86  OVERHAUL_ICON_SOURCE
+      art_hits                    128x96     1904 bytes  1f4af781ce9c  ART_SOURCES.hits
+      art_projectiles             128x96     1236 bytes  8cf1ef47ef36  ART_SOURCES.projectiles
+      art_characters              896x704  244902 bytes  81e6996fc573  ART_SOURCES.characters
+      art_enemies                 320x288    5980 bytes  afeb11b5b730  ART_SOURCES.enemies
+      art_weapons                 128x128    1406 bytes  4ce32f0d23c4  ART_SOURCES.weapons
+      art_elements                160x64     1234 bytes  f67220670be8  ART_SOURCES.elements
+      art_effects                 128x96     2106 bytes  f193b29bf54d  ART_SOURCES.effects
+      signature_fx                512x2944  72836 bytes  e89f541c351b  SIGNATURE_FX_SOURCE
+      range_fx                    512x512    8140 bytes  fa63ca53443f  RANGE_FX_SOURCE
+    check FAILED: 1 problem(s) in godot/assets/atlas (run: node tools/extract_assets.mjs)
+      differs:   art_hits.webp (1904 bytes on disk, 1904 expected; sha256 d56addb75de5eb21 vs 1f4af781ce9c8f3b)
+    compare-fg4: webview-fg4/app/src/main/assets/index.html (1923302 chars), 14 data:image URIs
+      enemy_fx_elite_shockwave   identical at char 162592 45cd9c81c4b0
+      enemy_fx_boss_charge       identical at char 175121 5d061d83fbe7
+      overhaul_characters        identical at char 183332 24e2be597e91
+      overhaul_fx                identical at char 216453 2ff76ba4f6a1
+      overhaul_weapon_icons      identical at char 315368 a64b0a486c86
+      art_hits                   identical at char 326373 1f4af781ce9c
+      art_projectiles            identical at char 328951 8cf1ef47ef36
+      art_characters             identical at char 330636 81e6996fc573
+      art_enemies                identical at char 657206 afeb11b5b730
+      art_weapons                identical at char 665216 4ce32f0d23c4
+      art_elements               identical at char 667127 f67220670be8
+      art_effects                identical at char 668809 f193b29bf54d
+      signature_fx               identical at char 671669 e89f541c351b
+      range_fx                   identical at char 780474 fa63ca53443f
+    compare-fg4 OK: all 14 data URIs occur exactly once, byte for byte
+[assets] ERROR: the committed atlas assets differ from the original game (exit code 1). Re-run: node tools/extract_assets.mjs
+[tests] ERROR: tools/check_assets.sh failed (the atlas assets drifted from the original game)
+exit code: 1
+(restored afterwards, sha256 1f4af781ce9c8f3b again: node tools/extract_assets.mjs --check -> check OK: 16 files ...)
+
+----------------------------------------------------------------------
+4. Mutation checks: the Godot tests do fail when the data is wrong (scratch copy of the project, not the repo)
+----------------------------------------------------------------------
+M1 art_hits.webp.import: process/fix_alpha_border=true
+   FAIL test_import_settings_are_pixel_art_lossless   expected false but got true. art_hits keeps the RGB of transparent texels
+   FAIL test_imported_textures_keep_every_texel       expected 36a4e55ab9d8... but got b7ccedd635dd... art_hits imported texels
+M2 atlas_layout.json: characters/miko_attack2 sx 448 -> 449
+   FAIL test_geometry_follows_buildAtlasDrawGeometry, test_geometry_spot_checks_from_the_game_function (Rect2(448, 512, 64, 64) vs Rect2(449, 512, 64, 64))
+M3 art_weapons.webp: one byte flipped
+   FAIL test_every_manifest_image_loads_as_a_texture_of_the_manifest_size, test_every_atlas_has_a_texture_through_atlas_layout,
+        test_geometry_equals_the_json_and_lies_inside_the_texture (Failed loading resource: res://assets/atlas/art_weapons.webp)
+Node side: 'fails loudly' cases above exit with code 2 and the matching message (MIME type, missing, duplicated, renamed,
+corrupted sha256, truncated RIFF size, DOM access in a pure declaration, unknown function, changed run-time parameter).
+
+Review round 1 (repo files mutated for one run each with SWARM_SKIP_ASSET_CHECK=1, restored byte for byte afterwards, sha256 compared):
+M4 atlas_layout.json: signature_fx.meta.rune_orbit.y 2432 -> 2496 (points at the next row)
+   BEFORE the fix: tools/run_godot_tests.sh atlas -> Summary: 21/21 passed, 0 failed, 3454 assertions / RESULT: PASS   (the mutation went unnoticed)
+   AFTER the fix:
+     FAIL  test_atlas_assets.gd::test_meta_atlas_frames
+     - expected 2432.0 (float) but got 2496.0 (float). signature_fx/rune_orbit y is row 38 * 64
+     - expected Vector2(0, 2432) (Vector2) but got Vector2(0, 2496) (Vector2). signature_fx/rune_orbit first frame
+     Summary: 23/24 passed, 1 failed, 3960 assertions
+     RESULT: FAIL
+     [tests] FAIL: runner did not report RESULT: PASS (script failed to start, or tests failed)
+M5 atlas_layout.gd: guard of range_fx_rect removed (instance whose layout did not load)
+     FAIL  test_atlas_assets.gd::test_unknown_lookups_return_empty_values_without_crashing: engine/script error while running
+     FAIL  test_atlas_assets.gd::test_unusable_layout_files_fail_quietly_for_every_helper: engine/script error while running
+     Summary: 22/24 passed, 2 failed, 3960 assertions
+     RESULT: FAIL
+     [tests] FAIL: runner did not report RESULT: PASS (script failed to start, or tests failed)
+M6 atlas_layout.json: ids "normal" and "critical" swapped consistently in the hits sheet (ids list and geometry keys)
+     FAIL  test_atlas_assets.gd::test_id_order_matches_the_game
+     - expected "normal" (String) but got "critical" (String). hits first id
+     - expected "981692163cc2562a0faa1cfebc06be034089822a5bb5ec7cf195654ef2bfc903" (String) but got "0ac4c887de13ecd6082c803e80ff9b6cfe1cfe7f558f40121cd31bc15f8ea19a" (String). hits id order (sha256 of the ids joined by commas)
+     Summary: 23/24 passed, 1 failed, 3960 assertions
+     RESULT: FAIL
+     [tests] FAIL: runner did not report RESULT: PASS (script failed to start, or tests failed)
+
+----------------------------------------------------------------------
+5. AtlasLayout error behaviour without 'quiet' (push_error + empty value, no crash)
+----------------------------------------------------------------------
+$ godot --headless --path godot -s <scratch>/err_demo.gd    (cell_rect("no_such_sheet","x"), geometry("hits","no_such_id"), texture("no_such_atlas"))
+ERROR: AtlasLayout: unknown sheet 'no_such_sheet' (known: projectiles, hits, characters, enemies, weapons, elements, effects)
+cell_rect -> [P: (0.0, 0.0), S: (0.0, 0.0)] last_error=unknown sheet 'no_such_sheet' (known: projectiles, hits, characters, enemies, weapons, elements, effects)
+ERROR: AtlasLayout: unknown id 'no_such_id' in sheet 'hits'
+geometry -> {  } last_error=unknown id 'no_such_id' in sheet 'hits'
+ERROR: AtlasLayout: unknown atlas 'no_such_atlas'
+texture -> <null> last_error=unknown atlas 'no_such_atlas'
+(the test runner counts push_error as a failure, so test_atlas_assets.gd checks these paths with AtlasLayout.quiet = true and last_error)
+
+Review round 1, findings 4 and 5. Scratch probes, godot --headless --path godot -s <scratch>/probe.gd (before) and probe_after.gd (after).
+BEFORE (AtlasLayout.shared(), not quiet; the misses are normal control flow in the game, drawPlayer / drawEquippedWeapons try these first):
+  ERROR: AtlasLayout: unknown overhaul character cell 'catalyst' / 'idle1'
+  ERROR: AtlasLayout: unknown overhaul weapon icon 'pulse'
+  ERROR: AtlasLayout: unknown effect 'catalyst_charge' in overhaul_fx
+BEFORE (AtlasLayout.new("res://nope.json", true), quiet = true):
+  SCRIPT ERROR: Invalid access to property or key 'signature_fx' on a base object of type 'Dictionary'.  (meta_frame_rect, atlas_layout.gd:174)
+  SCRIPT ERROR: ... 'overhaul_characters' ... (overhaul_character_rect:188)   'overhaul_weapon_icons' ... (overhaul_icon_rect:201)   'range_fx' ... (range_fx_rect:213)
+AFTER (new predicates has_overhaul_character / has_overhaul_icon / has_meta_effect; guarded helpers; zero ERROR lines):
+  
+  --- finding 4 (after): expected misses through the shared, NOT quiet instance
+  has_overhaul_character(catalyst, idle1) = false
+  has_overhaul_icon(pulse)                = false
+  has_meta_effect(overhaul_fx, catalyst_charge) = false
+  has_overhaul_character(sentinel, idle1) = true
+  last_error = ''
+  --- finding 5 (after): instance whose layout file did not load (quiet = true)
+  [P: (0.0, 0.0), S: (0.0, 0.0)] [P: (0.0, 0.0), S: (0.0, 0.0)] [P: (0.0, 0.0), S: (0.0, 0.0)] [P: (0.0, 0.0), S: (0.0, 0.0)]
+  last_error = layout section 'range_fx' is not available (layout loaded: false)
+
+----------------------------------------------------------------------
+6. What test_atlas_assets.gd covers (24 tests)
+----------------------------------------------------------------------
+  manifest: 14 images, sizes from the original game; .webp sha256 + byte size; Godot WebP decode == pinned RGBA sha256;
+  imported texture texels == pinned RGBA sha256; .import settings (lossless, no mipmaps, fix_alpha_border=false, detect_3d off)
+  layout: every sheet's image exists and tiles exactly; ids unique, count <= cols*rows; aliases point at idle1 cells
+  geometry: AtlasLayout == JSON (exact doubles, 324 entries, inside the texture); == buildAtlasDrawGeometry formula recomputed in GDScript;
+            13 spot checks taken from the game's own function (hard-coded); unknown sheet/id/atlas/section -> empty value + last_error
+  extras: overhaul character/icon/range cells, signature/overhaul frame rects (clamped like drawSignatureFxFrame), pointer-dependent
+          constants (coarse + fine), art maps resolve to real cells, runtime_derived parameters, shared() singleton
+  review round 1 additions:
+  test_expected_misses_in_overhaul_and_meta_atlases_are_not_errors   has_overhaul_character / has_overhaul_icon / has_meta_effect on the NOT quiet
+        instance for catalyst, pulse, catalyst_charge (misses) and for real cells (hits); a push_error would fail the run
+  test_unusable_layout_files_fail_quietly_for_every_helper           missing file, invalid JSON, not an object, missing section, unsupported format:
+        every helper and predicate returns an empty value through last_error, no script error
+  test_id_order_matches_the_game                                     first id, last id and sha256 of the id order of the 7 sheets + overhaul_fx rows +
+        signature_fx rows, pinned from the original game (not from the JSON)
+  test_meta_atlas_frames (extended)                                  every row of both meta atlases: x = 0, y = row * 64, 64 x 64 (mirrors expectStackedMeta)
+  test_runtime_derived_image_parameters (extended)                   hit-flash applies_when / base_alpha, grid and snap text, formula scope, verified resolutions

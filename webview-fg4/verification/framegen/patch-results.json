@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "patchSha256": "ef2c8aa66ac54c4e930f518a5fffbdb378b8562c85afdf6ef2097ac5dd52d070",
+  "changedSourceFiles": [
+    "README.md",
+    "TEST_REPORT.md",
+    "app/src/main/AndroidManifest.xml",
+    "build_apk.py",
+    "frame_generation/build_frame_generation.cjs",
+    "frame_generation/frame-generation-runtime.js",
+    "frame_generation/frame-synthesis.js",
+    "package-lock.json",
+    "package.json",
+    "tests/fixtures/fg3-build-frame-generation.cjs",
+    "tests/fixtures/fg3-frame-generation-runtime.js",
+    "tests/fixtures/fg3-frame-synthesis.js",
+    "tests/fixtures/fg3-reference.cjs",
+    "tests/framegen-equivalence.cjs",
+    "tests/framegen-off-performance.cjs",
+    "tests/framegen-performance.cjs",
+    "tests/framegen-static-caches.cjs"
+  ],
+  "exactSourceTreeMatch": true,
+  "regeneratedHtmlSha256": "50d7bae5e7c6275e69b58fff2c197815400ce85399b677c892eba40b08c2a7e2",
+  "fuzz": 0,
+  "patchOutput": "patching file README.md\npatching file TEST_REPORT.md\npatching file app/src/main/AndroidManifest.xml\npatching file build_apk.py\npatching file frame_generation/build_frame_generation.cjs\npatching file frame_generation/frame-generation-runtime.js\npatching file frame_generation/frame-synthesis.js\npatching file package-lock.json\npatching file package.json\npatching file tests/fixtures/fg3-build-frame-generation.cjs\npatching file tests/fixtures/fg3-frame-generation-runtime.js\npatching file tests/fixtures/fg3-frame-synthesis.js\npatching file tests/fixtures/fg3-reference.cjs\npatching file tests/framegen-equivalence.cjs\npatching file tests/framegen-off-performance.cjs\npatching file tests/framegen-performance.cjs\npatching file tests/framegen-static-caches.cjs\n",
+  "htmlBuildOutput": "Embedded frame synthesis, renderer instrumentation sites: 88 bytes: 2033935\n"
+}

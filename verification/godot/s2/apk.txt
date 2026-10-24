@@ -1,0 +1,112 @@
+S2 evidence: debug APK with the atlas textures
+date: 2026-10-19
+command: tools/build_android.sh --apk export/ElementalSwarm_engine_s2_debug.apk --evidence-dir <scratch>     -> exit code 0, RESULT: PASS
+output:  export/ElementalSwarm_engine_s2_debug.apk (gitignored; the S1 APK export/ElementalSwarm_engine_s1_debug.apk was left untouched)
+         sha256 26a31d519d8f12faf4b6ace8e6c599886c5841253579e02201d6e14ba7ee5138   (signed with the throwaway DEBUG keystore only; two builds differ in zip timestamps and signing block)
+
+----------------------------------------------------------------------
+1. Summary printed by tools/build_android.sh (16 PASS, 1 WARN)
+----------------------------------------------------------------------
+Elemental Swarm Engine - Android debug build
+apk: /home/user/project-ab/export/ElementalSwarm_engine_s2_debug.apk
+
+PASS tests - 39/39 passed, 0 failed, 4175 assertions
+PASS export - 58187988 bytes
+PASS apksigner verify - v2,v3 verified
+PASS signed with the debug keystore - certificate sha256 351abaa1580f2fbd...
+PASS zipalign -c -P 16 -v 4 - stored entries are 16 KiB / 4-byte aligned
+PASS package name - com.elementalswarm.engine
+PASS versionCode - 1
+PASS versionName - 0.1.0-s1
+PASS application label - Elemental Swarm Engine
+PASS native-code ABIs - arm64-v8a armeabi-v7a
+PASS launcher intent - MAIN + LAUNCHER declared
+PASS screenOrientation - 13 (fullUser), accepted by the user on 2026-10-19 (design 6.1): the system rotation lock applies; Godot 4.7.2's non-Gradle exporter cannot emit 10
+PASS SDK levels - minSdkVersion=24 targetSdkVersion=36
+PASS ELF 16 KiB alignment - 2 64-bit librar(ies), every LOAD segment aligned to >= 0x4000
+PASS permissions - none requested or declared
+WARN provider authorities - duplicate authority in the exported manifest: com.elementalswarm.engine.fileprovider (Godot 4.7.2 exporter behaviour; see tools/build_android.sh)
+PASS atlas assets - 14 textures (.ctex, 493134 bytes) + atlas_layout.json + atlas_manifest.json are in the APK
+
+RESULT: PASS
+
+changes in this step: screenOrientation 13 (fullUser) is now PASS with a note (user decision 2026-10-19), 10 stays accepted, any other
+value FAILs (checked with 10, 13, 0, 6 and empty); new check 'atlas assets' (every manifest image has its .ctex in the APK, and
+atlas_layout.json + atlas_manifest.json are packed; verified to FAIL for a manifest that lists an image the APK lacks). The remaining
+WARN (duplicate FileProvider authority, Godot 4.7.2 exporter behaviour) is unchanged from S1.
+
+review round 1 (rebuilt after the fixes to atlas_layout.json / atlas_layout.gd / the tests): same 16 PASS and 1 WARN; tests 36 -> 39.
+The total APK size is the same 58187988 bytes as before although atlas_layout.json (+1848) and the compiled atlas_layout.gd (+1139) grew:
+most likely the zipalign padding of the stored entries (16 KiB) absorbed the growth (not investigated further). The content does differ, as
+the sha256 above and the entry sizes in section 3 show; the packed atlas_layout.json is byte-identical to godot/assets/atlas/atlas_layout.json (checked with cmp).
+
+----------------------------------------------------------------------
+2. APK size against S1
+----------------------------------------------------------------------
+  S1 (scaffold only)        57660321 bytes
+  S2 (14 atlases)           58187988 bytes
+  difference                 +527667 bytes (+0.92 %)
+  for scale: the 14 original .webp files total 455934 bytes; the 14 .ctex in the APK total 493134 bytes
+  (Godot re-encodes the lossless texture), plus atlas_layout.json 78242 bytes (8863 deflated), atlas_manifest.json 5888 (1883),
+  14 .import files, the compiled render/atlas_layout.gd (8094 bytes). The raw .webp files themselves are not in the APK.
+
+----------------------------------------------------------------------
+3. Atlas-derived entries in the APK (unzip -v: size, compressed size, name)
+----------------------------------------------------------------------
+    250060     250060  assets/.godot/imported/art_characters.webp-a76bc609824e86eae20fbf0c57a311e3.ctex
+       204        166  assets/assets/atlas/art_characters.webp.import
+      2450       2450  assets/.godot/imported/art_effects.webp-5363337edec38eca0224d4adec4f1f2c.ctex
+       201        163  assets/assets/atlas/art_effects.webp.import
+      1322       1322  assets/.godot/imported/art_elements.webp-8c04dbc76e48238b274d772293cd6bc6.ctex
+       202        164  assets/assets/atlas/art_elements.webp.import
+      6164       6164  assets/.godot/imported/art_enemies.webp-231520050ab268f87760c193ca4d911b.ctex
+       200        165  assets/assets/atlas/art_enemies.webp.import
+      2036       2036  assets/.godot/imported/art_hits.webp-786fc1c179232c18c1f1eeb56777e48b.ctex
+       198        163  assets/assets/atlas/art_hits.webp.import
+      1336       1336  assets/.godot/imported/art_projectiles.webp-6880f9af94b3c11ee20721f128cb543d.ctex
+       203        167  assets/assets/atlas/art_projectiles.webp.import
+      1586       1586  assets/.godot/imported/art_weapons.webp-610ac23f95fbe514f2c79f53c0f122c4.ctex
+       200        163  assets/assets/atlas/art_weapons.webp.import
+     78242       8863  assets/assets/atlas/atlas_layout.json
+      5888       1883  assets/assets/atlas/atlas_manifest.json
+      5286       5286  assets/.godot/imported/enemy_fx_boss_charge.webp-e2fb93574ff7e04e92cfdbe5393aa8c4.ctex
+       210        172  assets/assets/atlas/enemy_fx_boss_charge.webp.import
+      9466       9466  assets/.godot/imported/enemy_fx_elite_shockwave.webp-df87dcc7fbf25555f3ac0975420cc788.ctex
+       214        177  assets/assets/atlas/enemy_fx_elite_shockwave.webp.import
+     27234      27234  assets/.godot/imported/overhaul_characters.webp-e0f6b3ddacaa88ebf88658cb2560fbda.ctex
+       209        168  assets/assets/atlas/overhaul_characters.webp.import
+     88602      88602  assets/.godot/imported/overhaul_fx.webp-7b8f6f63efcf8c746023c66f7d792e14.ctex
+       201        166  assets/assets/atlas/overhaul_fx.webp.import
+      2874       2874  assets/.godot/imported/overhaul_weapon_icons.webp-01c8033c1449f38b719aea20d4ef7531.ctex
+       210        172  assets/assets/atlas/overhaul_weapon_icons.webp.import
+      8196       8196  assets/.godot/imported/range_fx.webp-4d62d24568b1a8636b9e07f796883278.ctex
+       198        164  assets/assets/atlas/range_fx.webp.import
+     86522      86522  assets/.godot/imported/signature_fx.webp-e504e2a17623ffb895a2c551c4b76760.ctex
+       202        166  assets/assets/atlas/signature_fx.webp.import
+      8094       8005  assets/render/atlas_layout.gdc
+        46         48  assets/render/atlas_layout.gd.remap
+
+----------------------------------------------------------------------
+4. Independent re-check with the raw tools
+----------------------------------------------------------------------
+$ unzip -Z1 export/ElementalSwarm_engine_s2_debug.apk | grep -c atlas
+18
+$ unzip -Z1 ... | grep -E "assets/\.godot/imported/.*\.ctex" | grep -v "icon\.svg"
+14
+$ unzip -Z1 ... | grep "atlas.*webp$"      (the atlas .webp sources are not packed)
+0
+$ aapt2 dump xmltree --file AndroidManifest.xml ... | grep screenOrientation
+A: http://schemas.android.com/apk/res/android:screenOrientation(0x0101001e)=13
+$ apksigner verify -v --print-certs
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): true
+Signer #1 certificate SHA-256 digest: 351abaa1580f2fbd0a9ff27df9b31e4143a40f0b74b91fbea1ddb0467c50fa89
+$ zipalign -c -P 16 -v 4
+Verification successful
+
+----------------------------------------------------------------------
+5. Note for S7
+----------------------------------------------------------------------
+signature_fx.webp is 512x2944. GLES 3.0 only guarantees GL_MAX_TEXTURE_SIZE >= 2048; real Android GLES3 devices report 4096 or more,
+but this was not tested on a device (design 9.5). If S7 meets a device below 2944 it has to split the sheet in two (the layout is by
+row, so a split at row 23 is straightforward).

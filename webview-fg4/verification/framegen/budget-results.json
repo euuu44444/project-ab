@@ -1,0 +1,81 @@
+{
+  "checks": [
+    {
+      "name": "light load stays active and adaptive quality is not fed",
+      "distinctPerSecond": 120,
+      "adaptiveSamplesOn": 0,
+      "adaptiveSamplesOff": 240
+    },
+    {
+      "name": "transient replay burst pauses and generation recovers",
+      "failures": {
+        "budget": 1,
+        "resource": 0,
+        "content": 0,
+        "exception": 0
+      },
+      "backoff": {
+        "class": "budget",
+        "level": {
+          "budget": 1,
+          "resource": 0,
+          "content": 0,
+          "exception": 0
+        },
+        "resumeInMs": 1471
+      },
+      "distinctAfter": 120,
+      "activeAfter": 1
+    },
+    {
+      "name": "transient capture burst pauses and generation recovers",
+      "failures": {
+        "budget": 1,
+        "resource": 0,
+        "content": 0,
+        "exception": 0
+      },
+      "backoff": {
+        "class": "",
+        "level": {
+          "budget": 0,
+          "resource": 0,
+          "content": 0,
+          "exception": 0
+        },
+        "resumeInMs": 1003
+      },
+      "distinctAfter": 120,
+      "activeAfter": 1
+    },
+    {
+      "name": "steady overload falls back with growing waits",
+      "failures": {
+        "budget": 5,
+        "resource": 0,
+        "content": 0,
+        "exception": 0
+      },
+      "backoff": {
+        "class": "budget",
+        "level": {
+          "budget": 4,
+          "resource": 0,
+          "content": 0,
+          "exception": 0
+        },
+        "resumeInMs": 39868
+      },
+      "distinctPerSecond": 47.5
+    },
+    {
+      "name": "2x on a 75 Hz panel uses stride 1",
+      "stride": 1,
+      "refreshHz": 75
+    }
+  ],
+  "errors": [],
+  "startedAt": "2026-10-19T02:22:08.628Z",
+  "passed": true,
+  "finishedAt": "2026-10-19T02:22:46.575Z"
+}

@@ -1,0 +1,16 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://main.gd" id="1_main"]
+
+[node name="Main" type="Node2D" unique_id=634492687]
+script = ExtResource("1_main")
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=439226446]
+
+[node name="Label" type="Label" parent="HUD" unique_id=133666484]
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 382.0
+offset_bottom = 120.0
+text = "Elemental Swarm Engine — S1 scaffold"
+autowrap_mode = 3

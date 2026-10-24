@@ -1,0 +1,412 @@
+{
+  "cases": [
+    {
+      "name": "linear translation / revealed background",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "ms": 4.300000000046566,
+      "stats": {
+        "paints": 418,
+        "pathNodes": 0,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 0,
+        "discrete": 0,
+        "detached": 0
+      }
+    },
+    {
+      "name": "crossing opaque sprites",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "ms": 2.5,
+      "stats": {
+        "paints": 419,
+        "pathNodes": 0,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 0,
+        "discrete": 0,
+        "detached": 0
+      }
+    },
+    {
+      "name": "alpha sprite without double image",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "ms": 2.6000000000931323,
+      "stats": {
+        "paints": 418,
+        "pathNodes": 0,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 0,
+        "discrete": 0,
+        "detached": 0
+      }
+    },
+    {
+      "name": "rotation preserves scale",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "ms": 2,
+      "stats": {
+        "paints": 418,
+        "pathNodes": 0,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 0,
+        "discrete": 0,
+        "detached": 0
+      }
+    },
+    {
+      "name": "birth and death visibility",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "ms": 1.5999999998603016,
+      "stats": {
+        "paints": 418,
+        "pathNodes": 0,
+        "rejected": 1,
+        "unmatched": 1,
+        "loosePairs": 0,
+        "discrete": 0,
+        "detached": 0
+      }
+    },
+    {
+      "name": "batched paths / different entity order",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "ms": 1.8000000000465661,
+      "stats": {
+        "paints": 418,
+        "pathNodes": 3,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 0,
+        "discrete": 0,
+        "detached": 0
+      }
+    },
+    {
+      "name": "camera pan and sprite movement",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "ms": 1.8999999999068677,
+      "stats": {
+        "paints": 418,
+        "pathNodes": 0,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 0,
+        "discrete": 0,
+        "detached": 0
+      }
+    },
+    {
+      "name": "teleport / no invented middle position",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "ms": 1,
+      "stats": {
+        "paints": 418,
+        "pathNodes": 0,
+        "rejected": 0,
+        "unmatched": 1,
+        "loosePairs": 0,
+        "discrete": 0,
+        "detached": 0
+      }
+    },
+    {
+      "name": "moving gradient remains attached",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "ms": 1.3000000000465661,
+      "stats": {
+        "paints": 418,
+        "pathNodes": 0,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 0,
+        "discrete": 0,
+        "detached": 0
+      }
+    },
+    {
+      "name": "atlas source rectangle stays discrete",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "ms": 1.3999999999068677,
+      "stats": {
+        "paints": 418,
+        "pathNodes": 0,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 0,
+        "discrete": 0,
+        "detached": 0
+      }
+    },
+    {
+      "name": "world cell identity survives viewport entry",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "ms": 1.8999999999068677,
+      "stats": {
+        "paints": 433,
+        "pathNodes": 16,
+        "rejected": 0,
+        "unmatched": 2,
+        "loosePairs": 0,
+        "discrete": 0,
+        "detached": 0
+      }
+    },
+    {
+      "name": "mutable image source survives cache reuse",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "snapshotPixels": 256
+    },
+    {
+      "name": "colour change does not double a full-screen overlay",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "ms": 1.1999999999534339,
+      "stats": {
+        "paints": 418,
+        "pathNodes": 0,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 1,
+        "discrete": 0,
+        "detached": 0
+      }
+    },
+    {
+      "name": "tagged colour flash is drawn once",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "ms": 1.1000000000931323,
+      "stats": {
+        "paints": 418,
+        "pathNodes": 0,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 1,
+        "discrete": 0,
+        "detached": 0
+      }
+    },
+    {
+      "name": "discrete overlay layer uses one real frame",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "stats": {
+        "paints": 419,
+        "pathNodes": 0,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 0,
+        "discrete": 2,
+        "detached": 0
+      }
+    },
+    {
+      "name": "closed ImageBitmap in a retained frame is skipped",
+      "quality": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "endpoint": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "early": {
+        "mae": 0,
+        "psnr": 99,
+        "changedFraction": 0,
+        "max": 0
+      },
+      "stats": {
+        "paints": 418,
+        "pathNodes": 0,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 1,
+        "discrete": 0,
+        "detached": 0
+      },
+      "earlyStats": {
+        "paints": 418,
+        "pathNodes": 0,
+        "rejected": 0,
+        "unmatched": 1,
+        "loosePairs": 0,
+        "discrete": 0,
+        "detached": 0
+      },
+      "contextRestored": true
+    }
+  ],
+  "startedAt": "2026-10-19T02:21:47.772Z",
+  "passed": true,
+  "finishedAt": "2026-10-19T02:21:48.046Z"
+}

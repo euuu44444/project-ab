@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "generated_by": "tools/extract_defs.mjs",
+  "source": "webview-fg4/tests/fixtures/original.html",
+  "source_sha256": "647860b1d9b510c0cb7bd17d60da80b9a85fa46ab90fdf4c9cb83035e0408d73",
+  "values": {
+    "MAP_W": 26000,
+    "MAP_H": 26000,
+    "BASE_MAX_ENEMIES": 100,
+    "MAX_HAZARDS": 100,
+    "MAX_ENEMY_COLLISION_RADIUS": 44,
+    "NOVA_PROJECTILE_RADIUS": 10,
+    "NOVA_PROJECTILE_ART_SIZE": 28,
+    "ENEMY_SEPARATION_GRID_SIZE": 96,
+    "ENEMY_SEPARATION_GRID_STRIDE": 275,
+    "ENEMY_GRID_MAX_CX": 270,
+    "ENEMY_GRID_MAX_CY": 270,
+    "PROJECTILE_AVOID_GRID_SIZE": 192,
+    "PROJECTILE_AVOID_GRID_STRIDE": 136,
+    "PROJECTILE_AVOID_GRID_MAX_CY": 135
+  },
+  "pointer": {
+    "coarse": {
+      "MAX_PROJECTILES": 520,
+      "MAX_XP_ORBS": 480,
+      "MAX_ENEMY_PROJECTILES": 420,
+      "HUD_UPDATE_INTERVAL": {"$num": "f64:3fb1111111111111"},
+      "WORLD_CHUNK_CACHE_MIN": 32,
+      "WORLD_CHUNK_CACHE_MAX": 80
+    },
+    "fine": {
+      "MAX_PROJECTILES": 900,
+      "MAX_XP_ORBS": 900,
+      "MAX_ENEMY_PROJECTILES": 720,
+      "HUD_UPDATE_INTERVAL": {"$num": "f64:3fa5555555555555"},
+      "WORLD_CHUNK_CACHE_MIN": 48,
+      "WORLD_CHUNK_CACHE_MAX": 160
+    }
+  }
+}

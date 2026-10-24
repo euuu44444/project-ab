@@ -1,0 +1,63 @@
+{
+  "startedAt": "2026-10-19T02:22:48.061Z",
+  "checks": [
+    {
+      "t": 0,
+      "bad": 0,
+      "max": 0
+    },
+    {
+      "t": 0.25,
+      "bad": 0,
+      "max": 0
+    },
+    {
+      "t": 0.5,
+      "bad": 0,
+      "max": 0
+    },
+    {
+      "t": 0.75,
+      "bad": 0,
+      "max": 0
+    },
+    {
+      "t": 1,
+      "bad": 0,
+      "max": 0
+    }
+  ],
+  "errors": [],
+  "sources": {
+    "fg3": {
+      "fault": "",
+      "snapshotPixels": 625988,
+      "borrowed": [
+        false,
+        false,
+        false
+      ],
+      "released": [
+        true,
+        true,
+        true
+      ]
+    },
+    "fg4": {
+      "fault": "",
+      "snapshotPixels": 0,
+      "borrowed": [
+        true,
+        true,
+        true
+      ],
+      "released": [
+        true,
+        true,
+        true
+      ]
+    }
+  },
+  "passed": true,
+  "finishedAt": "2026-10-19T02:22:50.463Z"
+}

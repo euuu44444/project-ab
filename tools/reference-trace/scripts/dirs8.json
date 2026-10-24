@@ -1,0 +1,15 @@
+{
+  "name": "dirs8",
+  "description": "Design 9.2: the touch stick is held fully deflected in each of the 8 directions for 1 s (60 steps) in turn, east, south-east, south, ... clockwise on screen (y grows downwards), and the cycle repeats. stick is the finger's displacement in CSS pixels from where the touch began; the game clamps it to the 42 px stick radius, so the diagonals [42,42] come out as the unit vector.",
+  "repeat": true,
+  "segments": [
+    {"label": "east", "steps": 60, "stick": [42, 0]},
+    {"label": "south-east", "steps": 60, "stick": [42, 42]},
+    {"label": "south", "steps": 60, "stick": [0, 42]},
+    {"label": "south-west", "steps": 60, "stick": [-42, 42]},
+    {"label": "west", "steps": 60, "stick": [-42, 0]},
+    {"label": "north-west", "steps": 60, "stick": [-42, -42]},
+    {"label": "north", "steps": 60, "stick": [0, -42]},
+    {"label": "north-east", "steps": 60, "stick": [42, -42]}
+  ]
+}

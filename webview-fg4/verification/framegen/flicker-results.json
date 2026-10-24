@@ -1,0 +1,38 @@
+{
+  "checks": [
+    {
+      "name": "dusk tint",
+      "generated": 74,
+      "errors": 0,
+      "error": "",
+      "compared": 74,
+      "tintChanged": 34,
+      "maxAbsSignedLuma": 0.3144220210358956,
+      "maxMae": 1.441365901081541
+    },
+    {
+      "name": "eco ground",
+      "generated": 74,
+      "errors": 0,
+      "error": "",
+      "compared": 74,
+      "tintChanged": 0,
+      "maxAbsSignedLuma": 0.11243055049216215,
+      "maxMae": 1.710198687568356
+    },
+    {
+      "name": "worker light map",
+      "generated": 119,
+      "errors": 0,
+      "error": "",
+      "compared": 119,
+      "tintChanged": 16,
+      "maxAbsSignedLuma": 1.4516799314064577,
+      "maxMae": 2.338903066391218
+    }
+  ],
+  "errors": [],
+  "startedAt": "2026-10-19T02:21:58.230Z",
+  "passed": true,
+  "finishedAt": "2026-10-19T02:22:08.346Z"
+}

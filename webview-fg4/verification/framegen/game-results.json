@@ -1,0 +1,416 @@
+{
+  "checks": [
+    "real rAF 2x frame generation and monotonic presentation"
+  ],
+  "quality": [
+    {
+      "quality": "eco",
+      "pan": 0,
+      "generated": {
+        "mae": 0.38350751407623446,
+        "motionMae": 7.301974533148297,
+        "motionPixels": 13691,
+        "psnr": 32.08590179436047,
+        "changedFraction": 0.006455826953457285
+      },
+      "held": {
+        "mae": 1.795969538623567,
+        "motionMae": 40.21992549850267,
+        "motionPixels": 13691,
+        "psnr": 24.40568589530478,
+        "changedFraction": 0.0277342325920525
+      },
+      "blended": {
+        "mae": 1.741135010329323,
+        "motionMae": 38.90270980936381,
+        "motionPixels": 13691,
+        "psnr": 26.401259263865846,
+        "changedFraction": 0.03636529347429821
+      },
+      "endpoint": {
+        "mae": 0,
+        "motionMae": 0,
+        "motionPixels": 13691,
+        "psnr": 99,
+        "changedFraction": 0
+      },
+      "stateUnchanged": true,
+      "initialGenMs": 3.7000000001862645,
+      "normalMedianMs": 0.20000000018626451,
+      "generatedMedianMs": 0.30000000004656613,
+      "generatedP95Ms": 0.5,
+      "paints": 46,
+      "nodes": 106,
+      "fault": "",
+      "snapshotPixels": 0,
+      "stats": {
+        "paints": 46,
+        "pathNodes": 106,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 0,
+        "discrete": 0,
+        "detached": 0
+      },
+      "captureMedianMs": 0.5,
+      "captureP95Ms": 0.7000000001862645,
+      "pairCpuMs": 0.8000000000465661,
+      "twoNormalFramesCpuMs": 0.40000000037252903
+    },
+    {
+      "quality": "eco",
+      "pan": 12,
+      "generated": {
+        "mae": 0.38350751407623446,
+        "motionMae": 0.7582919289761698,
+        "motionPixels": 135654,
+        "psnr": 32.08590179436047,
+        "changedFraction": 0.006455826953457285
+      },
+      "held": {
+        "mae": 5.280994045449022,
+        "motionMae": 11.392152092824391,
+        "motionPixels": 135654,
+        "psnr": 21.471637862029592,
+        "changedFraction": 0.22588406853809698
+      },
+      "blended": {
+        "mae": 5.1440292461619475,
+        "motionMae": 11.059796737778957,
+        "motionPixels": 135654,
+        "psnr": 22.955541631469845,
+        "changedFraction": 0.4181522663750152
+      },
+      "endpoint": {
+        "mae": 0,
+        "motionMae": 0,
+        "motionPixels": 135654,
+        "psnr": 99,
+        "changedFraction": 0
+      },
+      "stateUnchanged": true,
+      "initialGenMs": 1.3000000000465661,
+      "normalMedianMs": 0.19999999995343387,
+      "generatedMedianMs": 0.19999999995343387,
+      "generatedP95Ms": 0.5999999998603016,
+      "paints": 46,
+      "nodes": 106,
+      "fault": "",
+      "snapshotPixels": 0,
+      "stats": {
+        "paints": 46,
+        "pathNodes": 106,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 0,
+        "discrete": 0,
+        "detached": 0
+      },
+      "captureMedianMs": 0.5999999998603016,
+      "captureP95Ms": 0.8000000000465661,
+      "pairCpuMs": 0.7999999998137355,
+      "twoNormalFramesCpuMs": 0.39999999990686774
+    },
+    {
+      "quality": "auto",
+      "pan": 0,
+      "generated": {
+        "mae": 0.6679268890959255,
+        "motionMae": 7.4920400546092685,
+        "motionPixels": 56889,
+        "psnr": 29.931520230264756,
+        "changedFraction": 0.013964164675065149
+      },
+      "held": {
+        "mae": 2.271847081009798,
+        "motionMae": 27.6711432204234,
+        "motionPixels": 56889,
+        "psnr": 23.731409661907563,
+        "changedFraction": 0.05145218131000121
+      },
+      "blended": {
+        "mae": 2.2972243600995577,
+        "motionMae": 28.01545114169699,
+        "motionPixels": 56889,
+        "psnr": 24.956670621911478,
+        "changedFraction": 0.05515858549033904
+      },
+      "endpoint": {
+        "mae": 0.00019218392046196155,
+        "motionMae": 0.0025019482383823468,
+        "motionPixels": 56889,
+        "psnr": 63.98427245761876,
+        "changedFraction": 0.0000027004766341259233
+      },
+      "stateUnchanged": true,
+      "initialGenMs": 4.199999999953434,
+      "normalMedianMs": 0.2999999998137355,
+      "generatedMedianMs": 0.5,
+      "generatedP95Ms": 0.6999999999534339,
+      "paints": 129,
+      "nodes": 125,
+      "fault": "",
+      "snapshotPixels": 0,
+      "stats": {
+        "paints": 129,
+        "pathNodes": 149,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 0,
+        "discrete": 2,
+        "detached": 0
+      },
+      "captureMedianMs": 0.8999999999068677,
+      "captureP95Ms": 3,
+      "pairCpuMs": 1.3999999999068677,
+      "twoNormalFramesCpuMs": 0.599999999627471
+    },
+    {
+      "quality": "auto",
+      "pan": 12,
+      "generated": {
+        "mae": 0.6713600950567775,
+        "motionMae": 2.61727650017089,
+        "motionPixels": 170675,
+        "psnr": 29.89999421481368,
+        "changedFraction": 0.01400062110962585
+      },
+      "held": {
+        "mae": 5.931256666801691,
+        "motionMae": 20.345309311068796,
+        "motionPixels": 170675,
+        "psnr": 20.61232021883643,
+        "changedFraction": 0.1645184375042195
+      },
+      "blended": {
+        "mae": 5.687203791469194,
+        "motionMae": 19.300573214198526,
+        "motionPixels": 170675,
+        "psnr": 22.12390838796988,
+        "changedFraction": 0.2361674835608485
+      },
+      "endpoint": {
+        "mae": 0.00014582573824279985,
+        "motionMae": 0.0006327816024608174,
+        "motionPixels": 170675,
+        "psnr": 64.39516087522128,
+        "changedFraction": 0.0000013502383170629616
+      },
+      "stateUnchanged": true,
+      "initialGenMs": 2.300000000046566,
+      "normalMedianMs": 0.20000000018626451,
+      "generatedMedianMs": 0.6000000000931323,
+      "generatedP95Ms": 1.1000000000931323,
+      "paints": 129,
+      "nodes": 125,
+      "fault": "",
+      "snapshotPixels": 0,
+      "stats": {
+        "paints": 129,
+        "pathNodes": 149,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 0,
+        "discrete": 2,
+        "detached": 0
+      },
+      "captureMedianMs": 0.8000000000465661,
+      "captureP95Ms": 1.1999999999534339,
+      "pairCpuMs": 1.4000000001396984,
+      "twoNormalFramesCpuMs": 0.40000000037252903
+    },
+    {
+      "quality": "ultra",
+      "pan": 0,
+      "generated": {
+        "mae": 0.6766641687257801,
+        "motionMae": 6.48114457164452,
+        "motionPixels": 261967,
+        "psnr": 28.974003577873113,
+        "changedFraction": 0.009334872605014786
+      },
+      "held": {
+        "mae": 2.5914988995557717,
+        "motionMae": 27.08001262245499,
+        "motionPixels": 261967,
+        "psnr": 23.28647750819737,
+        "changedFraction": 0.06190268832448927
+      },
+      "blended": {
+        "mae": 2.4856034215038956,
+        "motionMae": 25.98137806161336,
+        "motionPixels": 261967,
+        "psnr": 24.506022623008473,
+        "changedFraction": 0.057628171372247204
+      },
+      "endpoint": {
+        "mae": 1.125198597552468e-7,
+        "motionMae": 0.00000127242489830144,
+        "motionPixels": 261967,
+        "psnr": 117.61851178679052,
+        "changedFraction": 0
+      },
+      "stateUnchanged": true,
+      "initialGenMs": 12.700000000186265,
+      "normalMedianMs": 0.5,
+      "generatedMedianMs": 2,
+      "generatedP95Ms": 2.5,
+      "paints": 724,
+      "nodes": 1183,
+      "fault": "",
+      "snapshotPixels": 0,
+      "stats": {
+        "paints": 724,
+        "pathNodes": 1225,
+        "rejected": 0,
+        "unmatched": 0,
+        "loosePairs": 0,
+        "discrete": 2,
+        "detached": 0
+      },
+      "captureMedianMs": 3.300000000046566,
+      "captureP95Ms": 5,
+      "pairCpuMs": 5.300000000046566,
+      "twoNormalFramesCpuMs": 1
+    },
+    {
+      "quality": "ultra",
+      "pan": 12,
+      "generated": {
+        "mae": 0.6766713699968044,
+        "motionMae": 1.8761411757072044,
+        "motionPixels": 945224,
+        "psnr": 28.974012217506168,
+        "changedFraction": 0.009334872605014786
+      },
+      "held": {
+        "mae": 6.6783761583919565,
+        "motionMae": 17.02364130971424,
+        "motionPixels": 945224,
+        "psnr": 20.324174062895324,
+        "changedFraction": 0.23553320911140815
+      },
+      "blended": {
+        "mae": 6.288118690448864,
+        "motionMae": 15.819073221444512,
+        "motionPixels": 945224,
+        "psnr": 21.81205492731424,
+        "changedFraction": 0.28927843264336156
+      },
+      "endpoint": {
+        "mae": 0,
+        "motionMae": 0,
+        "motionPixels": 945224,
+        "psnr": 99,
+        "changedFraction": 0
+      },
+      "stateUnchanged": true,
+      "initialGenMs": 13.599999999860302,
+      "normalMedianMs": 0.6000000000931323,
+      "generatedMedianMs": 1.7000000001862645,
+      "generatedP95Ms": 2.6000000000931323,
+      "paints": 808,
+      "nodes": 1326,
+      "fault": "",
+      "snapshotPixels": 0,
+      "stats": {
+        "paints": 808,
+        "pathNodes": 1368,
+        "rejected": 0,
+        "unmatched": 84,
+        "loosePairs": 0,
+        "discrete": 2,
+        "detached": 0
+      },
+      "captureMedianMs": 3.199999999953434,
+      "captureP95Ms": 5.099999999860302,
+      "pairCpuMs": 4.900000000139698,
+      "twoNormalFramesCpuMs": 1.2000000001862645
+    }
+  ],
+  "startedAt": "2026-10-19T02:21:53.629Z",
+  "errors": [],
+  "running": {
+    "state": "playing",
+    "time": 1.5833333333333326,
+    "x": 13000,
+    "y": 13000,
+    "rng": 110,
+    "status": {
+      "mode": "2x",
+      "active": true,
+      "supported": true,
+      "method": "engine-assisted retained-paint reprojection",
+      "displayHzEstimate": 60,
+      "refreshHz": 60,
+      "refreshConfident": true,
+      "autoGate": false,
+      "autoState": "active",
+      "realFPS": 27,
+      "generatedFPS": 33,
+      "presentationsPerSecond": 60,
+      "lastSession": null,
+      "captureCpuMs": 0.421,
+      "generationCpuMs": 0.251,
+      "addedPresentationDelayMs": 33.31,
+      "stride": 2,
+      "deadlineMs": 15.67,
+      "learnedPostMs": 0,
+      "medianMs": {
+        "capture": 0.39999999990686774,
+        "replay": 0.20000000018626451,
+        "blit": 1.1999999999534339,
+        "normal": 0
+      },
+      "missRate": 0,
+      "baselineMissRate": 0.02,
+      "backoff": {
+        "class": "",
+        "level": {
+          "budget": 0,
+          "resource": 0,
+          "content": 0,
+          "exception": 0
+        },
+        "resumeInMs": 0
+      },
+      "failures": {
+        "budget": 0,
+        "resource": 0,
+        "content": 0,
+        "exception": 0
+      },
+      "cacheBytesEstimate": 5937936,
+      "cachedPaints": 24,
+      "cachedNodes": 2,
+      "fallback": false,
+      "error": "",
+      "lastReason": "buffer-size",
+      "lastSynthesis": {
+        "paints": 25,
+        "pathNodes": 2,
+        "rejected": 0,
+        "unmatched": 1,
+        "loosePairs": 0,
+        "discrete": 2,
+        "detached": 0
+      },
+      "presentationTime": 1.5666333333333327,
+      "captured": 42,
+      "real": 41,
+      "generated": 49,
+      "warmup": 0,
+      "holds": 2,
+      "drops": 0,
+      "yields": 0,
+      "rejectedPairs": 0,
+      "resets": 6,
+      "errors": 0,
+      "lateCallbacks": 0,
+      "nonMonotonic": 0,
+      "observations": 96
+    }
+  },
+  "passed": true,
+  "finishedAt": "2026-10-19T02:21:57.913Z"
+}

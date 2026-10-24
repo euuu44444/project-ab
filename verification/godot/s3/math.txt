@@ -1,0 +1,169 @@
+S3 evidence: JavaScript-compatible numerics (sim/js_compat.gd, class JsMath) and the RNG
+date: 2026-10-19    Godot 4.7.2-stable    Linux x86_64, Intel Xeon 2.80 GHz (fma, avx2, avx512f), 4 cores, shared VM
+
+Legend: [measured now] = measured in this integration step; [reported] = taken over from the implementers' reports (analyst B's study and
+implementer M's runs earlier in S3), not re-measured here.
+
+----------------------------------------------------------------------
+1. Why the engine's own math cannot be used (design 5.2 is contradicted by the measurements; docs/ was NOT edited)
+----------------------------------------------------------------------
+Reference: Chromium 141.0.7390.37 (V8 14.1.146.11), the browser the reference traces are recorded with.
+
+[measured now] Mismatch rate of the ENGINE's builtin against the V8 results of the golden vectors (godot/tests/golden/math.json, bit pattern
+compared, any NaN equals any NaN, -0 differs from +0; the inputs are edge-dense: thresholds of the algorithms, multiples of pi/2, 0.5 boundaries,
+infinities, plus pseudo-random game-range values, so the rates are higher than they would be on game data alone). Same machine, same rows:
+
+  function  rows   JsMath (ported)           engine builtin
+  sin       20000  0 mismatches              13   (0.065 %)
+  cos       20000  0 mismatches               9   (0.045 %)
+  atan      20000  0 mismatches             314   (1.570 %)
+  atan2     20000  0 mismatches            3110   (15.550 %)
+  exp       20000  0 mismatches            1809   (9.045 %)
+  log       20000  0 mismatches             575   (2.875 %)
+  round     20000  0 mismatches             211   (1.055 %)  round() builtin;  floor(x + 0.5): 813 (4.065 %)
+  hypot     20000  0 mismatches            7475   (37.375 %) sqrt(x*x + y*y) (V8's Math.hypot scales by the larger magnitude first)
+  pow         490  0 mismatches (wrapper)      5   (1.020 %)  pow() builtin: JS special cases such as pow(1, Infinity) = NaN differ from C
+  script: scratchpad/s3/measure/builtin_vs_v8.gd (run with swarm_godot --headless -s; output in the same folder; not part of the project)
+
+[reported] Analyst B / implementer M, on their own input sets:
+  * Math.round implemented as floor(x + 0.5) is wrong in 1.14 % of cases; the ceil-based Float64Round of V8 is what JsMath.js_round implements.
+  * Godot builtin atan2 differs from V8 in 15.2 % of cases on desktop (matches the 15.55 % measured above); builtin sin/cos 0.06-0.07 % on
+    desktop glibc with FMA and about 2.8 % on Bionic (Android).
+  * Node 22's Math.sin/cos (fdlibm) differ from Chromium's (glibc algorithm) in about 3 % of cases, so the golden generator does not use Node's sin/cos;
+    it uses tools/golden/_glibc_sin.mjs, a transcription of V8's s_sin.c with the branred path and the 440-entry table, verified against Chromium.
+  * GDScript: float % float is a compile error; only fmod works (JsMath.js_mod). The design text still says otherwise.
+
+Port scope (godot/sim/js_compat.gd, 1091 lines): sin, cos (glibc s_sin.c + branred), atan, atan2, exp, log (fdlibm), hypot (V8 FastMathHypot), js_round,
+trunc, js_mod, js_max / js_min (NaN and -0 rules), max3 / min3 / max5 / min5 / max_n / min_n, clamp (= Math.max(lo, Math.min(hi, v))),
+to_int32, to_uint32, imul, shl / sar / shr_u / i32, pow (wrapper: JS special cases, then the platform pow; NOT bit-guaranteed, unused by M1 systems).
+Only operations that are exact on every platform are used inside: IEEE + - * /, comparisons, sqrt, floor, ceil, abs, fmod.
+
+----------------------------------------------------------------------
+2. Verification of the golden vectors against a real Chromium  [measured now]
+----------------------------------------------------------------------
+$ node tools/verify_golden_chromium.mjs  -> exit code 0
+Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36
+ok    sin         20000 rows  0 mismatch(es)
+ok    cos         20000 rows  0 mismatch(es)
+ok    atan        20000 rows  0 mismatch(es)
+ok    exp         20000 rows  0 mismatch(es)
+ok    log         20000 rows  0 mismatch(es)
+ok    atan2       20000 rows  0 mismatch(es)
+ok    hypot       20000 rows  0 mismatch(es)
+ok    mod         20000 rows  0 mismatch(es)
+ok    max         20000 rows  0 mismatch(es)
+ok    min         20000 rows  0 mismatch(es)
+ok    round       20000 rows  0 mismatch(es)
+ok    trunc       20000 rows  0 mismatch(es)
+ok    to_int32    20000 rows  0 mismatch(es)
+ok    to_uint32   20000 rows  0 mismatch(es)
+ok    floor        2048 rows  0 mismatch(es)
+ok    ceil         2048 rows  0 mismatch(es)
+ok    sqrt         2048 rows  0 mismatch(es)
+ok    abs          2048 rows  0 mismatch(es)
+ok    imul        20000 rows  0 mismatch(es)
+ok    shl         20000 rows  0 mismatch(es)
+ok    sar         20000 rows  0 mismatch(es)
+ok    shr_u       20000 rows  0 mismatch(es)
+ok    max3        20000 rows  0 mismatch(es)
+ok    min3        20000 rows  0 mismatch(es)
+ok    max5        20000 rows  0 mismatch(es)
+ok    min5        20000 rows  0 mismatch(es)
+ok    clamp       20000 rows  0 mismatch(es)
+ok    pow           490 rows  0 mismatch(es)
+named cases: 48/48 agree with Chromium
+ok    rng        8 streams x 1000 outputs and 17 seed normalisations: 0 mismatch(es)
+verify OK: the golden vectors equal the results of Chromium
+
+And in Godot, tools/run_godot_tests.sh test_js_math: 27/27 passed (149 assertions) and test_rng: 10/10 (817 assertions): every row of every vector is
+compared with the ported function (by bit pattern). Integration step: the sources of godot/sim/ are scanned for builtin math (test_sim_source_rules.gd,
+0 violations; a deliberate JsMath.atan2 -> atan2 mutation is caught). The movement golden (13 scripted runs through the original update()) confirms the
+result in context [reported by implementer G's mutation check]: with the builtin atan2, lastFacing was 1 ulp off in step 1 of stick_diag
+(bfedac670561bf94 vs bfedac670561bf93).
+
+Mutation checks by implementer M [reported]: floor(x+0.5) round, naive hypot, NaN-dropping js_max, dropped sin Taylor term, removed exp(1) special case,
+to_int32 via int(x): 8 + 4 tests failed as expected; two mutants were mathematically equivalent and correctly stayed green (sin threshold 0.126, imul without
+wrapping the second factor).
+
+----------------------------------------------------------------------
+3. Microbenchmarks  [measured now] (typed GDScript, headless, net of the loop cost; ns per call)
+----------------------------------------------------------------------
+Printed by test_js_math.gd / test_rng.gd (BENCH lines); no pass/fail threshold. The VM is shared, so run-to-run noise is +-40 %: three runs are shown.
+  run F = inside the full tools/run_godot_tests.sh, A = tools/run_godot_tests.sh test_js_math / test_rng alone, B = test_js_math alone again.
+
+  function                       F      A      B
+  builtin sin                   36     50     46
+  builtin atan2                 54     56     84
+  builtin exp                   22     <10(*) 21
+  builtin sqrt                  32     <10(*) 29
+  JsMath.sin                   805   1286    879
+  JsMath.cos                   794    867   1170
+  JsMath.atan                  572    503    557
+  JsMath.atan2                 706    748    807
+  JsMath.exp                   536    405    760
+  JsMath.log                   816    833    844
+  JsMath.hypot                 324    345    328
+  JsMath.js_round              133    117    131
+  JsMath.clamp                 167    134    273
+  JsMath.js_max / js_min   128/268 102/100 139/139
+  JsMath.to_int32              156    116    152
+  JsMath.to_uint32             249    211    314
+  JsMath.imul                  155    114    175
+  JsMath.js_mod                125     87    112
+  JsMath.pow (wrapper)         353    213    279
+  JsMath.max5 / min5       649/646 725/698 822/1041
+  (*) the loop cost subtraction left less than the measurable resolution; an earlier version of the benchmark printed "0 ns/call  200000 M calls/s"
+      for these lines, which is noise; test_js_math.gd now prints "< 10 ns/call (below the resolution ...)" instead (fixed in this step).
+
+  RNG                            F      A
+  SeededRng.next_u32           329    346
+  SeededRng.next_float         348    367
+  GameRng.random               476    607
+  GameRng.rand                 530    604
+  GameRng.chance               521    583
+  GameRng.index                663    791
+  FxRng.random                 476    499
+
+Reading: the ported transcendental functions cost about 0.4 to 1.2 us per call, 15 to 40 times a builtin (30 to 80 ns). The original makes 28 gameRandom
+draws in frame 1 (29 in total after newGame's one draw; implementer G, from the original's own update()); the port makes none of them yet, they arrive with the
+S5/S6 systems, and at about 0.5 us per draw they cost roughly 14 us per step.
+Hot paths should call exp(-k * FIXED_DT) etc. once and cache it (analyst B's advice); implementer M [reported] gave analyst B's rough estimate of about
+0.4 ms of the 4 ms simulation budget for 100 enemies on desktop. ANDROID SPEED IS UNMEASURED (no device here).
+
+----------------------------------------------------------------------
+4. Cost of Sim.step() in S3  [measured now] (scratch scripts scratchpad/s3/measure/step_bench.gd, slot_bench.gd; 120000 / 40000 steps)
+----------------------------------------------------------------------
+  Sim.step, idle                       38.9 us/step      (25.7 steps per ms)
+  Sim.step, walking (keys change)      44.1 us/step
+  run_systems(main) (43 slots)         34.8 us   of which: 5.6 us player/movement (hypot, atan2, 4 clamps), 1.3 camera, 1.1 reaction-buffs,
+                                                 0.5-1.0 each screen-flash and regen, 9.5 us for the 38 empty stub slots (0.25 us per virtual call),
+                                                 and about 15 us of runner overhead (per slot: state check, is_player_alive(), has_when)
+  intro list (5 slots)                  about 3 us     capture_previous_transforms 0.5 us
+That is 0.24 % of a 16.7 ms frame. Not optimised on purpose: the structure must stay equal to the original's runSystems until the real systems exist
+(S5/S6); the per-slot is_player_alive() check is part of the original's semantics (the player can die inside the loop).
+
+----------------------------------------------------------------------
+5. Seeded random numbers
+----------------------------------------------------------------------
+tests/golden/rng.json from the ORIGINAL makeSeededRandom (cut out by name, run in the empty vm sandbox): 8 seeds (424242, 24681357, 0, 1, 4294967295,
+2147483648, 2654435769, 123456789) x 1000 outputs, compared as exact integers k with value = k / 2^32 (0 gives the stream of 2654435769, as in the original:
+seed>>>0 || 2654435769); 17 seed normalisations (-1, -1.9, 1.9, +0, -0, 2^32, 2^32 + 1, 4294967295.5, 2^53, 1e20, -2^31, 2^31, 0.5, 2654435769, NaN, +-Infinity; given as IEEE bit patterns); 5 gameRandom helper cases (rand, randi, chance, shuffle,
+the `gameRandom() * n | 0` idiom) with their draw counts. Chromium agrees: 8 streams x 1000 outputs + 17 normalisations, 0 mismatches (section 2).
+GameRng wraps SeededRng and counts draws (gameRandomDraws); FxRng is a separate, seedable stream for effects and never touches the counter
+(the original uses Math.random there).
+
+----------------------------------------------------------------------
+6. Cost of the per-entity math with JsMath, reproduced for the review fixes  [measured now]
+----------------------------------------------------------------------
+Scratch benchmark of the reviewer (scratchpad/s3/rv/bench_proj/bench.gd, a throwaway Godot project around an unchanged copy of godot/sim; it is not part of the repository),
+re-run in this step on the same VM: typed kernels that replay the trig / exp / hypot calls of the original's per-entity code, once with JsMath and once with the engine builtins.
+  per call          JsMath.sin 840 ns (builtin 36)   cos 828   atan2 682 (builtin 49)   hypot 321   exp 530
+  100 enemies       moveBasicEnemy + steerEnemy + smoothEnemyVelocity (3 sin, 2 cos, 2 atan2, 2 exp, 5 hypot each):  JsMath 1126 us/step   builtin 219 us/step
+  520 homing shots  updateProjectiles' homing branch (3 atan2, 2 sin, 2 cos, 1 hypot each):                          JsMath 3854 us/step   builtin 613 us/step
+  520 orbitals      1 sin + 1 cos each:                                                                               JsMath 1238 us/step   builtin 293 us/step
+  Sim.step (S3 systems, walking): median 39 us, p95 65-73 us
+Reading: analyst B's estimate of about 0.4 ms for 100 enemies is about 3 times low and ignores projectiles; with JsMath the math of 100 enemies plus a few hundred homing or orbiting
+projectiles alone uses 2.4-5.0 ms of the design 5.5 budget (Sim.step median <= 4 ms on desktop). Nothing was changed in JsMath for this: the kernels that decide the real cost (S5/S6) do
+not exist yet, and a bit-exact speed-up should be shaped by their call sites. The header of godot/sim/js_compat.gd now records the numbers and the cost cuts to use
+(cache 1 - exp(-k * dt) per constant for dt = FIXED_DT, no recomputation of known angles, a fused sin+cos, or JsMath in a GDExtension built with -ffp-contract=off as the design 12 option;
+the 20-40 times figure for that option is an estimate, not a measurement). The scenario has to be measured as soon as the S5/S6 kernels exist, not at S9. Android speed is still unmeasured.

@@ -1,0 +1,509 @@
+S4 evidence: the Godot port against the reference traces (tools/emit_port_trace.sh + tools/compare_trace.mjs), after the review fixes
+date: 2026-10-20    Godot 4.7.2-stable    Chromium 141.0.7390.37 (the reference)    node v22.22.0
+
+----------------------------------------------------------------------
+0. Result
+----------------------------------------------------------------------
+The port (step S3: clock, day cycle, movement, camera) equals the original BIT FOR BIT, in all seven traces (6 standard + the long run), for every step before
+the first effect the port does not have yet. The boundary is computed from the reference trace itself (header.boundaries, tools/lib/trace_io.mjs firstEffects;
+godot/tests/test_reference_trace.gd computes it again and fails if the two disagree):
+  contact  enemy/update draws gameRandom, or hp differs from step 1, or the damage flash is on (a hit; it also pushes the player 22 px)
+  fire     player.attackAnim is not 0 (a weapon shot sets attackAnim, attackAngle and lastFacing; the player does not move)
+
+Movement / camera / time / day-phase / hp fields are compared up to the step before the contact (compare_trace.mjs below, and the Godot test).
+The animation fields attackAnim, attackAngle and lastFacing are compared on EVERY step before the contact boundary in which the reference shows no shot, teacher-forced
+(the port's three values are set to the reference's values of the step before; the port cannot shoot): the countdown max(0, attackAnim - dt) and the rule
+`if speed > 8: lastFacing = atan2(vy, vx)` are checked against many reference values (the first version compared 1 or 2 steps, where both sides are 0).
+This comparison is in the Godot test (it needs the forcing, which compare_trace.mjs cannot express); its counts come from the full run in tests.txt.
+
+trace                           steps  contact  fire   movement/camera/time steps   animation steps (shots skipped)  countdown steps  atan2 facing steps
+dirs8_424242                     834      586     3                       1..585                         573 (12)              204                 456
+dirs8_24681357                   786     none     2                       1..786                         770 (16)              272                 653
+idle_424242                     2266     none     3                      1..2266                        2221 (45)              765                   0
+idle_24681357                   1551     none     2                      1..1551                        1520 (31)              527                   0
+zigzag_424242                   1704     none     3                      1..1704                        1670 (34)              578                1527
+zigzag_24681357                 1710     none     2                      1..1710                        1676 (34)              578                1533
+zigzag_424242_longrun           5400     2835     3                      1..2834                        2778 (56)              952                2544
+
+Steps compared in all: movement fields 11436, animation fields 11208. All identical. In the first version: 8602 movement steps and 1 or 2 animation steps per trace.
+The comparison one step further fails exactly at the contact hit (dirs8_424242 step 586, the long run step 2835): the boundary is tight, not just conservative.
+
+----------------------------------------------------------------------
+1. Per trace: emit the port trace, compare (movement set, up to the step before the contact; one step further where there is a contact)
+----------------------------------------------------------------------
+movement set = player.x,y,vx,vy,ax,ay,prevX,prevY,walkPhase,controlSlow,hp,maxHp,koTimer,lastHit + camera (4) + wave.t,dayPhase
+The long run is replayed with the header's overrides (player.xpNext, hp, maxHp = 1e9), so hp / maxHp are compared too.
+
+======================================================================
+== dirs8_424242
+======================================================================
+$ tools/emit_port_trace.sh godot/tests/reference/dirs8_424242.jsonl.gz <port trace>
+emit_port_trace: 834 steps of dirs8_424242.jsonl.gz (seed 424242, dirs8) -> <scratch>/port/dirs8_424242.jsonl.gz in 235 ms
+-> exit code 0
+port trace: 56969 bytes
+
+reference boundaries (header.boundaries, computed from the reference trace): first contact effect at step 586, first weapon shot at step 3, trace has 834 steps (a value of steps+1 means: never)
+
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_424242.jsonl.gz <port trace> --fields <movement set> --until 585
+reference godot/tests/reference/dirs8_424242.jsonl.gz (original-chromium, 834 steps, seed 424242, script dirs8)
+port      <scratch>/port/dirs8_424242.jsonl.gz (godot-port, 834 steps, seed 424242, script dirs8)
+compared steps 1..585, bit-exact
+
+group         result    first step  differing steps   detail
+player        same      -           0 of 585          
+camera        same      -           0 of 585          
+wave          same      -           0 of 585          
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+# one step further: the first contact hit must show up
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_424242.jsonl.gz <port trace> --fields <movement set> --until 586
+reference godot/tests/reference/dirs8_424242.jsonl.gz (original-chromium, 834 steps, seed 424242, script dirs8)
+port      <scratch>/port/dirs8_424242.jsonl.gz (godot-port, 834 steps, seed 424242, script dirs8)
+compared steps 1..586, bit-exact
+
+group         result    first step  differing steps   detail
+player        DIFFERS   586         1 of 586          x
+camera        same      -           0 of 586          
+wave          same      -           0 of 586          
+
+first divergence per group:
+  player, first at step 586, field x
+      reference: 13257.323735791635 (40c9e4a9702ca6cf)
+      port:      13277.58073580376 (40c9eeca558d0262)
+      port - reference = 20.25700001212499, 11136403528595 ulp
+      every diverging field, with its first step: x@586 y@586 hp@586 lastHit@586
+
+RESULT: DIFFERENT (1 group diverge)
+-> exit code 1
+
+======================================================================
+== dirs8_24681357
+======================================================================
+$ tools/emit_port_trace.sh godot/tests/reference/dirs8_24681357.jsonl.gz <port trace>
+emit_port_trace: 786 steps of dirs8_24681357.jsonl.gz (seed 24681357, dirs8) -> <scratch>/port/dirs8_24681357.jsonl.gz in 212 ms
+-> exit code 0
+port trace: 53479 bytes
+
+reference boundaries (header.boundaries, computed from the reference trace): first contact effect at step 787, first weapon shot at step 2, trace has 786 steps (a value of steps+1 means: never)
+
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_24681357.jsonl.gz <port trace> --fields <movement set> --until 786
+reference godot/tests/reference/dirs8_24681357.jsonl.gz (original-chromium, 786 steps, seed 24681357, script dirs8)
+port      <scratch>/port/dirs8_24681357.jsonl.gz (godot-port, 786 steps, seed 24681357, script dirs8)
+compared steps 1..786, bit-exact
+
+group         result    first step  differing steps   detail
+player        same      -           0 of 786          
+camera        same      -           0 of 786          
+wave          same      -           0 of 786          
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+======================================================================
+== idle_424242
+======================================================================
+$ tools/emit_port_trace.sh godot/tests/reference/idle_424242.jsonl.gz <port trace>
+emit_port_trace: 2266 steps of idle_424242.jsonl.gz (seed 424242, idle) -> <scratch>/port/idle_424242.jsonl.gz in 860 ms
+-> exit code 0
+port trace: 49970 bytes
+
+reference boundaries (header.boundaries, computed from the reference trace): first contact effect at step 2267, first weapon shot at step 3, trace has 2266 steps (a value of steps+1 means: never)
+
+$ node tools/compare_trace.mjs godot/tests/reference/idle_424242.jsonl.gz <port trace> --fields <movement set> --until 2266
+reference godot/tests/reference/idle_424242.jsonl.gz (original-chromium, 2266 steps, seed 424242, script idle)
+port      <scratch>/port/idle_424242.jsonl.gz (godot-port, 2266 steps, seed 424242, script idle)
+compared steps 1..2266, bit-exact
+
+group         result    first step  differing steps   detail
+player        same      -           0 of 2266         
+camera        same      -           0 of 2266         
+wave          same      -           0 of 2266         
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+======================================================================
+== idle_24681357
+======================================================================
+$ tools/emit_port_trace.sh godot/tests/reference/idle_24681357.jsonl.gz <port trace>
+emit_port_trace: 1551 steps of idle_24681357.jsonl.gz (seed 24681357, idle) -> <scratch>/port/idle_24681357.jsonl.gz in 384 ms
+-> exit code 0
+port trace: 34937 bytes
+
+reference boundaries (header.boundaries, computed from the reference trace): first contact effect at step 1552, first weapon shot at step 2, trace has 1551 steps (a value of steps+1 means: never)
+
+$ node tools/compare_trace.mjs godot/tests/reference/idle_24681357.jsonl.gz <port trace> --fields <movement set> --until 1551
+reference godot/tests/reference/idle_24681357.jsonl.gz (original-chromium, 1551 steps, seed 24681357, script idle)
+port      <scratch>/port/idle_24681357.jsonl.gz (godot-port, 1551 steps, seed 24681357, script idle)
+compared steps 1..1551, bit-exact
+
+group         result    first step  differing steps   detail
+player        same      -           0 of 1551         
+camera        same      -           0 of 1551         
+wave          same      -           0 of 1551         
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+======================================================================
+== zigzag_424242
+======================================================================
+$ tools/emit_port_trace.sh godot/tests/reference/zigzag_424242.jsonl.gz <port trace>
+emit_port_trace: 1704 steps of zigzag_424242.jsonl.gz (seed 424242, zigzag) -> <scratch>/port/zigzag_424242.jsonl.gz in 599 ms
+-> exit code 0
+port trace: 124013 bytes
+
+reference boundaries (header.boundaries, computed from the reference trace): first contact effect at step 1705, first weapon shot at step 3, trace has 1704 steps (a value of steps+1 means: never)
+
+$ node tools/compare_trace.mjs godot/tests/reference/zigzag_424242.jsonl.gz <port trace> --fields <movement set> --until 1704
+reference godot/tests/reference/zigzag_424242.jsonl.gz (original-chromium, 1704 steps, seed 424242, script zigzag)
+port      <scratch>/port/zigzag_424242.jsonl.gz (godot-port, 1704 steps, seed 424242, script zigzag)
+compared steps 1..1704, bit-exact
+
+group         result    first step  differing steps   detail
+player        same      -           0 of 1704         
+camera        same      -           0 of 1704         
+wave          same      -           0 of 1704         
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+======================================================================
+== zigzag_24681357
+======================================================================
+$ tools/emit_port_trace.sh godot/tests/reference/zigzag_24681357.jsonl.gz <port trace>
+emit_port_trace: 1710 steps of zigzag_24681357.jsonl.gz (seed 24681357, zigzag) -> <scratch>/port/zigzag_24681357.jsonl.gz in 449 ms
+-> exit code 0
+port trace: 124470 bytes
+
+reference boundaries (header.boundaries, computed from the reference trace): first contact effect at step 1711, first weapon shot at step 2, trace has 1710 steps (a value of steps+1 means: never)
+
+$ node tools/compare_trace.mjs godot/tests/reference/zigzag_24681357.jsonl.gz <port trace> --fields <movement set> --until 1710
+reference godot/tests/reference/zigzag_24681357.jsonl.gz (original-chromium, 1710 steps, seed 24681357, script zigzag)
+port      <scratch>/port/zigzag_24681357.jsonl.gz (godot-port, 1710 steps, seed 24681357, script zigzag)
+compared steps 1..1710, bit-exact
+
+group         result    first step  differing steps   detail
+player        same      -           0 of 1710         
+camera        same      -           0 of 1710         
+wave          same      -           0 of 1710         
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+======================================================================
+== zigzag_424242_longrun
+======================================================================
+$ tools/emit_port_trace.sh godot/tests/reference/zigzag_424242_longrun.jsonl.gz <port trace>
+emit_port_trace: 5400 steps of zigzag_424242_longrun.jsonl.gz (seed 424242, zigzag) -> <scratch>/port/zigzag_424242_longrun.jsonl.gz in 1598 ms
+-> exit code 0
+port trace: 389242 bytes
+
+reference boundaries (header.boundaries, computed from the reference trace): first contact effect at step 2835, first weapon shot at step 3, trace has 5400 steps (a value of steps+1 means: never)
+
+$ node tools/compare_trace.mjs godot/tests/reference/zigzag_424242_longrun.jsonl.gz <port trace> --fields <movement set> --until 2834
+reference godot/tests/reference/zigzag_424242_longrun.jsonl.gz (original-chromium, 5400 steps, seed 424242, script zigzag)
+port      <scratch>/port/zigzag_424242_longrun.jsonl.gz (godot-port, 5400 steps, seed 424242, script zigzag)
+compared steps 1..2834, bit-exact
+
+group         result    first step  differing steps   detail
+player        same      -           0 of 2834         
+camera        same      -           0 of 2834         
+wave          same      -           0 of 2834         
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+# one step further: the first contact hit must show up
+$ node tools/compare_trace.mjs godot/tests/reference/zigzag_424242_longrun.jsonl.gz <port trace> --fields <movement set> --until 2835
+reference godot/tests/reference/zigzag_424242_longrun.jsonl.gz (original-chromium, 5400 steps, seed 424242, script zigzag)
+port      <scratch>/port/zigzag_424242_longrun.jsonl.gz (godot-port, 5400 steps, seed 424242, script zigzag)
+compared steps 1..2835, bit-exact
+
+group         result    first step  differing steps   detail
+player        DIFFERS   2835        1 of 2835         x
+camera        same      -           0 of 2835         
+wave          same      -           0 of 2835         
+
+first divergence per group:
+  player, first at step 2835, field x
+      reference: 12981.819965423763 (40c95ae8f4a08375)
+      port:      12982.150757594894 (40c95b134c065dd9)
+      port - reference = 0.3307921711311792, 181854919268 ulp
+      every diverging field, with its first step: x@2835 y@2835 hp@2835 lastHit@2835
+
+RESULT: DIFFERENT (1 group diverge)
+-> exit code 1
+
+
+----------------------------------------------------------------------
+2. Everything both traces carry (default selection): what step S5 / S6 will have to bring in line
+----------------------------------------------------------------------
+(counts.particles is no longer in the default selection: it depends on effects; the new director and enemy fields appear under 'wave' and 'enemies')
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_424242.jsonl.gz <port trace>
+reference godot/tests/reference/dirs8_424242.jsonl.gz (original-chromium, 834 steps, seed 424242, script dirs8)
+port      <scratch>/port/dirs8_424242.jsonl.gz (godot-port, 834 steps, seed 424242, script dirs8)
+compared steps 1..834, bit-exact
+not carried by the port, not compared: enemies: maxHp, r, speed, facing, aiState, shootCd, aiTimer, abilityCd, strafeDir, aiSeed, thinkCd, animPhase, tacticCd, dotNumberTimer, damage, spawnWave, flash, telegraph, attackAnim, tacticPulse
+not carried by the port, not compared: projectiles: x, y, vx, vy, life, age, r, damage, weapon
+not carried by the port, not compared: xp_orbs: x, y, value, r
+
+group         result    first step  differing steps   detail
+steps         same      -           0 of 1            
+state         same      -           0 of 834          
+input         same      -           0 of 834          
+draws         DIFFERS   1           834 of 834        draws
+slot_draws    DIFFERS   1           157 of 834        main:5
+outside_draws same      -           0 of 834          
+counts        DIFFERS   1           834 of 834        enemies
+player        DIFFERS   3           832 of 834        lastFacing
+camera        DIFFERS   587         248 of 834        x
+wave          DIFFERS   1           834 of 834        waveClock
+enemies       DIFFERS   1           834 of 834        length
+projectiles   DIFFERS   12          680 of 834        length
+xp_orbs       DIFFERS   152         683 of 834        length
+
+first divergence per group:
+  draws, first at step 1, field draws
+      reference: 28
+      port:      1
+      port - reference = -27
+  slot_draws, first at step 1, field main:5
+      reference: 27
+      port:      0
+      slot wave/progress
+      every diverging field, with its first step: main:5@1 main:29@74 main:31@152 main:15@586
+  counts, first at step 1, field enemies
+      reference: 2
+      port:      0
+      every diverging field, with its first step: enemies@1 projectiles@12 xp_orbs@152
+  player, first at step 3, field lastFacing
+      reference: 2.1581854904703706 (400143f6c1222cfa)
+      port:      0 (0000000000000000)
+      port - reference = -2.1581854904703706, 4612042220485356794 ulp
+      every diverging field, with its first step: lastFacing@3 attackAnim@3 attackAngle@3 xp@576 x@586 y@586 hp@586 lastHit@586 prevX@587 prevY@587 level@834 xpNext@834 xpBaseNext@834
+  camera, first at step 587, field x
+      reference: 13263.20569025405 (40c9e79a540ee920)
+      port:      13265.906623589 (40c9e8f40c3de445)
+      port - reference = 2.700933334950605, 1484853803813 ulp
+      every diverging field, with its first step: x@587 y@587 prevX@588 prevY@588
+  wave, first at step 1, field waveClock
+      reference: 35.983333333333334 (4041fdddddddddde)
+      port:      36 (4042000000000000)
+      port - reference = 0.01666666666666572, 2345624805922 ulp
+      every diverging field, with its first step: waveClock@1 directorClock@1 spawnBudget@1 nextEnemyId@1 pendingDirectorEnemyKind@1 enemiesVersion@1 themeTotalSpawned@1 themeCounts@1 kills@152 damageFlash@586 pendingLevelUps@834 levelUpChoiceReadyAt@834
+  enemies, first at step 1, field length
+      reference: 2
+      port:      0
+      ids reference [1,2] port []
+  projectiles, first at step 12, field length
+      reference: 1
+      port:      0
+  xp_orbs, first at step 152, field length
+      reference: 1
+      port:      0
+
+RESULT: DIFFERENT (9 groups diverge)
+-> exit code 1
+
+$ node tools/compare_trace.mjs godot/tests/reference/zigzag_424242_longrun.jsonl.gz <port trace>
+reference godot/tests/reference/zigzag_424242_longrun.jsonl.gz (original-chromium, 5400 steps, seed 424242, script zigzag)
+port      <scratch>/port/zigzag_424242_longrun.jsonl.gz (godot-port, 5400 steps, seed 424242, script zigzag)
+compared steps 1..5400, bit-exact
+not carried by the port, not compared: enemies: maxHp, r, speed, facing, aiState, shootCd, aiTimer, abilityCd, strafeDir, aiSeed, thinkCd, animPhase, tacticCd, dotNumberTimer, damage, spawnWave, flash, telegraph, attackAnim, tacticPulse
+not carried by the port, not compared: projectiles: x, y, vx, vy, life, age, r, damage, weapon
+not carried by the port, not compared: xp_orbs: x, y, value, r
+
+group         result    first step  differing steps   detail
+steps         same      -           0 of 1            
+state         same      -           0 of 5400         
+input         same      -           0 of 5400         
+draws         DIFFERS   1           5400 of 5400      draws
+slot_draws    DIFFERS   1           1112 of 5400      main:5
+outside_draws same      -           0 of 5400         
+counts        DIFFERS   1           5400 of 5400      enemies
+player        DIFFERS   3           5398 of 5400      lastFacing
+camera        DIFFERS   2836        2565 of 5400      x
+wave          DIFFERS   1           5400 of 5400      waveClock
+enemies       DIFFERS   1           5400 of 5400      length
+projectiles   DIFFERS   12          2821 of 5400      length
+xp_orbs       DIFFERS   118         5283 of 5400      length
+
+first divergence per group:
+  draws, first at step 1, field draws
+      reference: 28
+      port:      1
+      port - reference = -27
+  slot_draws, first at step 1, field main:5
+      reference: 27
+      port:      0
+      slot wave/progress
+      every diverging field, with its first step: main:5@1 main:29@73 main:31@118 main:15@2835
+  counts, first at step 1, field enemies
+      reference: 2
+      port:      0
+      every diverging field, with its first step: enemies@1 projectiles@12 xp_orbs@118
+  player, first at step 3, field lastFacing
+      reference: 2.1581854904703706 (400143f6c1222cfa)
+      port:      0 (0000000000000000)
+      port - reference = -2.1581854904703706, 4612042220485356794 ulp
+      every diverging field, with its first step: lastFacing@3 attackAnim@3 attackAngle@3 xp@1356 x@2835 y@2835 hp@2835 lastHit@2835 prevX@2836 prevY@2836
+  camera, first at step 2836, field x
+      reference: 12987.94032410171 (40c95df85c8a483e)
+      port:      12987.984429724527 (40c95dfe01cb1007)
+      port - reference = 0.044105622817369294, 24247322569 ulp
+      every diverging field, with its first step: x@2836 y@2836 prevX@2837 prevY@2837
+  wave, first at step 1, field waveClock
+      reference: 35.983333333333334 (4041fdddddddddde)
+      port:      36 (4042000000000000)
+      port - reference = 0.01666666666666572, 2345624805922 ulp
+      every diverging field, with its first step: waveClock@1 directorClock@1 spawnBudget@1 nextEnemyId@1 pendingDirectorEnemyKind@1 enemiesVersion@1 themeTotalSpawned@1 themeCounts@1 kills@118 wave@2161 waveFeaturedChangeChance@2161 enemyAiSkill@2161 themeWave@2161 themeChangeChance@2161 featuredEnemyHistory@2161 damageFlash@2835 themeBaseKind@4322 themeFeaturedKind@4322 themeRecentMixed@4355
+  enemies, first at step 1, field length
+      reference: 2
+      port:      0
+      ids reference [1,2] port []
+  projectiles, first at step 12, field length
+      reference: 1
+      port:      0
+  xp_orbs, first at step 118, field length
+      reference: 1
+      port:      0
+
+RESULT: DIFFERENT (9 groups diverge)
+-> exit code 1
+
+Reading the first block: the first divergence per field is the schedule of the next steps: draws and wave/director fields at step 1 (S5: the director draws 27
+values on the first tick), the weapon's attack fields at step 3 (S6), xp at 576 and kills at 152 (S6), the contact at 586 (S5), the camera one step after the push.
+
+----------------------------------------------------------------------
+3. The comparator cannot pass on nothing (review findings: --until beyond the end, empty trace, list length, particles)
+----------------------------------------------------------------------
+# finding: --until beyond the end of a truncated port trace used to print 'compared steps 1..100 ... RESULT: SAME' (exit 0)
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_424242.jsonl.gz <dirs8_424242 cut to 100 steps> --until 585
+reference godot/tests/reference/dirs8_424242.jsonl.gz (original-chromium, 834 steps, seed 424242, script dirs8)
+port      <scratch>/guard/trunc100.jsonl.gz (original-chromium, 100 steps, seed 424242, script dirs8)
+compared steps 1..100, bit-exact
+
+enemies       same      -           0 of 100          
+projectiles   same      -           0 of 100          
+xp_orbs       same      -           0 of 100          
+
+first divergence per group:
+  steps, first at step 101, field count
+      reference: 834 steps
+      port:      100 steps
+      --until 585 asks for steps 101..585, which the port trace does not have (reference 834 steps, port 100 steps)
+
+RESULT: DIFFERENT (1 group diverge)
+-> exit code 1
+
+# finding: a port trace with only the header (0 steps), --until 585 --fields player used to print 'compared steps 1..0 ... RESULT: SAME' (exit 0; see zero_before below)
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_424242.jsonl.gz <header only> --until 585 --fields player
+reference godot/tests/reference/dirs8_424242.jsonl.gz (original-chromium, 834 steps, seed 424242, script dirs8)
+port      <scratch>/guard/zero.jsonl (original-chromium, 0 steps, seed 424242, script dirs8)
+compared steps 1..0, bit-exact
+
+group         result    first step  differing steps   detail
+steps         DIFFERS   1           1 of 1            count
+
+first divergence per group:
+  steps, first at step 1, field count
+      reference: 834 steps
+      port:      0 steps
+      --until 585 asks for steps 1..585, which the port trace does not have (reference 834 steps, port 0 steps); no step is compared: steps 1..0 (reference 834 steps, port 0 steps, --until 585)
+
+RESULT: DIFFERENT (1 group diverge)
+-> exit code 1
+
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_424242.jsonl.gz <header only> --fields player      (no --until: the lengths differ)
+
+first divergence per group:
+  steps, first at step 1, field count
+      reference: 834 steps
+      port:      0 steps
+      the traces have a different number of steps (reference 834, port 0); --until 0 compares the common prefix; no step is compared: steps 1..0 (reference 834 steps, port 0 steps)
+
+RESULT: DIFFERENT (1 group diverge)
+-> exit code 1
+
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_424242.jsonl.gz godot/tests/reference/dirs8_424242.jsonl.gz --from 835 --fields player      (a range past the end)
+first divergence per group:
+  steps, first at step 835, field count
+      reference: 834 steps
+      port:      834 steps
+      no step is compared: steps 835..834 (reference 834 steps, port 834 steps)
+
+RESULT: DIFFERENT (1 group diverge)
+-> exit code 1
+
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_424242.jsonl.gz godot/tests/reference/dirs8_424242.jsonl.gz --from 600 --until 500          (a usage error)
+compare_trace: usage: --from 600 is after --until 500: no step would be compared
+-> exit code 2
+
+# finding: --fields enemies.x did not check the list length (one extra enemy from step 400)
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_424242.jsonl.gz <one extra enemy from step 400> --fields enemies.x
+compared steps 1..834, bit-exact
+
+group         result    first step  differing steps   detail
+enemies       DIFFERS   400         435 of 834        length
+
+first divergence per group:
+  enemies, first at step 400, field length
+      reference: 6
+      port:      7
+      ids reference [7,9,5,4,8,10] port [7,9,5,4,8,10,9999]
+
+RESULT: DIFFERENT (1 group diverge)
+-> exit code 1
+
+# finding: counts.particles differs in 139 of 834 steps (effects, not gameplay)
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_424242.jsonl.gz <particles +1 in every 6th step>                       (default selection)
+
+RESULT: SAME in the selected fields
+-> exit code 0
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_424242.jsonl.gz <particles +1 in every 6th step> --fields counts.particles  (named)
+group         result    first step  differing steps   detail
+counts        DIFFERS   6           139 of 834        particles
+
+first divergence per group:
+  counts, first at step 6, field particles
+      reference: 0
+      port:      1
+
+RESULT: DIFFERENT (1 group diverge)
+-> exit code 1
+
+# before the fix (observed on the unfixed script): trunc100 --until 585 -> RESULT: SAME exit 0; header-only --until 585 --fields player ->
+port      /tmp/claude-0/-home-user-project-ab/36c1a11d-6a97-57da-98e3-4ad67f95aea2/scratchpad/s4/review/zero.jsonl (original-chromium, 0 steps, seed 424242, script dirs8)
+compared steps 1..0, bit-exact
+
+group         result    first step  differing steps   detail
+
+RESULT: SAME in the selected fields
+
+----------------------------------------------------------------------
+4. Does the check notice a wrong port? (perturbations of the sim, each reverted byte for byte; git diff godot/sim was empty afterwards)
+----------------------------------------------------------------------
+godot/sim/systems/camera_follow_system.gd: 'dt * 8.0' changed to 'dt * 8.0000001' -> tools/run_godot_tests.sh reference_trace:
+FAIL  test_reference_trace.gd::test_the_sim_matches_each_reference_trace_up_to_the_first_effect_it_does_not_have
+        - dirs8_424242.jsonl.gz step 1 camera.x: reference 13000.4 (40c9643333333333), port 13000.400000005 (40c9643333333df0)
+Summary: 9/10 passed, 1 failed, 518 assertions
+RESULT: FAIL
+
+godot/sim/systems/player_movement_system.gd: `p.last_facing = JsMath.atan2(p.vy, p.vx)` changed to `JsMath.atan2(p.vx, p.vy)` (the first version of the animation tier could not see this):
+FAIL  test_reference_trace.gd::test_the_sim_matches_each_reference_trace_up_to_the_first_effect_it_does_not_have
+        - dirs8_424242.jsonl.gz step 1 player.lastFacing: reference 0.0 (0000000000000000), port 1.5707963267949 (3ff921fb54442d18) (teacher-forced from step 0)
+        - zigzag_424242_longrun.jsonl.gz step 1 player.lastFacing: reference 0.0 (0000000000000000), port 1.5707963267949 (3ff921fb54442d18) (teacher-forced from step 0)
+Summary: 9/10 passed, 1 failed, 508 assertions
+RESULT: FAIL
+
+godot/sim/systems/player_movement_system.gd: `p.attack_anim - dt` changed to `p.attack_anim - dt * 1.0000001` (the countdown):
+FAIL  test_reference_trace.gd::test_the_sim_matches_each_reference_trace_up_to_the_first_effect_it_does_not_have
+        - dirs8_424242.jsonl.gz step 4 player.attackAnim: reference 0.26333333333333 (3fd0da740da740db), port 0.26333333166667 (3fd0da740bdd1f9d) (teacher-forced from step 3)
+        - zigzag_424242_longrun.jsonl.gz step 4 player.attackAnim: reference 0.26333333333333 (3fd0da740da740db), port 0.26333333166667 (3fd0da740bdd1f9d) (teacher-forced from step 3)
+Summary: 9/10 passed, 1 failed, 508 assertions
+RESULT: FAIL
+
+after each run the file was restored (sha256 equal to the saved copy) and `git diff --stat godot/sim` printed nothing.

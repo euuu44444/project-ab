@@ -1,0 +1,77 @@
+S3 evidence: debug APK with the simulation foundation
+date: 2026-10-19    Godot 4.7.2-stable (Android export template, no Gradle)    rebuilt after the review fixes (same size in bytes)
+command: tools/build_android.sh --apk export/ElementalSwarm_engine_s3_debug.apk --evidence-dir <scratch>     -> exit code 0, RESULT: PASS
+         (it runs tools/run_godot_tests.sh first: assets check, generated-data check, import, 120 tests; then export, signature and manifest checks)
+output:  export/ElementalSwarm_engine_s3_debug.apk (gitignored; the S1 and S2 APKs in export/ were left untouched)
+         58317128 bytes (S2: 58187988, +129140 = +0.22 %)
+         sha256 530e198f48e8b2b3d6c9ce06841bc67a85bc0a629a0fdb2483e90e7bacc6f388   (signed with the throwaway DEBUG keystore only)
+tools/build_android.sh itself was NOT changed in this step (it is not an S3-owned file); the sim-specific APK checks below were done by hand.
+
+----------------------------------------------------------------------
+1. Summary printed by tools/build_android.sh (16 PASS, 1 WARN) - identical in kind to S2
+----------------------------------------------------------------------
+Elemental Swarm Engine - Android debug build
+apk: /home/user/project-ab/export/ElementalSwarm_engine_s3_debug.apk
+
+PASS tests - 120/120 passed, 0 failed, 7175 assertions
+PASS export - 58317128 bytes
+PASS apksigner verify - v2,v3 verified
+PASS signed with the debug keystore - certificate sha256 351abaa1580f2fbd...
+PASS zipalign -c -P 16 -v 4 - stored entries are 16 KiB / 4-byte aligned
+PASS package name - com.elementalswarm.engine
+PASS versionCode - 1
+PASS versionName - 0.1.0-s1
+PASS application label - Elemental Swarm Engine
+PASS native-code ABIs - arm64-v8a armeabi-v7a
+PASS launcher intent - MAIN + LAUNCHER declared
+PASS screenOrientation - 13 (fullUser), accepted by the user on 2026-10-19 (design 6.1): the system rotation lock applies; Godot 4.7.2's non-Gradle exporter cannot emit 10
+PASS SDK levels - minSdkVersion=24 targetSdkVersion=36
+PASS ELF 16 KiB alignment - 2 64-bit librar(ies), every LOAD segment aligned to >= 0x4000
+PASS permissions - none requested or declared
+WARN provider authorities - duplicate authority in the exported manifest: com.elementalswarm.engine.fileprovider (Godot 4.7.2 exporter behaviour; see tools/build_android.sh)
+PASS atlas assets - 14 textures (.ctex, 493134 bytes) + atlas_layout.json + atlas_manifest.json are in the APK
+
+RESULT: PASS
+
+The WARN (duplicate FileProvider authority) is Godot 4.7.2's exporter behaviour and unchanged since S1.
+
+----------------------------------------------------------------------
+2. What the simulation adds to the APK  [checked by hand with unzip -v]
+----------------------------------------------------------------------
+  assets/sim/*: 81 entries, 124598 bytes (102603 deflated)
+    38 compiled scripts (.gdc) 91019 bytes, 38 .gd.remap files, 5 definition tables (.json) 31869 bytes
+  assets/main.gdc 2434 bytes (the S3 main.gd that creates and steps the Sim)
+  entries below tests/: 0 (exclude_filter="tests/*"; the 8 MB golden vectors and the GDScript tests are not shipped)
+  uncompiled .gd / .uid files in the APK: 0
+
+  the five definition tables (the Sim cannot start without them):
+       10649     3928  assets/sim/defs/characters.json
+        3623     1368  assets/sim/defs/enemies.json
+        1196      492  assets/sim/defs/limits.json
+        5230     1378  assets/sim/defs/rules.json
+       11171     3714  assets/sim/defs/weapons.json
+
+----------------------------------------------------------------------
+3. The packed simulation runs  [measured now]
+----------------------------------------------------------------------
+The Android export was also written as a PCK and started with a desktop Godot binary:
+  $ swarm_godot --headless --path godot --export-pack Android final.pck          -> exit code 0, 739480 bytes (re-run after the review fixes; 739192 before)
+  $ swarm_godot --headless --main-pack final.pck --quit-after 300 -- --seed=1    -> exit code 0, no ERROR / SCRIPT ERROR line
+  $ swarm_godot --headless --main-pack final.pck --quit-after 300 -- --seed=2    -> exit code 0, no ERROR / SCRIPT ERROR line
+main.gd._ready() builds a catalyst Sim (Sim.new_game -> Defs loads the five JSON tables from the pack -> GameState.create) and _physics_process steps it
+300 frames, all from the compiled .gdc files. Negative control: a project copy WITHOUT sim/defs/*.json, exported the same way, prints
+  ERROR: Defs: res://sim/defs/characters.json does not exist ... (backtrace through Sim.new_game, called from main.gd:35 _ready)
+so the run above would have noticed a missing table. (An APK on a device cannot be started here: no device or emulator.)
+
+----------------------------------------------------------------------
+4. Finding about the export filter (corrects the comment of implementer G)
+----------------------------------------------------------------------
+godot/export_presets.cfg got include_filter="sim/defs/*.json" in this step (S1 file; test_defs.gd guards it). Implementer G reported that without it the
+PCK holds no sim/defs/*.json. That was NOT reproduced: two project copies with include_filter="" (one with the existing .godot cache, one without .godot
+and re-imported) both packed all five JSON files with export_filter="all_resources" (Godot 4.7.2 treats .json as a resource) and nothing from tests/.
+The filter is kept because it makes the shipping explicit instead of relying on that engine behaviour; the comment in test_defs.gd was corrected and
+no longer claims that Godot refuses to export .json files.
+
+Open point for the owner of tools/build_android.sh: add an 'sim definitions' check next to 'atlas assets' (the five sim/defs/*.json and the 38 sim
+.gdc files are in the APK, no tests/ entry), so that a future export change cannot drop them unnoticed. Not done here because the script is outside the
+S3-owned file list.
