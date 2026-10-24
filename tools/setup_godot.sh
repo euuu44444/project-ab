@@ -16,6 +16,9 @@ USER_JAVA_HOME="${JAVA_HOME:-}"   # taken before toolchain.sh replaces it with t
 SWARM_TOOLCHAIN_SKIP_CHECK=1
 # shellcheck source=lib/toolchain.sh
 source "$SCRIPT_DIR/lib/toolchain.sh" || exit 1
+SETUP_LOG_TAG="setup"   # assigned, not defaulted: a SETUP_LOG_TAG in the user's environment must not leak into the log
+# shellcheck source=lib/setup_common.sh
+source "$SCRIPT_DIR/lib/setup_common.sh" || exit 1   # log, die, take_setup_lock, fetch_verified, stamps, staging
 
 # ---- Pinned downloads ---------------------------------------------------------------------------
 # Godot: the two SHA-512 values are the ones in the release's official SHA512-SUMS.txt.
@@ -48,10 +51,7 @@ ANDROID_TEMPLATE_FILES=(android_debug.apk android_release.apk android_source.zip
 DEBUG_KEY_ALIAS="androiddebugkey"
 DEBUG_KEY_PASS="android"   # Android's public debug-keystore convention; not a secret
 
-# ---- Helpers ------------------------------------------------------------------------------------
-log() { printf '[setup] %s\n' "$*"; }
-die() { printf '[setup] ERROR: %s\n' "$*" >&2; exit 1; }
-
+# ---- Usage --------------------------------------------------------------------------------------
 usage() {
   cat <<EOF
 Usage: tools/setup_godot.sh
@@ -63,122 +63,6 @@ Scripts then use:  source tools/lib/toolchain.sh   (exports GODOT_BIN, ANDROID_S
 EOF
 }
 
-STAGING=""
-STAGING_DIRS=()
-cleanup() {
-  local d
-  for d in ${STAGING_DIRS[@]+"${STAGING_DIRS[@]}"}; do
-    [[ "$d" == "$SWARM_CACHE_DIR"/.staging.* ]] && rm -rf -- "$d"
-  done
-  return 0
-}
-trap cleanup EXIT
-
-make_staging() {
-  STAGING="$(mktemp -d "$SWARM_CACHE_DIR/.staging.XXXXXX")"
-  STAGING_DIRS+=("$STAGING")
-}
-
-remove_cache_tree() {
-  [[ "$1" == "$SWARM_CACHE_DIR"/?* ]] || die "refusing to delete outside the cache dir: $1"
-  rm -rf -- "$1"
-}
-
-hash_of() { # algo file
-  case "$1" in
-    sha1) sha1sum -- "$2" ;;
-    sha256) sha256sum -- "$2" ;;
-    sha512) sha512sum -- "$2" ;;
-    *) die "unknown hash algorithm: $1" ;;
-  esac | cut -d' ' -f1
-}
-
-# check_file FILE SIZE ALGO:HASH...  -> 0 only if the size and every hash match
-check_file() {
-  local file=$1 size=$2 pair got
-  shift 2
-  [[ -f "$file" ]] || return 1
-  [[ "$(stat -c %s -- "$file")" == "$size" ]] || return 1
-  for pair in "$@"; do
-    got="$(hash_of "${pair%%:*}" "$file")"
-    [[ "$got" == "${pair#*:}" ]] || return 1
-  done
-}
-
-# fetch_verified NAME URL SIZE ALGO:HASH...  -> $SWARM_DOWNLOAD_DIR/NAME, verified
-fetch_verified() {
-  local name=$1 url=$2 size=$3 rc
-  shift 3
-  local dest="$SWARM_DOWNLOAD_DIR/$name" part="$SWARM_DOWNLOAD_DIR/$name.part"
-  local progress=(-sS)
-  [[ -t 2 ]] && progress=(--progress-bar)
-
-  if check_file "$dest" "$size" "$@"; then
-    log "OK (verified, cached): $name"
-    return 0
-  fi
-  if [[ -e "$dest" ]]; then
-    log "cached file failed verification; discarding: $name"
-    rm -f -- "$dest"
-  fi
-  # An interrupted run may have left a complete .part that only lacks the final rename.
-  if ! check_file "$part" "$size" "$@"; then
-    log "downloading $name ($size bytes)"
-    rc=0
-    curl -fL --retry 4 --retry-delay 3 --retry-connrefused -C - "${progress[@]}" -o "$part" "$url" || rc=$?
-    if ((rc == 33)); then # 33 = the server rejects the range request: only then is the partial file useless
-      log "cannot resume; restarting from scratch: $name"
-      rm -f -- "$part"
-      curl -fL --retry 4 --retry-delay 3 --retry-connrefused "${progress[@]}" -o "$part" "$url" || die "download failed: $url"
-    elif ((rc != 0)); then
-      die "download failed (curl exit $rc): $url (the partial file was kept; re-run to resume)"
-    fi
-  fi
-  if ! check_file "$part" "$size" "$@"; then
-    rm -f -- "$part"
-    die "size/hash mismatch for $name; the file was discarded and nothing was extracted"
-  fi
-  mv -f -- "$part" "$dest"
-  log "OK (downloaded, verified): $name"
-}
-
-# Reject archives with absolute paths, '..' components or symlinks before extracting.
-assert_safe_zip() {
-  local listing bad
-  listing="$(unzip -Z1 -- "$1")" || die "cannot list the entries of $1"
-  [[ -n "$listing" ]] || die "archive has no entries: $1"
-  bad="$(grep -E '^/|(^|/)\.\.(/|$)' <<<"$listing" || true)"
-  [[ -z "$bad" ]] || die "unsafe path in archive $1: $bad"
-  listing="$(unzip -Z -- "$1")" || die "cannot list the entries of $1"
-  bad="$(grep -E '^l' <<<"$listing" || true)"
-  [[ -z "$bad" ]] || die "symlink entry in archive $1: $bad"
-}
-
-# stamp_write DIR STAMPNAME [RELFILE...]: record sha256 of the installed files (all files if none given)
-stamp_write() {
-  local dir=$1 stamp=$2
-  shift 2
-  (
-    cd -- "$dir"
-    if (($# > 0)); then
-      printf '%s\0' "$@"
-    else
-      find . ! -type d ! -path "./$stamp" -print0 | LC_ALL=C sort -z
-    fi | xargs -0 -r sha256sum -- >"$stamp"
-  )
-}
-# stamp_ok DIR STAMPNAME [all]: the stamped files are unchanged; with "all" the directory must also
-# hold nothing else (a file added to an installed tree counts as a change, so it is re-extracted).
-stamp_ok() {
-  local stamped present
-  [[ -s "$1/$2" ]] || return 1
-  (cd -- "$1" && sha256sum --quiet --strict -c -- "$2" >/dev/null 2>&1) || return 1
-  [[ "${3:-}" == all ]] || return 0
-  stamped="$(sed 's/^[0-9a-f]\{64\}  \(\.\/\)\{0,1\}//' "$1/$2" | LC_ALL=C sort)"
-  present="$(cd -- "$1" && find . ! -type d ! -path "./$2" -print | sed 's|^\./||' | LC_ALL=C sort)"
-  [[ "$stamped" == "$present" ]]
-}
-
 # ---- Steps --------------------------------------------------------------------------------------
 preflight() {
   [[ "$(uname -s)" == "Linux" && "$(uname -m)" == "x86_64" ]] || die "Linux x86_64 only (got $(uname -s) $(uname -m))"
@@ -187,8 +71,7 @@ preflight() {
     command -v "$c" >/dev/null 2>&1 || die "required command not found: $c"
   done
   mkdir -p "$SWARM_CACHE_DIR" "$SWARM_DOWNLOAD_DIR"
-  exec 9>"$SWARM_CACHE_DIR/.setup.lock"
-  flock -n 9 || die "another setup_godot.sh is already running for $SWARM_CACHE_DIR"
+  take_setup_lock
 }
 
 resolve_java() {

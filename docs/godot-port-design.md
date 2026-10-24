@@ -324,7 +324,23 @@ S1 で実際に組んだ構成である。
    - zipalign での 16KiB 配置
    - パッケージ名、バージョン、ABI、SDK 水準
    - ネイティブライブラリの 16KiB 境界
-8. 【事実：S1 で確認】書き出した APK では、FileProvider と androidx.startup の InitializationProvider が同じ authority を持っている。Godot 4.7.2 の書き出し処理がすべての provider の authority を `<パッケージ名>.fileprovider` に書き換えるためである。端末での影響は【未確認】で、`build_android.sh` は警告として表示する。
+9. C++（GDExtension）のビルド環境【事実：C1 で構築】：
+   - `tools/setup_cpp.sh` が、次の3つを版を固定して取得し、照合してからキャッシュに入れる。
+     - Android NDK r28b（28.1.13356709、サイズ・SHA-1・SHA-256 で照合）
+     - godot-cpp（master のコミット `8070599`、api_version=4.7。Godot 4.7.2 自身が出力する API と一致することを毎回確かめる）
+     - SCons 4.10.1（ハッシュを固定した仮想環境）
+   - テスト用に PC 向けだけを取得するモード（`--host-only`）もある。
+   - `native/SConstruct` は、浮動小数に関わるコンパイラー設定を許可リストで検査する。`-ffp-contract=off -fno-fast-math -O2` 以外は使えない。
+   - `tools/build_native.sh` は、全6種（Linux x86_64 と Android arm64/armv7、それぞれ debug/release）をビルドし、出力を検査する。
+     - 自前のオブジェクトに融合命令（FMA）がないこと（逆アセンブルで確認）
+     - 16KiB 境界
+     - 依存ライブラリ（Android は libc/libm/libdl だけ）
+     - 絶対パスが埋め込まれていないこと
+   - godot-cpp は必要なクラスだけをビルドする（`native/build_profile.json`）。全6種のビルドは約47秒、テスト前の PC 向けビルドは約8秒である。
+   - Godot 4.7.2 は、作業ツリーを新しく取り出した直後の初回の取り込みで、C++ 拡張を読み込むと異常終了することがある。対策として、`tools/lib/godot_project.sh` が拡張の一覧ファイルを先に作る。
+   - 書き出した APK では、拡張は `lib/arm64-v8a/` と `lib/armeabi-v7a/` に入る。
+   - arm64/armv7 の実行は、qemu-user（PC 上で ARM 用のプログラムを動かすツール）で確かめた。実機では確認していない。
+10. 【事実：S1 で確認】書き出した APK では、FileProvider と androidx.startup の InitializationProvider が同じ authority を持っている。Godot 4.7.2 の書き出し処理がすべての provider の authority を `<パッケージ名>.fileprovider` に書き換えるためである。端末での影響は【未確認】で、`build_android.sh` は警告として表示する。
 
 ## 11. 実装手順（各手順の前後でユーザーの確認を取る）
 
@@ -345,6 +361,21 @@ S1 で実際に組んだ構成である。
   - テスト専用の仕組みは、未移植の projectile/player の乱数の空引きと、撃破の強制だけを補った。
   - W1〜W4 を通した 8,640 ステップの検証用トレース（コミットしていない）でも一致した。
   - M1 用の終了処理として、W4 終了時に勝利で終わる処理（`WaveRules.M1_LAST_WAVE = 4`）を加えた。
+- C1 の結果【事実】：C++ 拡張を全6種でビルドでき、Godot（PC）で読み込めることと、APK に同梱されることを確かめた。テスト210件はすべて合格した。
+- C2 以降で C++ の戦闘処理に適用する規則（C1 レビューの推奨を採用）：
+  1. 構成：
+     - `native/src/sim/` は Godot に依存しない純粋な C++17 にする。数学、乱数、状態、システムの順に追加していく。
+     - LGPL の sin/cos は独立したライブラリとして分け、ライセンスの写しと由来を添える。
+     - Godot との受け渡し部分は別ディレクトリに置く。値は PackedFloat64Array/PackedInt64Array で受け渡す（Vector2 や real_t は32ビットなので使わない）。
+  2. 正解値（`godot/tests/golden/`）の照合を、C++ 単体のテストプログラムでも行う。対象は x86_64、arm64、armv7 で、ARM は qemu-user で動かす。
+  3. 禁止事項：
+     - `float`、`long double`、`long`（armv7 では32ビット）
+     - `std::sort`（不安定で、ライブラリごとに順序が違う）。安定ソートを使う
+     - `unordered_*` を順に走査すること
+     - `<random>`、FP 関連の pragma、`fma`、スレッド
+     - 範囲外の double を整数へキャストすること（未定義動作）。JS の ToInt32 は明示的に実装する
+  4. NaN は比較やハッシュに生のビット列を使わない。x86 と ARM で NaN のビット列が異なる【事実：C1 で計測】。
+  5. デバッグ版では、実行開始時に浮動小数の環境（丸めモード、flush-to-zero なし）を検査する。
 - S5 から持ち越す事項：
   - S6：テスト専用の仕組みによる弾の注入と乱数の空引きをやめ、自前の弾で照合する。ビット一致のままの最適化を入れる。W4 の照合をコミットする（ステップごとのハッシュなど）。
   - S7：粒子の数を元と同じに保つ。粒子が1,100個以上になると、ダメージ数字の表示が乱数を引かなくなり、乱数の消費がずれるためである。

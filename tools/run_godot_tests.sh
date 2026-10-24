@@ -5,6 +5,15 @@
 # contains no engine/script errors. The project is imported first on every run (incremental: only
 # new or changed assets are re-imported, about 7 s), so tests never see stale or missing imports.
 #
+# The C++ extension (native/, library swarm_native) is built first, for the host and as template_debug only
+# (tools/build_native.sh --host-only --debug-only: the library the editor loads; incremental, a few seconds
+# when nothing changed), so the tests always run against the current C++ code. That needs the host toolchain
+# only (tools/setup_cpp.sh --host-only is enough: no Android NDK). The release libraries and the Android
+# ones are built, and checked to exist, by tools/build_android.sh.
+#
+# On a fresh checkout (no godot/.godot) the extension is listed in godot/.godot/extension_list.cfg before the
+# first import: otherwise the Godot 4.7.2 editor can crash at the end of that import (tools/lib/godot_project.sh).
+#
 # Before Godot starts, tools/check_assets.sh verifies that the committed atlas assets (godot/assets/atlas)
 # still equal a fresh extraction from the original game and that the extraction tool's own tests pass
 # (Node 22). A drifted asset therefore fails this script, not only the test it affects. In the same way
@@ -15,6 +24,8 @@
 # Environment:
 #   SWARM_SKIP_ASSET_CHECK=1         skip tools/check_assets.sh (for a machine without Node)
 #   SWARM_SKIP_GENERATED_CHECK=1     skip tools/check_generated.sh (for a machine without Node)
+#   SWARM_SKIP_NATIVE_BUILD=1        do not build the C++ extension first (tests then use whatever is in godot/bin/;
+#                                    needs no C++ toolchain, but test_native_files.gd fails when the debug library is missing)
 #   SWARM_SKIP_IMPORT=1              skip the import (only for a quick re-run when no asset changed)
 #   SWARM_IMPORT_TIMEOUT=<seconds>   limit for the import (default 600)
 #   SWARM_TEST_TIMEOUT=<seconds>     limit for the test run (default 600; the run takes about 2.5 minutes since step S5 replays every reference trace twice)
@@ -38,6 +49,8 @@ TEST_FILTER="${1:-}"
 
 # shellcheck source=lib/toolchain.sh
 source "$SCRIPT_DIR/lib/toolchain.sh" || exit 1
+# shellcheck source=lib/godot_project.sh
+source "$SCRIPT_DIR/lib/godot_project.sh" || exit 1
 [[ -f "$PROJECT_DIR/project.godot" ]] || die "missing $PROJECT_DIR/project.godot"
 
 # Output that is not a test problem: Godot reports leaked objects while shutting down.
@@ -85,6 +98,22 @@ else
   log "checking the generated definition tables and golden vectors against the original game ..."
   "$SCRIPT_DIR/check_generated.sh" || die "tools/check_generated.sh failed (generated data drifted from the original game)"
 fi
+
+# 0c. The C++ extension, for the host (linux x86_64, template_debug: what the editor loads). The Godot editor
+# loads it at startup, in the import below and in the test run, so it has to exist and be current before either
+# starts. Only the host toolchain is needed (SWARM_CPP_HOST_ONLY=1: no Android NDK).
+if [[ "${SWARM_SKIP_NATIVE_BUILD:-0}" == "1" ]]; then
+  log "skipping the native build (SWARM_SKIP_NATIVE_BUILD=1)"
+else
+  SWARM_CPP_HOST_ONLY=1
+  # shellcheck source=lib/cpp_toolchain.sh
+  source "$SCRIPT_DIR/lib/cpp_toolchain.sh" || exit 1 # also exports SWARM_GODOT_CPP_COMMIT for test_native_extension.gd
+  log "building the native extension for the host, template_debug (incremental) ..."
+  "$SCRIPT_DIR/build_native.sh" --host-only --debug-only || die "tools/build_native.sh failed (the C++ extension does not build or fails its checks)"
+fi
+
+# 0d. Before the first Godot start of a fresh checkout: list the extension in .godot/extension_list.cfg (see the header).
+swarm_seed_extension_list "$PROJECT_DIR"
 
 # 1. Import the project (creates godot/.godot, which is gitignored). Godot only redoes what changed,
 # so new assets and class_name scripts are picked up and edited assets are not read from stale data.

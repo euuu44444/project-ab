@@ -1,0 +1,500 @@
+C1 evidence: tools/build_native.sh (godot-cpp + libswarm_native for linux x86_64, android arm64, android arm32), after the review-fix round
+godot 4.7.2.stable.official.ed1daf0bf    HEAD fed8002 (the C1 work is uncommitted in the working tree)
+toolchain: NDK r28b clang 19.0.0 (Android clang r530567) for android, system clang 18.1.3 for linux, scons 4.10.1,
+           godot-cpp 8070599885b6df675fcad033dd032ce44be2b850, api_version=4.7 (see toolchain.txt)
+command:   tools/build_native.sh --clean --evidence-dir <scratch>      (from-scratch build of all six targets)
+exit code: 0
+wall time: 46.5 s cold for all six targets (7-8 s each; 66 files compiled per target: 62 godot-cpp + 4 own) on 4 cores.
+           Before this round: 896 s (6 x 144-154 s; 1,093 files compiled per target: bindings for all 1,036 engine classes).
+           The saving comes from the godot-cpp build profile (native/build_profile.json, section 7).
+no-op:     tools/build_native.sh (nothing changed) 5.3 s for all six; --host-only 1.9 s; --host-only --debug-only 1.0 s
+           (before: 18.6 s, 6.4 s, 3.1 s).
+tests:     tools/run_godot_tests.sh now builds --host-only --debug-only: 8 s cold (before: --host-only, debug + release, 311.9 s cold).
+outputs:   godot/bin/libswarm_native.<platform>.<target>.<arch>.so (gitignored). Objects, generated bindings, godot-cpp's static
+           library and the scons database are in $SWARM_CACHE_DIR/native-build/<config>/ (42 MB for all six, was 1.0 GB), logs in
+           native-build/logs/. Repo after the builds: `git status --ignored` shows godot/bin/ as the only new ignored directory;
+           native/ holds only SConstruct, build_profile.json and src/ (no .sconsign, no .pyc, no objects); the godot-cpp checkout is clean.
+reproducible: two clean builds of all six targets, the second one from a copy of the checkout at another path, with another build
+           directory AND another godot-cpp path, gave six bit-identical libraries (sha256 list in section 3).
+
+Findings of the C1 review handled in this round, and where the evidence is:
+  L1 flag guard on the substituted commands (allowlist)          section 2 here, guards.txt (127 cases)
+  L2 godot-cpp options fixed, SCONSFLAGS / SCONS_CACHE refused   guards.txt
+  L3 recursive source discovery and object scan                  section 6
+  L4 build profile, debug-only test build, release check moved   sections 7, 1; tests.txt; apk.txt
+  L5 no absolute paths in the libraries                          section 4
+  L8 godot-cpp clean at build time                               guards.txt
+  L9 scons --no-compile, bin/scons in the RECORD check           toolchain.txt section 5 and 7b
+  L11 host-only toolchain for the tests                          toolchain.txt section 13
+  L12 setup cosmetics                                            toolchain.txt section 9
+  M1 first-import crash on a fresh checkout                      freshclone.txt
+
+----------------------------------------------------------------------
+1. Summary printed by the script (6 PASS)
+----------------------------------------------------------------------
+libswarm_native: godot-cpp 8070599885b6, api_version 4.7, NDK 28.1.13356709, scons 4.10.1
+PASS linux.template_debug.x86_64          265072 bytes; ELF64 Advanced Micro Devices X86-64, LOAD align 0x1000, needs: ld-linux-x86-64.so.2 libc.so.6 libm.so.6, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/src
+PASS linux.template_release.x86_64        256880 bytes; ELF64 Advanced Micro Devices X86-64, LOAD align 0x1000, needs: ld-linux-x86-64.so.2 libc.so.6 libm.so.6, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/src
+PASS android.template_debug.arm64         351248 bytes; ELF64 AArch64, LOAD align 0x4000, needs: libc.so libdl.so libm.so, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/src
+PASS android.template_release.arm64       347088 bytes; ELF64 AArch64, LOAD align 0x4000, needs: libc.so libdl.so libm.so, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/src
+PASS android.template_debug.arm32         253108 bytes; ELF32 ARM, LOAD align 0x1000, needs: libc.so libdl.so libm.so, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/src
+PASS android.template_release.arm32       249372 bytes; ELF32 ARM, LOAD align 0x1000, needs: libc.so libdl.so libm.so, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/src
+
+libraries in /home/user/project-ab/godot/bin:
+      253108  libswarm_native.android.template_debug.arm32.so
+      351248  libswarm_native.android.template_debug.arm64.so
+      249372  libswarm_native.android.template_release.arm32.so
+      347088  libswarm_native.android.template_release.arm64.so
+      265072  libswarm_native.linux.template_debug.x86_64.so
+      256880  libswarm_native.linux.template_release.x86_64.so
+RESULT: PASS
+
+----------------------------------------------------------------------
+2. Compiler and linker commands that native/SConstruct checked (flag-guard-<config>.txt of the run; paths shortened)
+----------------------------------------------------------------------
+
+Floating point: -ffp-contract=off -fno-fast-math, -O2 on every target (also template_release; godot-cpp's default would be -O3 there).
+Since this round native/SConstruct does not look at CCFLAGS & co one by one (a deny-list that missed CPPFLAGS, the compiler variables, -ffp-model=*,
+-mdaz-ftz, ...). It substitutes every variable into the command scons will run and checks the resulting argument list:
+  - compile commands of EVERY source file: ours (C++), every godot-cpp object (C++), and the C compile commands ($CCCOM, $SHCCCOM);
+  - the link command of the library (-ffast-math at link time would pull in crtfastmath.o, which sets FTZ/DAZ at load time);
+  - the program must be clang++ / clang (host) or the NDK's clang++ / clang (full path); every other argument starting with - or @ must be on the
+    allowlist printed at the top of each file (-D<NAME>, -I<path> are accepted, file names are accepted); the compile commands must contain
+    -ffp-contract=off, -fno-fast-math and -O2 and the -ffile-prefix-map options; the compiler environment may hold PATH only.
+The allowlist and the checked commands are written to <build dir>/flag-guard.txt (copied here with --evidence-dir). 127 mutants of the SConstruct,
+of the command line, of the environment and of the godot-cpp checkout, each of which must stop the build, are in guards.txt.
+
+## android.template_release.arm64
+# allowed compile flags: -c -o -std=c++17 -fno-exceptions -fPIC -Wwrite-strings -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -ffp-contract=off -fno-fast-math --target=aarch64-linux-android24 -march=armv8-a -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build -ffile-prefix-map=/home/user/project-ab/native=native
+# allowed link flags: -o -shared -fvisibility=hidden -s -Wl,--gc-sections --target=aarch64-linux-android24 -march=armv8-a -static-libstdc++ -Wl,--exclude-libs,ALL -Wl,-z,max-page-size=16384
+own source  native/src/fp_probe.cpp
+  $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ -o $CACHE/native-build/android.template_release.arm64/swarm_native/fp_probe.os -c -std=c++17 -fno-exceptions -ffp-contract=off -fno-fast-math -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build --target=aarch64-linux-android24 -march=armv8-a -fPIC -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -ffile-prefix-map=/home/user/project-ab/native=native -fPIC -DANDROID_ENABLED -DUNIX_ENABLED -DTHREADS_ENABLED -DNDEBUG -DGDEXTENSION -I$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/include -I$CACHE/native-build/android.template_release.arm64/godot-cpp/gen/include -I$CACHE/native-build/android.template_release.arm64/swarm_native -Isrc src/fp_probe.cpp
+godot-cpp source (62 objects checked, 1 distinct flag set(s)) $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/src/godot.cpp
+  $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ -o $CACHE/native-build/android.template_release.arm64/godot-cpp/src/godot.android.template_release.arm64.o -c -std=c++17 -fno-exceptions -ffp-contract=off -fno-fast-math -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build --target=aarch64-linux-android24 -march=armv8-a -fPIC -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -DANDROID_ENABLED -DUNIX_ENABLED -DTHREADS_ENABLED -DNDEBUG -DGDEXTENSION -I$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/include -I$CACHE/native-build/android.template_release.arm64/godot-cpp/gen/include -I$CACHE/native-build/android.template_release.arm64/swarm_native -Isrc $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/src/godot.cpp
+link
+  $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ -o /home/user/project-ab/godot/bin/libswarm_native.android.template_release.arm64.so --target=aarch64-linux-android24 -march=armv8-a -Wl,--gc-sections -fvisibility=hidden -s -static-libstdc++ -Wl,--exclude-libs,ALL -Wl,-z,max-page-size=16384 -shared $CACHE/native-build/android.template_release.arm64/swarm_native/build_info.os $CACHE/native-build/android.template_release.arm64/swarm_native/fp_probe.os $CACHE/native-build/android.template_release.arm64/swarm_native/register_types.os $CACHE/native-build/android.template_release.arm64/swarm_native/swarm_native.os $CACHE/native-build/android.template_release.arm64/godot-cpp/bin/libgodot-cpp.android.template_release.arm64.a
+
+## android.template_debug.arm64
+# allowed compile flags: -c -o -std=c++17 -fno-exceptions -fPIC -Wwrite-strings -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -ffp-contract=off -fno-fast-math --target=aarch64-linux-android24 -march=armv8-a -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build -ffile-prefix-map=/home/user/project-ab/native=native
+# allowed link flags: -o -shared -fvisibility=hidden -s -Wl,--gc-sections --target=aarch64-linux-android24 -march=armv8-a -static-libstdc++ -Wl,--exclude-libs,ALL -Wl,-z,max-page-size=16384
+own source  native/src/fp_probe.cpp
+  $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ -o $CACHE/native-build/android.template_debug.arm64/swarm_native/fp_probe.os -c -std=c++17 -fno-exceptions -ffp-contract=off -fno-fast-math -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build --target=aarch64-linux-android24 -march=armv8-a -fPIC -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -ffile-prefix-map=/home/user/project-ab/native=native -fPIC -DANDROID_ENABLED -DUNIX_ENABLED -DTHREADS_ENABLED -DDEBUG_ENABLED -DNDEBUG -DGDEXTENSION -I$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/include -I$CACHE/native-build/android.template_debug.arm64/godot-cpp/gen/include -I$CACHE/native-build/android.template_debug.arm64/swarm_native -Isrc src/fp_probe.cpp
+godot-cpp source (62 objects checked, 1 distinct flag set(s)) $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/src/godot.cpp
+  $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ -o $CACHE/native-build/android.template_debug.arm64/godot-cpp/src/godot.android.template_debug.arm64.o -c -std=c++17 -fno-exceptions -ffp-contract=off -fno-fast-math -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build --target=aarch64-linux-android24 -march=armv8-a -fPIC -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -DANDROID_ENABLED -DUNIX_ENABLED -DTHREADS_ENABLED -DDEBUG_ENABLED -DNDEBUG -DGDEXTENSION -I$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/include -I$CACHE/native-build/android.template_debug.arm64/godot-cpp/gen/include -I$CACHE/native-build/android.template_debug.arm64/swarm_native -Isrc $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/src/godot.cpp
+link
+  $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ -o /home/user/project-ab/godot/bin/libswarm_native.android.template_debug.arm64.so --target=aarch64-linux-android24 -march=armv8-a -Wl,--gc-sections -fvisibility=hidden -s -static-libstdc++ -Wl,--exclude-libs,ALL -Wl,-z,max-page-size=16384 -shared $CACHE/native-build/android.template_debug.arm64/swarm_native/build_info.os $CACHE/native-build/android.template_debug.arm64/swarm_native/fp_probe.os $CACHE/native-build/android.template_debug.arm64/swarm_native/register_types.os $CACHE/native-build/android.template_debug.arm64/swarm_native/swarm_native.os $CACHE/native-build/android.template_debug.arm64/godot-cpp/bin/libgodot-cpp.android.template_debug.arm64.a
+
+## android.template_debug.arm32
+# allowed compile flags: -c -o -std=c++17 -fno-exceptions -fPIC -Wwrite-strings -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -ffp-contract=off -fno-fast-math --target=armv7a-linux-androideabi24 -march=armv7-a -mfpu=neon -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build -ffile-prefix-map=/home/user/project-ab/native=native
+# allowed link flags: -o -shared -fvisibility=hidden -s -Wl,--gc-sections --target=armv7a-linux-androideabi24 -march=armv7-a -static-libstdc++ -Wl,--exclude-libs,ALL
+own source  native/src/fp_probe.cpp
+  $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ -o $CACHE/native-build/android.template_debug.arm32/swarm_native/fp_probe.os -c -std=c++17 -fno-exceptions -ffp-contract=off -fno-fast-math -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build --target=armv7a-linux-androideabi24 -march=armv7-a -fPIC -mfpu=neon -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -ffile-prefix-map=/home/user/project-ab/native=native -fPIC -DANDROID_ENABLED -DUNIX_ENABLED -DTHREADS_ENABLED -DDEBUG_ENABLED -DNDEBUG -DGDEXTENSION -I$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/include -I$CACHE/native-build/android.template_debug.arm32/godot-cpp/gen/include -I$CACHE/native-build/android.template_debug.arm32/swarm_native -Isrc src/fp_probe.cpp
+godot-cpp source (62 objects checked, 1 distinct flag set(s)) $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/src/godot.cpp
+  $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ -o $CACHE/native-build/android.template_debug.arm32/godot-cpp/src/godot.android.template_debug.arm32.o -c -std=c++17 -fno-exceptions -ffp-contract=off -fno-fast-math -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build --target=armv7a-linux-androideabi24 -march=armv7-a -fPIC -mfpu=neon -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -DANDROID_ENABLED -DUNIX_ENABLED -DTHREADS_ENABLED -DDEBUG_ENABLED -DNDEBUG -DGDEXTENSION -I$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/include -I$CACHE/native-build/android.template_debug.arm32/godot-cpp/gen/include -I$CACHE/native-build/android.template_debug.arm32/swarm_native -Isrc $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/src/godot.cpp
+link
+  $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ -o /home/user/project-ab/godot/bin/libswarm_native.android.template_debug.arm32.so --target=armv7a-linux-androideabi24 -march=armv7-a -Wl,--gc-sections -fvisibility=hidden -s -static-libstdc++ -Wl,--exclude-libs,ALL -shared $CACHE/native-build/android.template_debug.arm32/swarm_native/build_info.os $CACHE/native-build/android.template_debug.arm32/swarm_native/fp_probe.os $CACHE/native-build/android.template_debug.arm32/swarm_native/register_types.os $CACHE/native-build/android.template_debug.arm32/swarm_native/swarm_native.os $CACHE/native-build/android.template_debug.arm32/godot-cpp/bin/libgodot-cpp.android.template_debug.arm32.a
+
+## android.template_release.arm32
+# allowed compile flags: -c -o -std=c++17 -fno-exceptions -fPIC -Wwrite-strings -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -ffp-contract=off -fno-fast-math --target=armv7a-linux-androideabi24 -march=armv7-a -mfpu=neon -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build -ffile-prefix-map=/home/user/project-ab/native=native
+# allowed link flags: -o -shared -fvisibility=hidden -s -Wl,--gc-sections --target=armv7a-linux-androideabi24 -march=armv7-a -static-libstdc++ -Wl,--exclude-libs,ALL
+own source  native/src/fp_probe.cpp
+  $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ -o $CACHE/native-build/android.template_release.arm32/swarm_native/fp_probe.os -c -std=c++17 -fno-exceptions -ffp-contract=off -fno-fast-math -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build --target=armv7a-linux-androideabi24 -march=armv7-a -fPIC -mfpu=neon -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -ffile-prefix-map=/home/user/project-ab/native=native -fPIC -DANDROID_ENABLED -DUNIX_ENABLED -DTHREADS_ENABLED -DNDEBUG -DGDEXTENSION -I$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/include -I$CACHE/native-build/android.template_release.arm32/godot-cpp/gen/include -I$CACHE/native-build/android.template_release.arm32/swarm_native -Isrc src/fp_probe.cpp
+godot-cpp source (62 objects checked, 1 distinct flag set(s)) $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/src/godot.cpp
+  $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ -o $CACHE/native-build/android.template_release.arm32/godot-cpp/src/godot.android.template_release.arm32.o -c -std=c++17 -fno-exceptions -ffp-contract=off -fno-fast-math -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build --target=armv7a-linux-androideabi24 -march=armv7-a -fPIC -mfpu=neon -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -DANDROID_ENABLED -DUNIX_ENABLED -DTHREADS_ENABLED -DNDEBUG -DGDEXTENSION -I$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/include -I$CACHE/native-build/android.template_release.arm32/godot-cpp/gen/include -I$CACHE/native-build/android.template_release.arm32/swarm_native -Isrc $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/src/godot.cpp
+link
+  $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ -o /home/user/project-ab/godot/bin/libswarm_native.android.template_release.arm32.so --target=armv7a-linux-androideabi24 -march=armv7-a -Wl,--gc-sections -fvisibility=hidden -s -static-libstdc++ -Wl,--exclude-libs,ALL -shared $CACHE/native-build/android.template_release.arm32/swarm_native/build_info.os $CACHE/native-build/android.template_release.arm32/swarm_native/fp_probe.os $CACHE/native-build/android.template_release.arm32/swarm_native/register_types.os $CACHE/native-build/android.template_release.arm32/swarm_native/swarm_native.os $CACHE/native-build/android.template_release.arm32/godot-cpp/bin/libgodot-cpp.android.template_release.arm32.a
+
+## linux.template_debug.x86_64
+# allowed compile flags: -c -o -std=c++17 -fno-exceptions -fPIC -Wwrite-strings -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -ffp-contract=off -fno-fast-math -m64 -march=x86-64 -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build -ffile-prefix-map=/home/user/project-ab/native=native
+# allowed link flags: -o -shared -fvisibility=hidden -s -Wl,--gc-sections -m64 -march=x86-64 -Wl,-R,'$ORIGIN' -static-libgcc -static-libstdc++ -Wl,--exclude-libs=libstdc++.a:libgcc.a:libgcc_eh.a
+own source  native/src/fp_probe.cpp
+  clang++ -o $CACHE/native-build/linux.template_debug.x86_64/swarm_native/fp_probe.os -c -std=c++17 -fno-exceptions -ffp-contract=off -fno-fast-math -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build -fPIC -Wwrite-strings -m64 -march=x86-64 -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -ffile-prefix-map=/home/user/project-ab/native=native -fPIC -DLINUX_ENABLED -DUNIX_ENABLED -DTHREADS_ENABLED -DDEBUG_ENABLED -DNDEBUG -DGDEXTENSION -I$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/include -I$CACHE/native-build/linux.template_debug.x86_64/godot-cpp/gen/include -I$CACHE/native-build/linux.template_debug.x86_64/swarm_native -Isrc src/fp_probe.cpp
+godot-cpp source (62 objects checked, 1 distinct flag set(s)) $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/src/godot.cpp
+  clang++ -o $CACHE/native-build/linux.template_debug.x86_64/godot-cpp/src/godot.linux.template_debug.x86_64.o -c -std=c++17 -fno-exceptions -ffp-contract=off -fno-fast-math -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build -fPIC -Wwrite-strings -m64 -march=x86-64 -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -DLINUX_ENABLED -DUNIX_ENABLED -DTHREADS_ENABLED -DDEBUG_ENABLED -DNDEBUG -DGDEXTENSION -I$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/include -I$CACHE/native-build/linux.template_debug.x86_64/godot-cpp/gen/include -I$CACHE/native-build/linux.template_debug.x86_64/swarm_native -Isrc $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/src/godot.cpp
+link
+  clang++ -o /home/user/project-ab/godot/bin/libswarm_native.linux.template_debug.x86_64.so -Wl,-R,'$ORIGIN' -m64 -march=x86-64 -Wl,--gc-sections -static-libgcc -static-libstdc++ -Wl,--gc-sections -Wl,--exclude-libs=libstdc++.a:libgcc.a:libgcc_eh.a -fvisibility=hidden -s -shared $CACHE/native-build/linux.template_debug.x86_64/swarm_native/build_info.os $CACHE/native-build/linux.template_debug.x86_64/swarm_native/fp_probe.os $CACHE/native-build/linux.template_debug.x86_64/swarm_native/register_types.os $CACHE/native-build/linux.template_debug.x86_64/swarm_native/swarm_native.os $CACHE/native-build/linux.template_debug.x86_64/godot-cpp/bin/libgodot-cpp.linux.template_debug.x86_64.a
+
+## linux.template_release.x86_64
+# allowed compile flags: -c -o -std=c++17 -fno-exceptions -fPIC -Wwrite-strings -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -ffp-contract=off -fno-fast-math -m64 -march=x86-64 -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build -ffile-prefix-map=/home/user/project-ab/native=native
+# allowed link flags: -o -shared -fvisibility=hidden -s -Wl,--gc-sections -m64 -march=x86-64 -Wl,-R,'$ORIGIN' -static-libgcc -static-libstdc++ -Wl,--exclude-libs=libstdc++.a:libgcc.a:libgcc_eh.a
+own source  native/src/fp_probe.cpp
+  clang++ -o $CACHE/native-build/linux.template_release.x86_64/swarm_native/fp_probe.os -c -std=c++17 -fno-exceptions -ffp-contract=off -fno-fast-math -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build -fPIC -Wwrite-strings -m64 -march=x86-64 -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -ffile-prefix-map=/home/user/project-ab/native=native -fPIC -DLINUX_ENABLED -DUNIX_ENABLED -DTHREADS_ENABLED -DNDEBUG -DGDEXTENSION -I$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/include -I$CACHE/native-build/linux.template_release.x86_64/godot-cpp/gen/include -I$CACHE/native-build/linux.template_release.x86_64/swarm_native -Isrc src/fp_probe.cpp
+godot-cpp source (62 objects checked, 1 distinct flag set(s)) $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/src/godot.cpp
+  clang++ -o $CACHE/native-build/linux.template_release.x86_64/godot-cpp/src/godot.linux.template_release.x86_64.o -c -std=c++17 -fno-exceptions -ffp-contract=off -fno-fast-math -ffile-prefix-map=$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850=godot-cpp -ffile-prefix-map=$CACHE/native-build=native-build -fPIC -Wwrite-strings -m64 -march=x86-64 -ffunction-sections -fdata-sections -fvisibility=hidden -O2 -DLINUX_ENABLED -DUNIX_ENABLED -DTHREADS_ENABLED -DNDEBUG -DGDEXTENSION -I$CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/include -I$CACHE/native-build/linux.template_release.x86_64/godot-cpp/gen/include -I$CACHE/native-build/linux.template_release.x86_64/swarm_native -Isrc $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/src/godot.cpp
+link
+  clang++ -o /home/user/project-ab/godot/bin/libswarm_native.linux.template_release.x86_64.so -Wl,-R,'$ORIGIN' -m64 -march=x86-64 -Wl,--gc-sections -static-libgcc -static-libstdc++ -Wl,--gc-sections -Wl,--exclude-libs=libstdc++.a:libgcc.a:libgcc_eh.a -fvisibility=hidden -s -shared $CACHE/native-build/linux.template_release.x86_64/swarm_native/build_info.os $CACHE/native-build/linux.template_release.x86_64/swarm_native/fp_probe.os $CACHE/native-build/linux.template_release.x86_64/swarm_native/register_types.os $CACHE/native-build/linux.template_release.x86_64/swarm_native/swarm_native.os $CACHE/native-build/linux.template_release.x86_64/godot-cpp/bin/libgodot-cpp.linux.template_release.x86_64.a
+
+(Only the fp_probe.cpp compile command, one godot-cpp compile command and the link command per configuration are shown; the files hold all four of ours.)
+16 KiB: arm64 links with -Wl,-z,max-page-size=16384; Android links libc++ statically (-static-libstdc++ -Wl,--exclude-libs,ALL).
+
+----------------------------------------------------------------------
+3. Bit-identical libraries from another checkout path, build directory and godot-cpp path
+----------------------------------------------------------------------
+
+Build 1: tools/build_native.sh --clean in /home/user/project-ab, build directory $CACHE/native-build, godot-cpp $CACHE/godot-cpp/<commit>.
+Build 2: the same tools/ and native/ copied to <scratch>/tree, build directory <scratch>/nb_repro, a copy of the godot-cpp checkout at <scratch>/gcpp_copy
+(scratch-only patch of the copy of lib/cpp_toolchain.sh to accept the two directories). Exit 0, 46.4 s, six PASS. `diff` of the two sha256 lists is empty:
+b05417a1289abdd1c9aaaadcb58a18a41c058b800bbd96aff4fdb73940dffbf4  libswarm_native.android.template_debug.arm32.so
+a60790a21c02488b863c1de2ba01f74afa2c33e0e0e1f817d6dc968993ad6666  libswarm_native.android.template_debug.arm64.so
+722969f69e4b4221d2f8964d8d47243f158ef5a81196cf84068bf7bf2e8dbec5  libswarm_native.android.template_release.arm32.so
+766c3e4105142c193fa180be51c58bd0929ea2c207a4726bcfa174f7ea196c35  libswarm_native.android.template_release.arm64.so
+f0298ac45b45c9094fa5f98f56c9c194657ee08fdf85bd631c5068e79c002eed  libswarm_native.linux.template_debug.x86_64.so
+d1d4ea60f425e856b8c5783f4f0e2326173d87858791595c7e139799b8bd2a3f  libswarm_native.linux.template_release.x86_64.so
+So no path of the checkout, the build directory or godot-cpp reaches the binaries (-ffile-prefix-map, section 4). The final clean build of this round
+(section 8) produced the same six hashes again.
+
+----------------------------------------------------------------------
+4. No absolute paths in the libraries (L5)
+----------------------------------------------------------------------
+
+native/SConstruct adds -ffile-prefix-map=<godot-cpp dir>=godot-cpp and -ffile-prefix-map=<native-build dir>=native-build to every compile command
+(godot-cpp's objects and ours) and -ffile-prefix-map=<repo>/native=native to ours. assert/error macros embed __FILE__, so before this round the
+libraries named the cache directory and the home directory. tools/build_native.sh fails a configuration whose library contains the cache dir, the build
+dir, the godot-cpp dir, the NDK dir, the checkout or $HOME (grep -aF). `grep -aoF -e /root -e /home -e .cache -e /tmp <lib> | wc -l`, and the path-like strings left:
+libswarm_native.android.template_debug.arm32.so: 253108 bytes; occurrences of /root /home .cache /tmp: 0; path-like strings: 13
+libswarm_native.android.template_debug.arm64.so: 351248 bytes; occurrences of /root /home .cache /tmp: 0; path-like strings: 13
+libswarm_native.android.template_release.arm32.so: 249372 bytes; occurrences of /root /home .cache /tmp: 0; path-like strings: 11
+libswarm_native.android.template_release.arm64.so: 347088 bytes; occurrences of /root /home .cache /tmp: 0; path-like strings: 11
+libswarm_native.linux.template_debug.x86_64.so: 265072 bytes; occurrences of /root /home .cache /tmp: 0; path-like strings: 15
+libswarm_native.linux.template_release.x86_64.so: 256880 bytes; occurrences of /root /home .cache /tmp: 0; path-like strings: 12
+
+sample (linux debug): strings -a | grep -E '^(godot-cpp|native-build|native)/'
+godot-cpp/include/godot_cpp/core/class_db.hpp
+godot-cpp/include/godot_cpp/core/memory.hpp
+godot-cpp/include/godot_cpp/templates/cowdata.hpp
+godot-cpp/include/godot_cpp/templates/hash_map.hpp
+godot-cpp/include/godot_cpp/templates/hash_set.hpp
+godot-cpp/include/godot_cpp/templates/list.hpp
+godot-cpp/include/godot_cpp/templates/local_vector.hpp
+godot-cpp/include/godot_cpp/templates/span.hpp
+godot-cpp/src/classes/editor_plugin_registration.cpp
+godot-cpp/src/classes/wrapped.cpp
+godot-cpp/src/core/class_db.cpp
+godot-cpp/src/godot.cpp
+native-build/linux.template_debug.x86_64/godot-cpp/gen/src/classes/class_db_singleton.cpp
+native-build/linux.template_debug.x86_64/godot-cpp/gen/src/classes/os.cpp
+native-build/linux.template_debug.x86_64/godot-cpp/gen/src/gdextension_interface_loader.cpp
+
+Same count on the libraries of the previous round (built by the unchanged earlier scripts, linux only):
+OLD libswarm_native.linux.template_debug.x86_64.so: 265072 bytes; occurrences of /root /home .cache /tmp: 27
+OLD libswarm_native.linux.template_release.x86_64.so: 260976 bytes; occurrences of /root /home .cache /tmp: 23
+Negative control (the check can fail): a scratch copy of native/SConstruct without the two godot-cpp / build-dir path maps, built with the scratch copy of
+build_native.sh: exit 1,
+  FAIL linux.template_debug.x86_64   the library embeds path(s) of this machine: $CACHE $SCRATCH/nb_tree2 $CACHE/godot-cpp/8070599885b6... /root
+
+----------------------------------------------------------------------
+5. No fused multiply-add: disassembly of swarm_fp_probe_mul_add (native/src/fp_probe.cpp: return a * b + c)
+----------------------------------------------------------------------
+
+For every target build_native.sh disassembles the probe from the object that went into the library and fails if a fused instruction is in it
+(arm64: fmadd fmsub fnmadd fnmsub fmla fmls; arm32: vfma vfms vfnma vfnms; x86-64: vfmadd/vfmsub/vfnmadd/vfnmsub). It also needs the separate multiply
+and add, compiles the same source with -ffp-contract=fast as a control that MUST contain a fused instruction (otherwise the check is declared
+meaningless and fails), and scans every object of native/src for fused instructions (section 6).
+Disassembler: the NDK's llvm-objdump (LLVM 19.0.0) for the Android ABIs; for the host's x86-64 objects the host's llvm-objdump (Ubuntu LLVM 18.1.3), so a
+host-only setup works without the NDK. The tool and its version are in the first line of each listing.
+arm32 note: vmla.f64 is the VFPv2/v3 "chained" multiply-accumulate (ARM ARM: FPAdd(addend, FPMul(a, b))); it rounds the product before the
+addition and is not fused; the fused one is VFPv4 vfma.f64, which the control shows. The probe inputs are in native/src/fp_probe.cpp.
+
+# android.template_release.arm64: disassembly of swarm_fp_probe_mul_add from the build (object native-build/android.template_release.arm64/swarm_native/fp_probe.os), by $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-objdump (LLVM version 19.0.0)
+
+$CACHE/native-build/android.template_release.arm64/swarm_native/fp_probe.os:	file format elf64-littleaarch64
+
+Disassembly of section .text.swarm_fp_probe_mul_add:
+
+0000000000000000 <swarm_fp_probe_mul_add>:
+       0:      	fmul	d0, d0, d1
+       4:      	fadd	d0, d0, d2
+       8:      	ret
+
+# android.template_release.arm64: the same source compiled with -ffp-contract=fast (control; must contain a fused instruction)
+
+$CACHE/native-build/.fma.IDqvfw/control.o:	file format elf64-littleaarch64
+
+Disassembly of section .text:
+
+0000000000000000 <swarm_fp_probe_mul_add>:
+       0:      	fmadd	d0, d0, d1, d2
+       4:      	ret
+
+# android.template_release.arm64: all objects of native/src (any depth) scanned for fused instructions: 4 objects, 3937 instructions, none fused
+
+# android.template_debug.arm64: disassembly of swarm_fp_probe_mul_add from the build (object native-build/android.template_debug.arm64/swarm_native/fp_probe.os), by $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-objdump (LLVM version 19.0.0)
+
+$CACHE/native-build/android.template_debug.arm64/swarm_native/fp_probe.os:	file format elf64-littleaarch64
+
+Disassembly of section .text.swarm_fp_probe_mul_add:
+
+0000000000000000 <swarm_fp_probe_mul_add>:
+       0:      	fmul	d0, d0, d1
+       4:      	fadd	d0, d0, d2
+       8:      	ret
+
+# android.template_debug.arm64: the same source compiled with -ffp-contract=fast (control; must contain a fused instruction)
+
+$CACHE/native-build/.fma.OIvUMu/control.o:	file format elf64-littleaarch64
+
+Disassembly of section .text:
+
+0000000000000000 <swarm_fp_probe_mul_add>:
+       0:      	fmadd	d0, d0, d1, d2
+       4:      	ret
+
+# android.template_debug.arm64: all objects of native/src (any depth) scanned for fused instructions: 4 objects, 4155 instructions, none fused
+
+# android.template_debug.arm32: disassembly of swarm_fp_probe_mul_add from the build (object native-build/android.template_debug.arm32/swarm_native/fp_probe.os), by $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-objdump (LLVM version 19.0.0)
+
+$CACHE/native-build/android.template_debug.arm32/swarm_native/fp_probe.os:	file format elf32-littlearm
+
+Disassembly of section .text.swarm_fp_probe_mul_add:
+
+00000000 <swarm_fp_probe_mul_add>:
+       0:      	vmov	d16, r2, r3
+       4:      	vldr	d18, [sp]
+       8:      	vmov	d17, r0, r1
+       c:      	vmla.f64	d18, d17, d16
+      10:      	vmov	r0, r1, d18
+      14:      	bx	lr
+
+# android.template_debug.arm32: the same source compiled with -ffp-contract=fast (control; must contain a fused instruction)
+
+$CACHE/native-build/.fma.PRZIH9/control.o:	file format elf32-littlearm
+
+Disassembly of section .text:
+
+00000000 <swarm_fp_probe_mul_add>:
+       0:      	vmov	d16, r2, r3
+       4:      	vldr	d18, [sp]
+       8:      	vmov	d17, r0, r1
+       c:      	vfma.f64	d18, d17, d16
+      10:      	vmov	r0, r1, d18
+      14:      	bx	lr
+
+# android.template_debug.arm32: all objects of native/src (any depth) scanned for fused instructions: 4 objects, 4329 instructions, none fused
+
+# android.template_release.arm32: disassembly of swarm_fp_probe_mul_add from the build (object native-build/android.template_release.arm32/swarm_native/fp_probe.os), by $CACHE/android-sdk/ndk/28.1.13356709/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-objdump (LLVM version 19.0.0)
+
+$CACHE/native-build/android.template_release.arm32/swarm_native/fp_probe.os:	file format elf32-littlearm
+
+Disassembly of section .text.swarm_fp_probe_mul_add:
+
+00000000 <swarm_fp_probe_mul_add>:
+       0:      	vmov	d16, r2, r3
+       4:      	vldr	d18, [sp]
+       8:      	vmov	d17, r0, r1
+       c:      	vmla.f64	d18, d17, d16
+      10:      	vmov	r0, r1, d18
+      14:      	bx	lr
+
+# android.template_release.arm32: the same source compiled with -ffp-contract=fast (control; must contain a fused instruction)
+
+$CACHE/native-build/.fma.lyFD8x/control.o:	file format elf32-littlearm
+
+Disassembly of section .text:
+
+00000000 <swarm_fp_probe_mul_add>:
+       0:      	vmov	d16, r2, r3
+       4:      	vldr	d18, [sp]
+       8:      	vmov	d17, r0, r1
+       c:      	vfma.f64	d18, d17, d16
+      10:      	vmov	r0, r1, d18
+      14:      	bx	lr
+
+# android.template_release.arm32: all objects of native/src (any depth) scanned for fused instructions: 4 objects, 4129 instructions, none fused
+
+# linux.template_debug.x86_64: disassembly of swarm_fp_probe_mul_add from the build (object native-build/linux.template_debug.x86_64/swarm_native/fp_probe.os), by /usr/bin/llvm-objdump (Ubuntu LLVM version 18.1.3)
+
+$CACHE/native-build/linux.template_debug.x86_64/swarm_native/fp_probe.os:	file format elf64-x86-64
+
+Disassembly of section .text.swarm_fp_probe_mul_add:
+
+0000000000000000 <swarm_fp_probe_mul_add>:
+       0:      	mulsd	%xmm1, %xmm0
+       4:      	addsd	%xmm2, %xmm0
+       8:      	retq
+
+# linux.template_debug.x86_64: the same source compiled with -ffp-contract=fast (control; must contain a fused instruction)
+
+$CACHE/native-build/.fma.NWGGVy/control.o:	file format elf64-x86-64
+
+Disassembly of section .text:
+
+0000000000000000 <swarm_fp_probe_mul_add>:
+       0:      	vfmadd213sd	%xmm2, %xmm1, %xmm0 # xmm0 = (xmm1 * xmm0) + xmm2
+       5:      	retq
+
+# linux.template_debug.x86_64: all objects of native/src (any depth) scanned for fused instructions: 4 objects, 4263 instructions, none fused
+
+# linux.template_release.x86_64: disassembly of swarm_fp_probe_mul_add from the build (object native-build/linux.template_release.x86_64/swarm_native/fp_probe.os), by /usr/bin/llvm-objdump (Ubuntu LLVM version 18.1.3)
+
+$CACHE/native-build/linux.template_release.x86_64/swarm_native/fp_probe.os:	file format elf64-x86-64
+
+Disassembly of section .text.swarm_fp_probe_mul_add:
+
+0000000000000000 <swarm_fp_probe_mul_add>:
+       0:      	mulsd	%xmm1, %xmm0
+       4:      	addsd	%xmm2, %xmm0
+       8:      	retq
+
+# linux.template_release.x86_64: the same source compiled with -ffp-contract=fast (control; must contain a fused instruction)
+
+$CACHE/native-build/.fma.kkEKaw/control.o:	file format elf64-x86-64
+
+Disassembly of section .text:
+
+0000000000000000 <swarm_fp_probe_mul_add>:
+       0:      	vfmadd213sd	%xmm2, %xmm1, %xmm0 # xmm0 = (xmm1 * xmm0) + xmm2
+       5:      	retq
+
+# linux.template_release.x86_64: all objects of native/src (any depth) scanned for fused instructions: 4 objects, 4059 instructions, none fused
+
+
+----------------------------------------------------------------------
+6. Recursive source discovery and object scan (L3), with a positive and a negative control
+----------------------------------------------------------------------
+
+native/SConstruct compiles every *.cpp below native/src at any depth (os.walk, fixed order; a .c/.cc/.cxx/.s file is an error, an empty tree is an
+error) and writes the list of its objects to <build dir>/own-objects.txt. build_native.sh scans exactly the objects of that list and requires the list to
+equal what a separate `find native/src -name '*.cpp'` finds, so a source can neither be missed nor be stale. Step C2's native/src/sim/** needs no change.
+Scratch copy of the repo (tools/ + native/), plus native/src/sim/nested.cpp (plain a*b+c) and native/src/sim/deep/fma_pragma.cpp
+(`#pragma clang fp contract(fast)` before a*b+c):
+  linux debug, only nested.cpp added:  exit 0; own-objects.txt = build_info, fp_probe, register_types, swarm_native, sim/nested (5 objects);
+      "all objects of native/src (any depth) scanned for fused instructions: 5 objects, 4266 instructions, none fused"
+  android arm64, fma_pragma.cpp added: exit 1 (the pragma overrides -ffp-contract=off, and armv8-a has fmadd):
+      FAIL android.template_debug.arm64   fused instruction(s) in our own code: swarm_native/sim/deep/fma_pragma.os:fmadd
+      PASS android.template_debug.arm32   (the same source gives vmla, not fused, with -mfpu=neon)
+Limit: the flag guard cannot see pragmas; the disassembly scan can, but x86-64 baseline (-march=x86-64) has no FMA instruction to find and arm32 NEON/VFPv3
+has no fused one either, so only arm64 can show it. Both of those targets simply cannot produce a fused instruction with these flags.
+
+----------------------------------------------------------------------
+7. Build profile and build times (L4)
+----------------------------------------------------------------------
+
+native/build_profile.json = {"enabled_classes": ["RefCounted", "OS"]} (pinned by native/SConstruct; a command-line build_profile=... is refused;
+the file must hold exactly that key). godot-cpp then generates bindings for these classes, their base classes and the ones it always adds
+(ClassDB, ClassDBSingleton, WorkerThreadPool, FileAccess, Image, XMLParser): 66 files compiled per configuration instead of 1,093.
+How the set was found (linux debug, scratch build directories, cold):
+  ["RefCounted"]                 fails: src/core/print_string.cpp:33: fatal error: 'godot_cpp/classes/os.hpp' file not found   (godot-cpp itself needs OS)
+  ["RefCounted", "Engine"]       fails, same error
+  ["RefCounted", "OS"]           builds, 7.8 s; no unresolved godot symbols in the library
+  ["RefCounted", "Engine", "OS"] builds, but Engine is not needed: godot-cpp's src/classes/low_level.cpp includes engine.hpp / scene_tree.hpp only under
+                                 __has_include. (The review's experiment had Engine and Time too.) Time is not used by anything.
+SwarmNative extends RefCounted; the other things it uses (ClassDB::bind_static_method, String, int64) are not engine classes. C2/C3 code that uses another
+engine class must add it to the file (the SConstruct comment says so).
+Library sizes: linux debug 265,072 bytes (unchanged, section alignment), linux release 256,880 (was 260,976), android debug arm32/arm64 253,108 / 351,248 (were 255,240 / 354,536),
+release arm32/arm64 249,372 / 347,088 (were 251,392 / 350,232). `nm -D --undefined-only -C` on all six: 42-49 undefined symbols, none of them a godot symbol (they are C library / unwind symbols).
+
+Times on this machine (4 cores), same commands before (scripts of the C1 work, unchanged, scratch copy) and after:
+                                                           before                 after
+  cold, linux debug + release (what the tests built)       311.9 s (158 + 154)    16 s (8 + 8)
+  cold, linux debug only (what the tests build now)        158 s                  8 s
+  cold, all six targets                                    896 s (earlier run)    46.5 s
+  no-op, all six                                           18.6 s (earlier run)   5.3 s
+  no-op, --host-only                                       6.4 s                  1.9 s
+  no-op, --host-only --debug-only                          3.1 s                  1.0 s
+  files compiled per configuration                         1,093                  66
+  build directory per configuration                        166 MB                 7 MB (42 MB for six; was 1.0 GB)
+  tools/run_godot_tests.sh (whole script)                  1m22s (up to date)     75-79 s (cold native build inside: + 8 s)
+
+Raw numbers: before = OLD cold host-only (linux debug+release): rc=0 311.851778160 s
+                  OLD no-op host-only (linux debug+release): rc=0 6.382182694 s
+                  OLD no-op host-only debug-only: rc=0 3.112498545 s
+                  166M	<scratch>/old_nb/linux.template_debug.x86_64
+                  166M	<scratch>/old_nb/linux.template_release.x86_64
+                  12K	<scratch>/old_nb/logs
+                  total 516
+                  -rwxr-xr-x 1 root root 265072 Oct 24 19:28 libswarm_native.linux.template_debug.x86_64.so
+                  -rwxr-xr-x 1 root root 260976 Oct 24 19:31 libswarm_native.linux.template_release.x86_64.so
+
+after (final run):
+tools/build_native.sh --clean (all six, cold): exit=0 wall=46.5 s
+[native] linux.template_debug.x86_64: built in 8s (66 file(s) compiled)
+[native] linux.template_release.x86_64: built in 8s (66 file(s) compiled)
+[native] android.template_debug.arm64: built in 8s (66 file(s) compiled)
+[native] android.template_release.arm64: built in 7s (66 file(s) compiled)
+[native] android.template_debug.arm32: built in 7s (66 file(s) compiled)
+[native] android.template_release.arm32: built in 7s (66 file(s) compiled)
+RESULT: PASS
+no-op tools/build_native.sh : exit=0 5.3 s
+no-op tools/build_native.sh --host-only: exit=0 1.9 s
+no-op tools/build_native.sh --host-only --debug-only: exit=0 1.0 s
+libraries bit-identical to the earlier clean build
+
+----------------------------------------------------------------------
+8. SwarmNative.version() of the built linux library (what the binary says about itself)
+----------------------------------------------------------------------
+
+Run through the headless editor (a scratch script printing the three methods):
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+SwarmNative.version() = swarm_native 0.1.0-c1 | godot-cpp 8070599885b6df675fcad033dd032ce44be2b850 (2026-10-22) api 4.7 | linux.template_debug.x86_64 | clang 18.1.3 | fp flags: -ffp-contract=off -fno-fast-math -march=x86-64 -O2
+fp_contract_probe(1+2^-30, 1+2^-30, -(1+2^-29)) = 0.0
+add_int64(9223372036854775807, 1) = -9223372036854775808
+
+----------------------------------------------------------------------
+9. Sensitivity of the GDScript test to a fused library (mutation test)
+----------------------------------------------------------------------
+
+The fp_probe object was recompiled with `clang++ -O2 -mfma -ffp-contract=fast` (disassembly: vfmadd213sd %xmm2, %xmm1, %xmm0), relinked with the
+other objects of the debug build, and put in place of godot/bin/libswarm_native.linux.template_debug.x86_64.so (the original was restored afterwards,
+sha256 verified: "OK"). tools/run_godot_tests.sh native (SWARM_SKIP_NATIVE_BUILD=1) then reported, exit 1:
+[tests] skipping the asset check (SWARM_SKIP_ASSET_CHECK=1)
+[tests] skipping the generated-data check (SWARM_SKIP_GENERATED_CHECK=1)
+[tests] skipping the native build (SWARM_SKIP_NATIVE_BUILD=1)
+[tests] importing project (headless, incremental) ...
+[tests] running tests with 4.7.2.stable.official.ed1daf0bf
+PASS  test_native_extension.gd::test_add_int64_edge_cases (16 assertions)
+PASS  test_native_extension.gd::test_extension_is_loaded_in_the_headless_editor (7 assertions)
+FAIL  test_native_extension.gd::test_fp_contract_probe_matches_separate_operations_on_many_inputs
+        - expected 0 (int) but got 20000 (int). results that differ from separate multiply and add
+FAIL  test_native_extension.gd::test_fp_contract_probe_returns_the_unfused_result
+        - expected 0 (int) but got 4336966441157787648 (int). unfused result is +0.0 (bits 0x0), got bits 3c30000000000000
+        - expected true. not the fused result 2^-60
+PASS  test_native_extension.gd::test_version_identifies_the_build (14 assertions)
+PASS  test_native_files.gd::test_descriptor_is_well_formed (11 assertions)
+PASS  test_native_files.gd::test_linux_debug_library_exists (5 assertions)
+Summary: 5/7 passed, 2 failed, 61 assertions
+RESULT: FAIL
+[tests] FAIL: Godot exited with code 1
+[tests] FAIL: runner did not report RESULT: PASS (script failed to start, or tests failed)
+[tests] FAIL (see output above)
+
+----------------------------------------------------------------------
+10. Full progress log of the final from-scratch build (scons output is in native-build/logs and the evidence dir)
+----------------------------------------------------------------------
+
+[native] linux.template_debug.x86_64: cleaning
+[native] linux.template_debug.x86_64: scons (-j4) ...
+[native] linux.template_debug.x86_64: built in 8s (66 file(s) compiled)
+[native] linux.template_release.x86_64: cleaning
+[native] linux.template_release.x86_64: scons (-j4) ...
+[native] linux.template_release.x86_64: built in 8s (66 file(s) compiled)
+[native] android.template_debug.arm64: cleaning
+[native] android.template_debug.arm64: scons (-j4) ...
+[native] android.template_debug.arm64: built in 8s (66 file(s) compiled)
+[native] android.template_release.arm64: cleaning
+[native] android.template_release.arm64: scons (-j4) ...
+[native] android.template_release.arm64: built in 7s (66 file(s) compiled)
+[native] android.template_debug.arm32: cleaning
+[native] android.template_debug.arm32: scons (-j4) ...
+[native] android.template_debug.arm32: built in 7s (66 file(s) compiled)
+[native] android.template_release.arm32: cleaning
+[native] android.template_release.arm32: scons (-j4) ...
+[native] android.template_release.arm32: built in 7s (66 file(s) compiled)
+
+================ native build summary ================
+libswarm_native: godot-cpp 8070599885b6, api_version 4.7, NDK 28.1.13356709, scons 4.10.1
+PASS linux.template_debug.x86_64          265072 bytes; ELF64 Advanced Micro Devices X86-64, LOAD align 0x1000, needs: ld-linux-x86-64.so.2 libc.so.6 libm.so.6, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/src
+PASS linux.template_release.x86_64        256880 bytes; ELF64 Advanced Micro Devices X86-64, LOAD align 0x1000, needs: ld-linux-x86-64.so.2 libc.so.6 libm.so.6, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/src
+PASS android.template_debug.arm64         351248 bytes; ELF64 AArch64, LOAD align 0x4000, needs: libc.so libdl.so libm.so, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/src
+PASS android.template_release.arm64       347088 bytes; ELF64 AArch64, LOAD align 0x4000, needs: libc.so libdl.so libm.so, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/src
+PASS android.template_debug.arm32         253108 bytes; ELF32 ARM, LOAD align 0x1000, needs: libc.so libdl.so libm.so, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/src
+PASS android.template_release.arm32       249372 bytes; ELF32 ARM, LOAD align 0x1000, needs: libc.so libdl.so libm.so, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/src
+
+libraries in /home/user/project-ab/godot/bin:
+      253108  libswarm_native.android.template_debug.arm32.so
+      351248  libswarm_native.android.template_debug.arm64.so
+      249372  libswarm_native.android.template_release.arm32.so
+      347088  libswarm_native.android.template_release.arm64.so
+      265072  libswarm_native.linux.template_debug.x86_64.so
+      256880  libswarm_native.linux.template_release.x86_64.so
+RESULT: PASS

@@ -1,0 +1,120 @@
+C1 evidence: tools/build_android.sh --skip-tests (debug APK, no Gradle), after the review-fix round
+godot 4.7.2.stable.official.ed1daf0bf    HEAD fed8002 (the C1 work is uncommitted in the working tree)
+command: tools/build_android.sh --skip-tests --evidence-dir <scratch>
+exit code: 0     RESULT: PASS (20 PASS, 1 WARN: the known duplicate FileProvider authority of Godot 4.7.2's non-Gradle exporter)
+wall time: 25.3 s (the native build of all six targets was up to date; the headless import, export and all checks)
+tests were run separately (tests.txt: 210/210, exit code 0); --skip-tests only skips the second run inside this script.
+fresh checkout: the same command in a fresh copy of the tree (no godot/.godot) passed twice, exit 0 (freshclone.txt section 2c).
+apk: export/ElementalSwarm_engine_s1_debug.apk, 59,004,644 bytes, sha256 446768e740de4ea068bcdfe372d3937ae856f6abaa6da4e4e4dd1d54c17fd238
+     (before this round 59,008,740 bytes: the two extension libraries are a few KB smaller)
+signing: throwaway DEBUG keystore only, as in S1-S5. The APK still has NO permissions (PASS permissions - none requested or declared;
+     permissions.txt of the run is empty, aapt2 badging lists no uses-permission).
+new in this round: PASS native library files - build_android.sh checks that every library named in swarm_native.gdextension exists (all six: linux and
+     android, debug and release; ELF magic, > 100 kB). The Linux release library check moved here from godot/tests/test_native_files.gd because
+     tools/run_godot_tests.sh builds the Linux debug library only now.
+
+----------------------------------------------------------------------
+1. Build summary (summary.txt of the script)
+----------------------------------------------------------------------
+Elemental Swarm Engine - Android debug build
+apk: /home/user/project-ab/export/ElementalSwarm_engine_s1_debug.apk
+
+PASS native libraries - 6 configurations built and checked (ELF, 16 KiB alignment, no embedded build paths, no FMA in any object)
+PASS native library files - all 6 libraries named in swarm_native.gdextension exist (linux and android, debug and release; ELF magic, > 100 kB)
+PASS export - 59004644 bytes
+PASS apksigner verify - v2,v3 verified
+PASS signed with the debug keystore - certificate sha256 351abaa1580f2fbd...
+PASS zipalign -c -P 16 -v 4 - stored entries are 16 KiB / 4-byte aligned
+PASS package name - com.elementalswarm.engine
+PASS versionCode - 1
+PASS versionName - 0.1.0-s1
+PASS application label - Elemental Swarm Engine
+PASS native-code ABIs - arm64-v8a armeabi-v7a
+PASS launcher intent - MAIN + LAUNCHER declared
+PASS screenOrientation - 13 (fullUser), accepted by the user on 2026-10-19 (design 6.1): the system rotation lock applies; Godot 4.7.2's non-Gradle exporter cannot emit 10
+PASS SDK levels - minSdkVersion=24 targetSdkVersion=36
+PASS ELF 16 KiB alignment - 3 64-bit librar(ies), every LOAD segment aligned to >= 0x4000
+PASS permissions - none requested or declared
+WARN provider authorities - duplicate authority in the exported manifest: com.elementalswarm.engine.fileprovider (Godot 4.7.2 exporter behaviour; see tools/build_android.sh)
+PASS atlas assets - 14 textures (.ctex, 493134 bytes) + atlas_layout.json + atlas_manifest.json are in the APK
+PASS sim definitions - 5 defs JSON + 57 sim scripts (.gdc) in the APK, 0 godot/tests/ entries
+PASS extension ELF 16 KiB alignment - lib/arm64-v8a/libswarm_native.android.template_debug.arm64.so: LOAD alignment 0x4000
+PASS native extension - libswarm_native.so is in lib/<abi>/ for arm64-v8a armeabi-v7a (identical to the build), plus assets/swarm_native.gdextension; no linux library packed
+
+RESULT: PASS
+----------------------------------------------------------------------
+2. Where Godot 4.7.2's non-Gradle exporter puts the GDExtension (found by exporting, not assumed)
+----------------------------------------------------------------------
+
+Export of godot/swarm_native.gdextension with the preset "Android" (architectures arm64-v8a + armeabi-v7a), `--export-debug`:
+  lib/arm64-v8a/libswarm_native.android.template_debug.arm64.so      <- godot/bin/libswarm_native.android.template_debug.arm64.so (android.debug.arm64)
+  lib/armeabi-v7a/libswarm_native.android.template_debug.arm32.so    <- godot/bin/libswarm_native.android.template_debug.arm32.so (android.debug.arm32)
+  assets/swarm_native.gdextension                                    <- the descriptor, byte-identical
+So the exporter picks the "android.debug.<arch>" entries for a debug export, maps arch to ABI folder (arm64 -> arm64-v8a, arm32 -> armeabi-v7a),
+and keeps the file name. Nothing needed to be added to export_presets.cfg: the libraries are packed automatically, "stored" (not deflated), which
+keeps zipalign -P 16 happy. Neither the Linux libraries nor the unused-ABI libraries are in the APK. The android.release.* entries are what a
+`--export-release` would pick up (not exercised in C1; the release libraries are built and checked).
+Godot's own template already ships lib/<abi>/libc++_shared.so and libgodot_android.so; our libraries do not depend on libc++_shared.so
+(NEEDED: libm.so libdl.so libc.so only), they carry their own static libc++.
+
+Entries (native-entries.txt of the run: sha256 of the APK's copy, which build_android.sh compares with the file in godot/bin; then unzip -v lines):
+a60790a21c02488b863c1de2ba01f74afa2c33e0e0e1f817d6dc968993ad6666  lib/arm64-v8a/libswarm_native.android.template_debug.arm64.so  351248 bytes
+b05417a1289abdd1c9aaaadcb58a18a41c058b800bbd96aff4fdb73940dffbf4  lib/armeabi-v7a/libswarm_native.android.template_debug.arm32.so  253108 bytes
+   1374336     454850  lib/arm64-v8a/libc++_shared.so
+  76181608   25465279  lib/arm64-v8a/libgodot_android.so
+    963028     400909  lib/armeabi-v7a/libc++_shared.so
+  82451424   28900322  lib/armeabi-v7a/libgodot_android.so
+    253108     253108  lib/armeabi-v7a/libswarm_native.android.template_debug.arm32.so
+    351248     351248  lib/arm64-v8a/libswarm_native.android.template_debug.arm64.so
+       802        301  assets/swarm_native.gdextension
+
+----------------------------------------------------------------------
+3. What build_android.sh checks for the extension, and the checks it already had
+----------------------------------------------------------------------
+
+new (C1): PASS native libraries              build_native.sh ran first for all six targets (ELF, 16 KiB alignment, no embedded build paths, no FMA in any object)
+new (fix): PASS native library files          all 6 libraries named in the descriptor exist (see above)
+new (C1): PASS extension ELF 16 KiB alignment lib/arm64-v8a/libswarm_native.android.template_debug.arm64.so: LOAD alignment 0x4000
+new (C1): PASS native extension               for every ABI of the preset: lib/<abi>/<name>.so is in the APK, sha256-identical to the build, the
+                                              descriptor is in assets/, and no other libswarm_native entry (no linux library) is packed
+kept:     PASS ELF 16 KiB alignment           3 64-bit libraries (libc++_shared, libgodot_android, libswarm_native), every LOAD >= 0x4000
+kept:     zipalign -c -P 16 -v 4, apksigner v2/v3, package, version, ABIs, SDK levels, permissions (none), atlas, sim definitions: PASS as in S5
+
+readelf -lW of lib/arm64-v8a/libswarm_native.android.template_debug.arm64.so (the APK's copy is sha256-identical to godot/bin, checked by the script):
+    Type           Offset   VirtAddr           PhysAddr           FileSiz  MemSiz   Flg Align
+    LOAD           0x000000 0x0000000000000000 0x0000000000000000 0x01e088 0x01e088 R   0x4000
+    LOAD           0x01e090 0x0000000000022090 0x0000000000022090 0x033a60 0x033a60 R E 0x4000
+    LOAD           0x051af0 0x0000000000059af0 0x0000000000059af0 0x0037f0 0x004510 RW  0x4000
+    LOAD           0x0552e0 0x00000000000612e0 0x00000000000612e0 0x000088 0x0036b0 RW  0x4000
+
+readelf -dW (NEEDED):
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
+
+readelf -h of lib/armeabi-v7a/libswarm_native.android.template_debug.arm32.so:
+  Class:                             ELF32
+  Machine:                           ARM
+  LOAD align 0x1000
+  LOAD align 0x1000
+  LOAD align 0x1000
+  LOAD align 0x1000
+
+----------------------------------------------------------------------
+4. The new check can fail (descriptor without the armeabi-v7a library, preset still exports armeabi-v7a)
+----------------------------------------------------------------------
+
+godot/swarm_native.gdextension was temporarily edited (line android.debug.arm32 removed; restored afterwards, `cmp` identical) and
+`tools/build_android.sh --skip-tests --apk export/c1_negative.apk` run. Godot still exports (it just packs no arm32 library), the script reports:
+FAIL native extension -  no android.debug.arm32 library for exported ABI armeabi-v7a in swarm_native.gdextension
+RESULT: FAIL (1 check(s) failed)
+exit code: 1
+
+----------------------------------------------------------------------
+5. Earlier failures that led to the current state
+----------------------------------------------------------------------
+
+- First android build (before the static libc++ link flag): build_native.sh failed "unexpected shared dependency: libc++_shared.so" for both arm64
+  targets, because the NDK's clang++ links libc++ dynamically by default. Fixed in native/SConstruct (-static-libstdc++ -Wl,--exclude-libs,ALL).
+- First android build, arm32: the check wanted vmul.f64 + vadd.f64 and found vmla.f64 (chained multiply-accumulate, not fused; see build.txt
+  section 5). The accepted arm32 forms are now vmul+vadd or vmla; the fused vfma/vfms/vfnma/vfnms stay forbidden.

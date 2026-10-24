@@ -1,0 +1,409 @@
+#!/usr/bin/env python
+"""Builds the GDExtension library "swarm_native" (docs/godot-port-design.md section 5.5, steps C1-C3).
+
+Run it through tools/build_native.sh, which puts the pinned toolchain (godot-cpp, NDK, scons) into the
+environment. One call builds one configuration:
+
+    scons platform=linux|android target=template_debug|template_release arch=x86_64|arm64|arm32 [out_dir=DIR] [verbose=yes]
+
+Output: libswarm_native.<platform>.<target>.<arch>.so in out_dir (default ../godot/bin).
+Everything else (godot-cpp's generated bindings, its static library, our object files, the scons
+database) lives in $SWARM_NATIVE_BUILD_DIR/<platform>.<target>.<arch>/, outside the repository and
+outside the godot-cpp checkout, which stays exactly at its pinned commit.
+
+Nothing else is accepted on the command line, and the godot-cpp options are fixed here (api_version,
+optimize=speed_trace, precision=single, lto=none, production=no, the build profile native/build_profile.json,
+use_llvm for Linux), so no option can change what is built. SCONSFLAGS and SCONS_CACHE in the environment
+are refused too (tools/build_native.sh runs scons without them).
+
+Floating point is deterministic by construction (the simulation must match the original game bit for
+bit): -ffp-contract=off keeps the compiler from fusing a*b+c into one FMA instruction. The build refuses
+to continue unless the fully substituted compile command of EVERY source file (ours and godot-cpp's, C and
+C++), and the link command of the library, consist only of flags on an allowlist (FP_COMPILE_FLAGS and
+friends below), and the compile commands contain -ffp-contract=off, -fno-fast-math and -O2. So -ffast-math,
+-Ofast, -O3, -ffp-model=*, -mdaz-ftz, -fdenormal-fp-math=*, -fno-honor-*, -mfpmath=*, -ffloat-store,
+-fexcess-precision=*, -march=native, -mfma, -flto and everything else that is not listed stops the build,
+whichever variable (CCFLAGS, CFLAGS, CXXFLAGS, SHC*FLAGS, CPPFLAGS, LINKFLAGS, SHLINKFLAGS, CC, CXX, SHCXX,
+...) it came through. The Python side of the allowlist check cannot see #pragma clang fp / #pragma STDC
+FP_CONTRACT in a source file; tools/build_native.sh scans the disassembly of every object of ours for that.
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+
+from SCons.Errors import UserError
+
+SWARM_NATIVE_VERSION = "0.1.0-c1"
+LIBRARY_NAME = "swarm_native"
+
+PLATFORMS = ("linux", "android")
+TARGETS = ("template_debug", "template_release")
+ARCHES = {"linux": ("x86_64",), "android": ("arm64", "arm32")}
+
+# The only command-line arguments (scons options such as -j are not arguments). Everything else is refused.
+ALLOWED_ARGUMENTS = ("platform", "target", "arch", "out_dir", "verbose")
+# Environment variables that change what scons builds. tools/build_native.sh removes them; a direct call is refused.
+FORBIDDEN_ENVIRONMENT = ("SCONSFLAGS", "SCONS_CACHE")
+
+# Source layout: every *.cpp below native/src (any depth) is part of the library. Step C2 adds subdirectories.
+SOURCE_DIR_NAME = "src"
+BUILD_PROFILE_NAME = "build_profile.json"
+NOT_CPP_SOURCE_SUFFIXES = (".c", ".cc", ".cxx", ".c++", ".cp", ".C", ".s", ".S", ".asm")
+
+# Flags that keep IEEE 754 results exact and reproducible. -fno-fast-math switches off every
+# fast-math sub-option that something else might have enabled before it.
+FP_FLAGS = ["-ffp-contract=off", "-fno-fast-math"]
+# What the guard demands. Written out again on purpose (not derived from FP_FLAGS): the check must not
+# move together with the thing it checks.
+REQUIRED_COMPILE_FLAGS = ["-ffp-contract=off", "-fno-fast-math", "-O2"]
+
+# ---- The allowlist ---------------------------------------------------------------------------------
+# A command is checked token by token (SCons' argument list, after all variables are substituted). A token is
+# accepted when it is
+#   - listed here (exactly),
+#   - a -D<NAME>[=<simple value>] or -I<path> option (preprocessor only; no FP semantics), or
+#   - a plain argument that does not start with "-" (a file name; "@file" response files are refused,
+#     they could hide any flag).
+# Everything else is refused. The first token (the program) must be the expected compiler.
+FP_COMPILE_FLAGS = [
+    "-c", "-o", "-std=c++17", "-fno-exceptions", "-fPIC", "-Wwrite-strings",
+    "-ffunction-sections", "-fdata-sections", "-fvisibility=hidden", "-O2",
+    "-ffp-contract=off", "-fno-fast-math",
+]
+FP_LINK_FLAGS = ["-o", "-shared", "-fvisibility=hidden", "-s", "-Wl,--gc-sections"]
+# Per target: code generation (compile and link) flags, and what only the compiler gets.
+ARCH_FLAGS = {
+    ("linux", "x86_64"): ["-m64", "-march=x86-64"],
+    ("android", "arm64"): ["--target=aarch64-linux-android24", "-march=armv8-a"],
+    ("android", "arm32"): ["--target=armv7a-linux-androideabi24", "-march=armv7-a"],
+}
+ARCH_COMPILE_ONLY_FLAGS = {("android", "arm32"): ["-mfpu=neon"]}
+PLATFORM_LINK_FLAGS = {
+    "linux": ["-Wl,-R,'$ORIGIN'", "-static-libgcc", "-static-libstdc++",
+              "-Wl,--exclude-libs=libstdc++.a:libgcc.a:libgcc_eh.a"],
+    # libc++ is linked statically (see below) and its symbols stay private.
+    "android": ["-static-libstdc++", "-Wl,--exclude-libs,ALL"],
+}
+ARCH_LINK_ONLY_FLAGS = {("android", "arm64"): ["-Wl,-z,max-page-size=16384"]}
+
+PREPROCESSOR_OPTION = re.compile(r"^(-D[A-Za-z_][A-Za-z0-9_]*(=[A-Za-z0-9_.+-]*)?|-I[A-Za-z0-9_./+-]+)$")
+# What the version string (SwarmNative.version()) reports of the compile command.
+FP_SUMMARY_FLAG = re.compile(r"^(-O.*|-ffp-contract=.*|-f(no-)?[a-z-]*math[a-z-]*|-march=.*|-mfpu=.*)$")
+SAFE_PATH = re.compile(r"^[A-Za-z0-9_./+-]+$")
+
+
+def fail(message):
+    raise UserError("native/SConstruct: " + message)
+
+
+def need_env(name):
+    value = os.environ.get(name, "")
+    if not value:
+        fail("%s is not set; run this through tools/build_native.sh" % name)
+    return value
+
+
+def choice(name, allowed):
+    value = ARGUMENTS.get(name, "")
+    if value not in allowed:
+        fail("%s=%s is not supported; use one of: %s" % (name, value or "(missing)", ", ".join(allowed)))
+    return value
+
+
+def git(*args):
+    try:
+        return subprocess.check_output(
+            ["git", "-C", godot_cpp_dir, "--no-optional-locks", *args], text=True, stderr=subprocess.STDOUT
+        ).strip()
+    except (OSError, subprocess.CalledProcessError) as error:
+        fail("git %s failed in %s: %s" % (" ".join(args), godot_cpp_dir, error))
+
+
+def command_tokens(build_env, variable, targets, sources):
+    """The argument list SCons would run for $variable (e.g. $SHCXXCOM), every variable substituted."""
+    commands = build_env.subst_list("$" + variable, 0, targets, sources)
+    if len(commands) != 1 or not commands[0]:
+        fail("$%s is not a single command: %s" % (variable, commands))
+    return [str(token) for token in commands[0]]
+
+
+def check_command(what, tokens, program, allowed, required=()):
+    """Refuses a command whose program is not `program` or that holds a token outside the allowlist."""
+    if tokens[0] != program:
+        fail("%s: the program is '%s', expected '%s'" % (what, tokens[0], program))
+    allowed = set(allowed)
+    outside = []
+    for token in tokens[1:]:
+        if token in allowed or PREPROCESSOR_OPTION.match(token):
+            continue
+        if token.startswith("-") or token.startswith("@") or not token:
+            outside.append(token)
+    if outside:
+        fail("%s: flag(s) outside the floating-point allowlist: %s\n  command: %s" % (what, " ".join(outside), " ".join(tokens)))
+    missing = [flag for flag in required if flag not in tokens]
+    if missing:
+        fail("%s: required flag(s) missing: %s\n  command: %s" % (what, " ".join(missing), " ".join(tokens)))
+
+
+# ---- Inputs -------------------------------------------------------------------------------------
+for name in FORBIDDEN_ENVIRONMENT:  # first: SCONSFLAGS can carry arguments such as lto=full
+    if os.environ.get(name):
+        fail("%s is set in the environment; it changes what scons builds. Run this through tools/build_native.sh" % name)
+if not sys.dont_write_bytecode:
+    fail("Python may write .pyc files next to the sources; run this through tools/build_native.sh (PYTHONDONTWRITEBYTECODE=1)")
+for argument in ARGUMENTS:
+    if argument not in ALLOWED_ARGUMENTS:
+        fail("the argument '%s' is not accepted; only %s are (everything else is fixed here)" % (argument, ", ".join(ALLOWED_ARGUMENTS)))
+if COMMAND_LINE_TARGETS:
+    fail("no targets may be given on the command line: %s" % " ".join(COMMAND_LINE_TARGETS))
+
+godot_cpp_dir = need_env("GODOT_CPP_DIR")
+build_root = need_env("SWARM_NATIVE_BUILD_DIR")
+api_version = need_env("SWARM_GODOT_API_VERSION")
+godot_cpp_commit = need_env("SWARM_GODOT_CPP_COMMIT")
+
+platform = choice("platform", PLATFORMS)
+target = choice("target", TARGETS)
+arch = choice("arch", ARCHES[platform])
+config = "%s.%s.%s" % (platform, target, arch)
+
+# godot-cpp is built from source in place: it must be the pinned commit and must not have been touched
+# (a modified file, or an untracked/ignored file such as custom.py, which its SConstruct would execute).
+if git("rev-parse", "HEAD") != godot_cpp_commit:
+    fail("godot-cpp in %s is not at the pinned commit %s" % (godot_cpp_dir, godot_cpp_commit))
+godot_cpp_changes = git("status", "--porcelain", "--untracked-files=all", "--ignored")
+if godot_cpp_changes:
+    fail(
+        "godot-cpp in %s is not clean (run tools/setup_cpp.sh to restore it):\n  %s"
+        % (godot_cpp_dir, "\n  ".join(godot_cpp_changes.splitlines()[:10]))
+    )
+godot_cpp_date = git("show", "-s", "--format=%cs", "HEAD")
+
+native_dir = Dir("#").abspath
+source_dir = os.path.join(native_dir, SOURCE_DIR_NAME)
+profile_path = os.path.join(native_dir, BUILD_PROFILE_NAME)
+
+# Taken out of ARGUMENTS so that godot-cpp does not warn about an unknown variable.
+out_dir = os.path.abspath(ARGUMENTS.pop("out_dir", os.path.join(native_dir, "..", "godot", "bin")))
+build_dir = os.path.join(build_root, config)
+os.makedirs(build_dir, exist_ok=True)
+SConsignFile(os.path.join(build_dir, ".sconsign.dblite"))  # not next to the sources
+
+# The build profile (native/build_profile.json): godot-cpp then generates bindings only for the engine classes
+# this extension uses (and their base classes) instead of all 1,036: about 60 files per configuration instead
+# of 1,093 (a cold build takes seconds, not minutes). The set was found by building with smaller ones:
+#   RefCounted  the base class of SwarmNative (Object comes with it; godot-cpp always adds ClassDB,
+#               WorkerThreadPool, FileAccess, Image and XMLParser)
+#   OS          godot-cpp's own src/core/print_string.cpp calls OS::get_singleton(); it does not compile without
+# Engine and SceneTree are not needed (src/classes/low_level.cpp uses them only if their headers exist).
+# C++ code that starts to use another engine class (Time, Engine, ...) must add it to the profile.
+try:
+    with open(profile_path, encoding="utf-8") as f:
+        profile = json.load(f)
+except (OSError, ValueError) as error:
+    fail("cannot read the build profile %s: %s" % (profile_path, error))
+if not (
+    isinstance(profile, dict)
+    and set(profile) == {"enabled_classes"}
+    and isinstance(profile["enabled_classes"], list)
+    and profile["enabled_classes"]
+    and all(isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9_]+", name) for name in profile["enabled_classes"])
+):
+    fail("the build profile %s must be {\"enabled_classes\": [<class names>]} and nothing else" % profile_path)
+
+# ---- godot-cpp ----------------------------------------------------------------------------------
+# Every godot-cpp option that could matter is set here; none can come from the command line.
+pinned = {
+    "api_version": api_version,  # the official file; checked against Godot 4.7.2 by setup_cpp.sh
+    "optimize": "speed_trace",  # -O2 for every target
+    "precision": "single",  # not REAL_T_IS_DOUBLE
+    "lto": "none",
+    "production": "no",  # production=yes would switch lto on ("auto") and debug symbols off
+    "build_profile": profile_path,
+}
+if platform == "linux":
+    pinned["use_llvm"] = "yes"  # clang on the host too, like the NDK's clang for Android
+else:
+    ndk_root = need_env("ANDROID_NDK_ROOT")
+    ndk_version = need_env("SWARM_NDK_VERSION")
+    try:
+        with open(os.path.join(ndk_root, "source.properties"), encoding="utf-8") as f:
+            ndk_revision = re.search(r"^Pkg\.Revision\s*=\s*(\S+)", f.read(), re.M).group(1)
+    except (OSError, AttributeError):
+        ndk_revision = None
+    if ndk_revision != ndk_version:
+        fail("ANDROID_NDK_ROOT=%s is NDK %s, expected %s" % (ndk_root, ndk_revision or "(unreadable)", ndk_version))
+    pinned["ndk_version"] = ndk_version
+    pinned["android_api_level"] = "24"  # minSdk of the Godot 4.7.2 non-Gradle export
+    pinned["ANDROID_HOME"] = ""  # empty: godot-cpp then uses ANDROID_NDK_ROOT as it is
+ARGUMENTS.update(pinned)
+
+# No absolute path of this machine in the binaries (assert/error messages carry __FILE__, debug info the
+# source directory): godot-cpp's checkout, the build directory and (for our own sources only, below) this
+# directory are mapped to short names. The prefixes must not overlap (the first match wins in some compilers).
+path_maps = [(godot_cpp_dir, "godot-cpp"), (build_root, "native-build")]
+own_path_map = (native_dir, "native")
+mapped = [path for path, _ in path_maps] + [own_path_map[0]]
+for path in mapped:
+    if not SAFE_PATH.match(path):
+        fail("the path '%s' has characters that cannot be put on a compiler command line safely" % path)
+    for other in mapped:
+        if other != path and (other + "/").startswith(path + "/"):
+            fail("'%s' lies inside '%s'; the path prefixes mapped out of the binaries must not overlap" % (other, path))
+
+
+def prefix_map_flag(path_map):
+    return "-ffile-prefix-map=%s=%s" % path_map
+
+
+env = Environment(tools=["default"], PLATFORM="")
+env.Append(CCFLAGS=FP_FLAGS + [prefix_map_flag(m) for m in path_maps])
+env = SConscript(
+    os.path.join(godot_cpp_dir, "SConstruct"),
+    variant_dir=os.path.join(build_dir, "godot-cpp"),
+    duplicate=0,
+    exports={"env": env, "api_version": api_version},
+)
+
+# The NDK's clang++ links libc++ as the shared library libc++_shared.so unless told otherwise, and the APK
+# would have to carry that file next to ours. Link it statically instead (like Godot's own Android library)
+# and keep its symbols private, so they cannot interpose on the engine's own copy of libc++.
+if platform == "android":
+    env.Append(LINKFLAGS=["-static-libstdc++", "-Wl,--exclude-libs,ALL"])
+
+# 16 KiB pages (Android 15+ on arm64 devices). NDK r28 already defaults to 0x4000 for 64-bit; the flag
+# keeps that independent of the NDK default. 32-bit ARM stays at its 4 KiB default: those ABIs do not
+# run on 16 KiB page-size kernels.
+if platform == "android" and arch in ("arm64", "x86_64"):
+    env.Append(LINKFLAGS=["-Wl,-z,max-page-size=16384"])
+
+# ---- The extension ------------------------------------------------------------------------------
+# Every *.cpp below native/src, at any depth, in a fixed order. The build directory mirrors the tree.
+ext_build_dir = os.path.join(build_dir, LIBRARY_NAME)
+VariantDir(ext_build_dir, SOURCE_DIR_NAME, duplicate=0)
+cpp_sources = []
+for directory, subdirectories, names in os.walk(source_dir):
+    subdirectories.sort()
+    for name in sorted(names):
+        relative = os.path.relpath(os.path.join(directory, name), source_dir)
+        if name.endswith(".cpp"):
+            cpp_sources.append(relative)
+        elif name.endswith(NOT_CPP_SOURCE_SUFFIXES):
+            fail("%s/%s: only .cpp files are compiled; rename it or extend native/SConstruct" % (SOURCE_DIR_NAME, relative))
+if not cpp_sources:
+    fail("no .cpp files below %s" % source_dir)
+
+env.Append(CPPPATH=[ext_build_dir])
+own_ccflags = list(env.Flatten(env["CCFLAGS"])) + [prefix_map_flag(own_path_map)]
+objects = []
+for relative in cpp_sources:
+    objects += env.SharedObject(env.File(os.path.join(ext_build_dir, relative)), CCFLAGS=own_ccflags)
+library = env.SharedLibrary(
+    target=os.path.join(out_dir, "lib%s%s%s" % (LIBRARY_NAME, env["suffix"], env["SHLIBSUFFIX"])),
+    source=objects,
+)
+
+# ---- Guard rails on the floating-point flags ------------------------------------------------------
+# Check what scons will actually execute: the substituted commands, not the variables they are made of.
+ndk_bin = os.path.join(os.environ.get("ANDROID_NDK_ROOT", ""), "toolchains", "llvm", "prebuilt", "linux-x86_64", "bin")
+cxx_program, cc_program = ("clang++", "clang") if platform == "linux" else (ndk_bin + "/clang++", ndk_bin + "/clang")
+arch_flags = ARCH_FLAGS[(platform, arch)]
+compile_allowed = FP_COMPILE_FLAGS + arch_flags + ARCH_COMPILE_ONLY_FLAGS.get((platform, arch), []) + [
+    prefix_map_flag(m) for m in path_maps + [own_path_map]
+]
+link_allowed = FP_LINK_FLAGS + arch_flags + PLATFORM_LINK_FLAGS[platform] + ARCH_LINK_ONLY_FLAGS.get((platform, arch), [])
+prefix_maps_required = [prefix_map_flag(m) for m in path_maps]
+
+if set(env["ENV"]) - {"PATH"}:  # CCC_OVERRIDE_OPTIONS and friends can add flags to every clang call
+    fail("the environment of the compiler holds more than PATH: %s" % " ".join(sorted(set(env["ENV"]) - {"PATH"})))
+
+guard_report = []
+own_compile = []
+for relative, node in zip(cpp_sources, objects):
+    tokens = command_tokens(node.get_build_env(), "SHCXXCOM", [node], node.sources)
+    check_command(
+        "compile command of native/src/%s" % relative, tokens, cxx_program, compile_allowed,
+        REQUIRED_COMPILE_FLAGS + prefix_maps_required + [prefix_map_flag(own_path_map)],
+    )
+    own_compile.append(tokens)
+    guard_report.append("own source  native/src/%s\n  %s" % (relative, " ".join(tokens)))
+
+# godot-cpp's objects (every one: they are compiled with the same environment, but a per-file override
+# would be visible only here), checked for each distinct set of flags.
+godot_cpp_library = [n for n in env.Flatten(env["LIBS"]) if "libgodot-cpp" in str(n)]
+if len(godot_cpp_library) != 1 or not godot_cpp_library[0].sources:
+    fail("cannot find the godot-cpp library node to check its compile commands")
+godot_cpp_objects = godot_cpp_library[0].sources
+seen_commands = {}
+for node in godot_cpp_objects:
+    tokens = command_tokens(node.get_build_env(), "CXXCOM", [node], node.sources)
+    flags = tuple(t for t in tokens[1:] if t.startswith("-") and t != "-o" and not PREPROCESSOR_OPTION.match(t))
+    check_command(
+        "compile command of godot-cpp %s" % node.sources[0], tokens, cxx_program, compile_allowed,
+        REQUIRED_COMPILE_FLAGS + prefix_maps_required,
+    )
+    seen_commands.setdefault(flags, (node, tokens))
+for node, tokens in seen_commands.values():
+    guard_report.append("godot-cpp source (%d objects checked, %d distinct flag set(s)) %s\n  %s"
+                        % (len(godot_cpp_objects), len(seen_commands), node.sources[0], " ".join(tokens)))
+
+# The compilers for C code and the linker are checked too: nothing compiles C here, but a CFLAGS or CC
+# change must not pass silently, and LINKFLAGS decide e.g. whether crtfastmath.o (-ffast-math) is linked in.
+probe_object = env.File(os.path.join(build_dir, "flag-guard-probe.os"))
+probe_c = env.File(os.path.join(build_dir, "flag-guard-probe.c"))
+for variable in ("SHCCCOM", "CCCOM"):
+    tokens = command_tokens(env, variable, [probe_object], [probe_c])
+    check_command("$%s (C code)" % variable, tokens, cc_program, compile_allowed, REQUIRED_COMPILE_FLAGS)
+tokens = command_tokens(library[0].get_build_env(), "SHLINKCOM", library, objects)
+check_command("link command of the library", tokens, cxx_program, link_allowed)
+guard_report.append("link\n  %s" % " ".join(tokens))
+link_tokens = tokens
+
+# Evidence of what was checked, kept next to the objects (tools/build_native.sh copies it with --evidence-dir).
+with open(os.path.join(build_dir, "flag-guard.txt"), "w", encoding="utf-8") as f:
+    f.write("# %s: commands checked against the floating-point allowlist by native/SConstruct (passed)\n" % config)
+    f.write("# allowed compile flags: %s\n# allowed link flags: %s\n\n" % (" ".join(compile_allowed), " ".join(link_allowed)))
+    f.write("\n".join(guard_report) + "\n")
+# The objects of our own code, relative to the build directory: the FMA scan of tools/build_native.sh reads this list.
+with open(os.path.join(build_dir, "own-objects.txt"), "w", encoding="utf-8") as f:
+    f.write("".join(os.path.relpath(node.get_abspath(), build_dir) + "\n" for node in objects))
+
+# ---- build_info.gen.h: what SwarmNative.version() reports ------------------------------------------
+fp_summary = []
+for flag in own_compile[0]:
+    if FP_SUMMARY_FLAG.match(flag) and flag not in fp_summary:
+        fp_summary.append(flag)
+build_info_header = "\n".join(
+    [
+        "// Generated by native/SConstruct. Do not edit.",
+        '#define SWARM_NATIVE_VERSION "%s"' % SWARM_NATIVE_VERSION,
+        '#define SWARM_GODOT_CPP_COMMIT "%s"' % godot_cpp_commit,
+        '#define SWARM_GODOT_CPP_COMMIT_DATE "%s"' % godot_cpp_date,
+        '#define SWARM_GODOT_API_VERSION "%s"' % api_version,
+        '#define SWARM_BUILD_PLATFORM "%s"' % platform,
+        '#define SWARM_BUILD_TARGET "%s"' % target,
+        '#define SWARM_BUILD_ARCH "%s"' % arch,
+        '#define SWARM_FP_FLAGS "%s"' % " ".join(fp_summary),
+        "",
+    ]
+)
+
+
+def write_build_info(target, source, env):
+    with open(str(target[0]), "w", encoding="utf-8") as f:
+        f.write(source[0].read())
+    return None
+
+
+build_info = env.Command(
+    os.path.join(ext_build_dir, "build_info.gen.h"),
+    env.Value(build_info_header),
+    Action(write_build_info, "Generating $TARGET ..."),
+)
+for relative, node in zip(cpp_sources, objects):
+    if relative == "build_info.cpp":
+        env.Depends(node, build_info)
+Default(library)

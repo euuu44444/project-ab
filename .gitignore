@@ -21,3 +21,6 @@ godot/.godot/
 *.apk
 *.aab
 *.idsig
+
+# Godot port: GDExtension libraries built by tools/build_native.sh (sources: native/, descriptor: godot/swarm_native.gdextension)
+godot/bin/

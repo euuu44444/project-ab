@@ -3,6 +3,11 @@
 # verifies it: signature, 16 KiB zip alignment, and the manifest facts (package, version,
 # SDK levels, ABIs, permissions) against godot/export_presets.cfg.
 # Signing uses the throwaway DEBUG keystore created by tools/setup_godot.sh.
+# The C++ extension (native/) is built for every target first (tools/build_native.sh, needs the full
+# tools/setup_cpp.sh including the Android NDK; the tests alone need only the host part), every library the
+# descriptor names (linux and android, debug and release) must exist, and the APK must carry its arm64-v8a and
+# armeabi-v7a libraries. On a fresh checkout the extension is listed in godot/.godot/extension_list.cfg before the
+# first Godot start (tools/lib/godot_project.sh), which avoids a crash of the Godot 4.7.2 editor in the first import.
 #
 # Usage: tools/build_android.sh [--apk PATH] [--evidence-dir DIR] [--skip-tests] [--skip-import]
 #   --apk PATH           output APK (default: <repo>/export/ElementalSwarm_engine_s1_debug.apk;
@@ -67,8 +72,11 @@ case "$APK" in
 esac
 [[ "$APK" == *.apk ]] || die "output path must end in .apk: $APK"
 
-# shellcheck source=lib/toolchain.sh
-source "$SCRIPT_DIR/lib/toolchain.sh" || exit 1
+SWARM_CPP_HOST_ONLY=0 # assigned, not inherited: this script needs the whole toolchain, the NDK included
+# shellcheck source=lib/cpp_toolchain.sh
+source "$SCRIPT_DIR/lib/cpp_toolchain.sh" || exit 1 # sources lib/toolchain.sh first
+# shellcheck source=lib/godot_project.sh
+source "$SCRIPT_DIR/lib/godot_project.sh" || exit 1
 [[ -f "$PROJECT_DIR/project.godot" ]] || die "missing $PROJECT_DIR/project.godot"
 [[ -f "$PRESETS_FILE" ]] || die "missing $PRESETS_FILE"
 
@@ -99,7 +107,8 @@ if [[ -n "$EVIDENCE_DIR" ]]; then
   mkdir -p -- "$EVIDENCE_DIR"
   # A reused directory must not keep passing evidence of an earlier run next to this run's result.
   (cd -- "$EVIDENCE_DIR" && rm -f -- summary.txt apk.sha256 apksigner-verify.txt signer-cert.txt zipalign-check.txt \
-    aapt2-badging.txt aapt2-badging.err aapt2-manifest.txt permissions.txt atlas-entries.txt sim-entries.txt godot-tests.log godot-import.log godot-export.log)
+    aapt2-badging.txt aapt2-badging.err aapt2-manifest.txt permissions.txt atlas-entries.txt sim-entries.txt native-entries.txt native-build.log godot-tests.log godot-import.log godot-export.log \
+    && rm -rf -- native)
   OUT_DIR="$EVIDENCE_DIR"
 else
   OUT_DIR="$WORK_DIR"
@@ -163,6 +172,51 @@ describe_failure() { # describe_failure <what> <exit code> <seconds> <env var th
     *) printf '%s exited with code %s' "$1" "$2" ;;
   esac
 }
+
+# ---- 0. Native libraries (step C1) ----------------------------------------------------------------
+# The C++ extension has to be built for every target before anything loads or exports the project: the
+# editor loads the linux library at startup, and the exporter packs the Android libraries. The build is
+# incremental, and it checks each library (ELF, 16 KiB alignment, no FMA) and fails the build otherwise.
+log "building the native extension for linux and android (incremental) ..."
+native_rc=0
+native_args=()
+[[ -z "$EVIDENCE_DIR" ]] || native_args+=(--evidence-dir "$OUT_DIR/native")
+"$SCRIPT_DIR/build_native.sh" ${native_args[@]+"${native_args[@]}"} >"$OUT_DIR/native-build.log" 2>&1 || native_rc=$?
+if ((native_rc != 0)); then
+  show_log "$OUT_DIR/native-build.log"
+  record FAIL "native libraries" "build_native.sh exited with code $native_rc"
+  finish
+fi
+record PASS "native libraries" "$(grep -c '^PASS ' "$OUT_DIR/native-build.log") configurations built and checked (ELF, 16 KiB alignment, no embedded build paths, no FMA in any object)"
+
+# Every library the descriptor names must exist: the debug APK packs only the android debug ones, but the linux and
+# the release libraries are only built here (tools/run_godot_tests.sh builds just the linux debug library).
+GDEXT_FILE="$PROJECT_DIR/swarm_native.gdextension"
+if [[ ! -f "$GDEXT_FILE" ]]; then
+  record SKIP "native library files" "no $GDEXT_FILE"
+else
+  gdext_count=0
+  gdext_bad=""
+  while IFS= read -r lib_res; do
+    gdext_count=$((gdext_count + 1))
+    lib_file="$PROJECT_DIR/$lib_res"
+    if [[ ! -s "$lib_file" ]]; then gdext_bad+=" $lib_res (missing)"; continue; fi
+    lib_size="$(stat -c %s -- "$lib_file")"
+    lib_magic="$(head -c 4 -- "$lib_file" | od -An -tx1 | tr -d ' \n')"
+    if ((lib_size <= 100000)) || [[ "$lib_magic" != 7f454c46 ]]; then gdext_bad+=" $lib_res (not a library: $lib_size bytes)"; fi
+  done < <(awk -F'"' '/^\[libraries\]/ { in_libs = 1; next } /^\[/ { in_libs = 0 }
+    in_libs && /^[a-z0-9_.]+ *= *"res:\/\// { sub(/^res:\/\//, "", $2); print $2 }' "$GDEXT_FILE")
+  if ((gdext_count == 0)); then
+    record FAIL "native library files" "no [libraries] entries found in swarm_native.gdextension"
+  elif [[ -n "$gdext_bad" ]]; then
+    record FAIL "native library files" "$gdext_count named, problem(s):$gdext_bad"
+  else
+    record PASS "native library files" "all $gdext_count libraries named in swarm_native.gdextension exist (linux and android, debug and release; ELF magic, > 100 kB)"
+  fi
+fi
+
+# Before the first Godot start of a fresh checkout: list the extension in .godot/extension_list.cfg (tools/lib/godot_project.sh).
+swarm_seed_extension_list "$PROJECT_DIR"
 
 # ---- 1. Tests, import and export ----------------------------------------------------------------
 # The tests load the main scene, so an APK is never exported from a project whose main script does
@@ -447,6 +501,68 @@ elif [[ -n "$sim_missing" ]] || ((tests_count > 0)); then
   record FAIL "sim definitions" "$detail"
 else
   record PASS "sim definitions" "$sim_defs_count defs JSON + $sim_scripts_count sim scripts (.gdc) in the APK, $tests_count godot/tests/ entries"
+fi
+
+# ---- 7. Native extension (step C1) ----------------------------------------------------------------
+# Godot 4.7.2's non-Gradle exporter puts every GDExtension library that matches an exported ABI at
+# lib/<abi>/<file name>.so (found by exporting, see verification/godot/c1/apk.txt), and the descriptor at
+# assets/swarm_native.gdextension. The debug export packs the "android.debug.<arch>" entries. For each ABI
+# the preset exports, the matching library must be in the APK, byte for byte the one that
+# tools/build_native.sh just built; no other swarm_native library (no linux one) may be in it.
+if [[ ! -f "$GDEXT_FILE" ]]; then
+  record SKIP "native extension" "no $GDEXT_FILE"
+else
+  apk_entries="$(unzip -Z1 "$APK")"
+  rm -rf -- "$WORK_DIR/ext"
+  mkdir -p "$WORK_DIR/ext"
+  native_problems=""
+  native_ok=""
+  : >"$OUT_DIR/native-entries.txt"
+  declare -A abi_arch=([arm64-v8a]=arm64 [armeabi-v7a]=arm32 [x86_64]=x86_64 [x86]=x86_32)
+  expected_entries=()
+  for abi in $want_abis; do
+    arch="${abi_arch[$abi]:-}"
+    lib_res="$(sed -n "s|^android\\.debug\\.$arch *= *\"res://\\(.*\\)\"\$|\\1|p" "$GDEXT_FILE" | head -n 1)"
+    if [[ -z "$arch" || -z "$lib_res" ]]; then
+      native_problems+=" no android.debug.${arch:-?} library for exported ABI $abi in swarm_native.gdextension;"
+      continue
+    fi
+    entry="lib/$abi/$(basename -- "$lib_res")"
+    expected_entries+=("$entry")
+    if ! grep -Fxq -- "$entry" <<<"$apk_entries"; then
+      native_problems+=" $entry missing from the APK;"
+      continue
+    fi
+    unzip -q -o -d "$WORK_DIR/ext" "$APK" "$entry"
+    built_sha="$(sha256sum -- "$PROJECT_DIR/$lib_res" 2>/dev/null | cut -d' ' -f1)"
+    apk_sha="$(sha256sum -- "$WORK_DIR/ext/$entry" | cut -d' ' -f1)"
+    if [[ -z "$built_sha" || "$built_sha" != "$apk_sha" ]]; then
+      native_problems+=" $entry differs from godot/$lib_res;"
+      continue
+    fi
+    printf '%s  %s  %s bytes\n' "$apk_sha" "$entry" "$(stat -c %s -- "$WORK_DIR/ext/$entry")" >>"$OUT_DIR/native-entries.txt"
+    native_ok+=" $abi"
+    # 64-bit: the library itself must be linked for 16 KiB pages (the generic check above covers all 64-bit libraries too).
+    if [[ "$abi" == arm64-v8a || "$abi" == x86_64 ]]; then
+      lib_aligns="$(readelf -lW "$WORK_DIR/ext/$entry" | awk '$1 == "LOAD" { print $NF }' | sort -u | paste -sd, -)"
+      lib_ok=1
+      for lib_align in ${lib_aligns//,/ }; do ((lib_align >= 16384)) || lib_ok=0; done
+      if ((lib_ok)); then
+        record PASS "extension ELF 16 KiB alignment" "$entry: LOAD alignment $lib_aligns"
+      else
+        record FAIL "extension ELF 16 KiB alignment" "$entry: LOAD alignment $lib_aligns is below 0x4000"
+      fi
+    fi
+  done
+  stray="$(grep -E '(^|/)libswarm_native[^/]*$' <<<"$apk_entries" | grep -Fvx -f <(printf '%s\n' ${expected_entries[@]+"${expected_entries[@]}"}) || true)"
+  [[ -z "$stray" ]] || native_problems+=" unexpected extension entries in the APK: $(paste -sd' ' - <<<"$stray");"
+  grep -Fxq "assets/swarm_native.gdextension" <<<"$apk_entries" || native_problems+=" assets/swarm_native.gdextension missing;"
+  unzip -v "$APK" | awk '$NF ~ /^lib\// || $NF ~ /swarm_native/ { printf "%10d %10d  %s\n", $1, $3, $NF }' >>"$OUT_DIR/native-entries.txt"
+  if [[ -z "$native_problems" ]]; then
+    record PASS "native extension" "libswarm_native.so is in lib/<abi>/ for${native_ok} (identical to the build), plus assets/swarm_native.gdextension; no linux library packed"
+  else
+    record FAIL "native extension" "${native_problems%;}"
+  fi
 fi
 
 finish

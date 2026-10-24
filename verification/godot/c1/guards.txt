@@ -1,0 +1,172 @@
+C1 evidence: guard rails of native/SConstruct and the build scripts (review findings L1, L2, L8, L4, L3)
+godot 4.7.2.stable.official.ed1daf0bf    HEAD fed8002 (the C1 work is uncommitted in the working tree)
+Harness: <scratch>/fix/mutants.py. Each case runs `scons -n` (dry run, scratch build directory) through swarm_scons on the repo's native/ or on a scratch
+copy of it that the case mutated; "OK" = the outcome the case demands (exit != 0 with a native/SConstruct message for a mutant, exit 0 for a control).
+Result: 127 cases, 127 as expected, 0 not as expected. (An earlier run of the same harness had 10 cases "not as expected"; all were mistakes of the
+harness or of the SConstruct's messages, fixed before this run: the guard's required-flag list was derived from the variable the mutant changed, so it
+is now written out separately; the SCONSFLAGS case reported the argument instead of the variable, so the environment is checked first; the profile
+messages did not say "build profile"; the PYTHONDONTWRITEBYTECODE case was set to 1 by the harness itself.)
+
+Groups:  control 1 | compilers, commands, compiler environment 16 | injected flags 67 | command line and environment 25 | build profile 7 |
+         godot-cpp checkout 8 | sources 3
+Injected flags (L1): 27 flags x CXXFLAGS (-ffast-math -Ofast -O3 -ffp-model=fast -ffp-model=aggressive -mdaz-ftz -fdenormal-fp-math=preserve-sign
+-fdenormal-fp-math=positive-zero -fno-honor-nans -fno-honor-infinities -mfpmath=sse -ffloat-store -fexcess-precision=fast -funsafe-math-optimizations
+-ffinite-math-only -fassociative-math -freciprocal-math -fapprox-func -march=native -mfma -flto -ffp-contract=fast -ffp-contract=on -fno-signed-zeros
+-O1 -Os -O0), and -ffast-math / -march=native / -O3 x each of CCFLAGS, SHCCFLAGS, SHCXXFLAGS, CFLAGS, SHCFLAGS, CPPFLAGS, LINKFLAGS, SHLINKFLAGS, late
+(after our objects are declared) CCFLAGS / CXXFLAGS / LINKFLAGS, "-Xclang -ffast-math", "-mllvm ...", one word "-O2 -ffast-math", an @response file,
+-Wl,-plugin-opt=..., -Xlinker, a define whose value holds a flag, an include path with a space; the required flags removed (-ffp-contract=off,
+-fno-fast-math); optimize=speed (-O3) and lto=full pinned in the SConstruct. Compilers / commands (L1): CXX, SHCXX, CC, SHCC, LINK, SHLINK with
+-ffast-math appended, CXX replaced by /usr/bin/clang++, g++, ccache clang++, CC by gcc, SHCXXCOM/CXXCOM/SHCCCOM/CCCOM/SHLINKCOM with a flag appended,
+env['ENV']['CCC_OVERRIDE_OPTIONS']='+-ffast-math'.
+Command line / environment (L2): optimize=speed lto=full production=yes precision=double custom_api_file=... profile=... use_llvm=no build_profile=...
+CCFLAGS=-ffast-math debug_symbols=yes dev_build=yes threads=no api_version=4.6 ndk_version=1 generate_bindings=yes disable_exceptions=no an unknown
+extra=1 SCONSFLAGS=x, a target on the command line; SCONSFLAGS='lto=full' / '-Q' and SCONS_CACHE in the environment of a direct scons call;
+python without PYTHONDONTWRITEBYTECODE. And the control that matters: SCONSFLAGS=lto=full and SCONS_CACHE=/tmp/c in the environment of
+swarm_scons (tools/build_native.sh) are removed from the environment and the build passes (exit 0).
+godot-cpp (L8): a copy of the checkout; HEAD != pin; a modified tracked file; an untracked custom.py (which godot-cpp's SConstruct would execute);
+an untracked file; an ignored tools/__pycache__/x.pyc; each makes the build fail ("is not clean"), the restored copy passes (3 controls).
+
+----------------------------------------------------------------------
+Complete output of the harness (message of the first scons error, shortened to 330 characters)
+----------------------------------------------------------------------
+OK   rc=0   control (no mutation)                          
+
+1 cases, 1 as expected, 0 NOT as expected
+OK   rc=2   CXX = "clang++ -ffast-math"                    scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   SHCXX = "clang++ -ffast-math"                  scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   CC = "clang -ffast-math"                       scons: *** native/SConstruct: $SHCCCOM (C code): flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   SHCC = "clang -ffast-math"                     scons: *** native/SConstruct: $SHCCCOM (C code): flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   LINK = "clang++ -ffast-math"                   scons: *** native/SConstruct: link command of the library: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   SHLINK = "clang++ -ffast-math"                 scons: *** native/SConstruct: link command of the library: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   CXX = "/usr/bin/clang++"                       scons: *** native/SConstruct: compile command of native/src/build_info.cpp: the program is '/usr/bin/clang++', expected 'clang++'
+OK   rc=2   CXX = "g++"                                    scons: *** native/SConstruct: compile command of native/src/build_info.cpp: the program is 'g++', expected 'clang++'
+OK   rc=2   CXX = "ccache clang++"                         scons: *** native/SConstruct: compile command of native/src/build_info.cpp: the program is 'ccache', expected 'clang++'
+OK   rc=2   CC = "gcc"                                     scons: *** native/SConstruct: $SHCCCOM (C code): the program is 'gcc', expected 'clang'
+OK   rc=2   SHCXXCOM += ' -ffast-math'                     scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   CXXCOM += ' -ffast-math'                       scons: *** native/SConstruct: compile command of godot-cpp $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/src/godot.cpp: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   SHCCCOM += ' -ffast-math'                      scons: *** native/SConstruct: $SHCCCOM (C code): flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   CCCOM += ' -ffast-math'                        scons: *** native/SConstruct: $CCCOM (C code): flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   SHLINKCOM += ' -ffast-math'                    scons: *** native/SConstruct: link command of the library: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   ENV CCC_OVERRIDE_OPTIONS=+-ffast-math          scons: *** native/SConstruct: the environment of the compiler holds more than PATH: CCC_OVERRIDE_OPTIONS
+
+16 cases, 16 as expected, 0 NOT as expected
+OK   rc=2   CXXFLAGS += -ffast-math                        scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   CXXFLAGS += -Ofast                             scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -Ofast
+OK   rc=2   CXXFLAGS += -O3                                scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -O3
+OK   rc=2   CXXFLAGS += -ffp-model=fast                    scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffp-model=fast
+OK   rc=2   CXXFLAGS += -ffp-model=aggressive              scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffp-model=aggressive
+OK   rc=2   CXXFLAGS += -mdaz-ftz                          scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -mdaz-ftz
+OK   rc=2   CXXFLAGS += -fdenormal-fp-math=preserve-sign   scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -fdenormal-fp-math=preserve-sign
+OK   rc=2   CXXFLAGS += -fdenormal-fp-math=positive-zero   scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -fdenormal-fp-math=positive-zero
+OK   rc=2   CXXFLAGS += -fno-honor-nans                    scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -fno-honor-nans
+OK   rc=2   CXXFLAGS += -fno-honor-infinities              scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -fno-honor-infinities
+OK   rc=2   CXXFLAGS += -mfpmath=sse                       scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -mfpmath=sse
+OK   rc=2   CXXFLAGS += -ffloat-store                      scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffloat-store
+OK   rc=2   CXXFLAGS += -fexcess-precision=fast            scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -fexcess-precision=fast
+OK   rc=2   CXXFLAGS += -funsafe-math-optimizations        scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -funsafe-math-optimizations
+OK   rc=2   CXXFLAGS += -ffinite-math-only                 scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffinite-math-only
+OK   rc=2   CXXFLAGS += -fassociative-math                 scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -fassociative-math
+OK   rc=2   CXXFLAGS += -freciprocal-math                  scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -freciprocal-math
+OK   rc=2   CXXFLAGS += -fapprox-func                      scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -fapprox-func
+OK   rc=2   CXXFLAGS += -march=native                      scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -march=native
+OK   rc=2   CXXFLAGS += -mfma                              scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -mfma
+OK   rc=2   CXXFLAGS += -flto                              scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -flto
+OK   rc=2   CXXFLAGS += -ffp-contract=fast                 scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffp-contract=fast
+OK   rc=2   CXXFLAGS += -ffp-contract=on                   scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffp-contract=on
+OK   rc=2   CXXFLAGS += -fno-signed-zeros                  scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -fno-signed-zeros
+OK   rc=2   CXXFLAGS += -O1                                scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -O1
+OK   rc=2   CXXFLAGS += -Os                                scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -Os
+OK   rc=2   CXXFLAGS += -O0                                scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -O0
+OK   rc=2   CCFLAGS += -ffast-math                         scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   CCFLAGS += -march=native                       scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -march=native
+OK   rc=2   CCFLAGS += -O3                                 scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -O3
+OK   rc=2   SHCCFLAGS += -ffast-math                       scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   SHCCFLAGS += -march=native                     scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -march=native
+OK   rc=2   SHCCFLAGS += -O3                               scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -O3
+OK   rc=2   SHCXXFLAGS += -ffast-math                      scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   SHCXXFLAGS += -march=native                    scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -march=native
+OK   rc=2   SHCXXFLAGS += -O3                              scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -O3
+OK   rc=2   CFLAGS += -ffast-math                          scons: *** native/SConstruct: $SHCCCOM (C code): flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   CFLAGS += -march=native                        scons: *** native/SConstruct: $SHCCCOM (C code): flag(s) outside the floating-point allowlist: -march=native
+OK   rc=2   CFLAGS += -O3                                  scons: *** native/SConstruct: $SHCCCOM (C code): flag(s) outside the floating-point allowlist: -O3
+OK   rc=2   SHCFLAGS += -ffast-math                        scons: *** native/SConstruct: $SHCCCOM (C code): flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   SHCFLAGS += -march=native                      scons: *** native/SConstruct: $SHCCCOM (C code): flag(s) outside the floating-point allowlist: -march=native
+OK   rc=2   SHCFLAGS += -O3                                scons: *** native/SConstruct: $SHCCCOM (C code): flag(s) outside the floating-point allowlist: -O3
+OK   rc=2   CPPFLAGS += -ffast-math                        scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   CPPFLAGS += -march=native                      scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -march=native
+OK   rc=2   CPPFLAGS += -O3                                scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -O3
+OK   rc=2   LINKFLAGS += -ffast-math                       scons: *** native/SConstruct: link command of the library: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   LINKFLAGS += -march=native                     scons: *** native/SConstruct: link command of the library: flag(s) outside the floating-point allowlist: -march=native
+OK   rc=2   LINKFLAGS += -O3                               scons: *** native/SConstruct: link command of the library: flag(s) outside the floating-point allowlist: -O3
+OK   rc=2   SHLINKFLAGS += -ffast-math                     scons: *** native/SConstruct: link command of the library: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   SHLINKFLAGS += -march=native                   scons: *** native/SConstruct: link command of the library: flag(s) outside the floating-point allowlist: -march=native
+OK   rc=2   SHLINKFLAGS += -O3                             scons: *** native/SConstruct: link command of the library: flag(s) outside the floating-point allowlist: -O3
+OK   rc=2   late CCFLAGS += -ffast-math                    scons: *** native/SConstruct: compile command of godot-cpp $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850/src/godot.cpp: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   late CXXFLAGS += -ffast-math                   scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   late LINKFLAGS += -ffast-math                  scons: *** native/SConstruct: link command of the library: flag(s) outside the floating-point allowlist: -ffast-math
+OK   rc=2   CCFLAGS += -Xclang -ffast-math                 scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -Xclang -ffast-math
+OK   rc=2   CCFLAGS += -mllvm ...                          scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -mllvm -enable-unsafe-fp-math
+OK   rc=2   CCFLAGS += '-O2 -ffast-math' (one word)        scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -O2 -ffast-math
+OK   rc=2   CCFLAGS += @response-file                      scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: @/tmp/does-not-matter.rsp
+OK   rc=2   LINKFLAGS += -Wl,-plugin-opt=...               scons: *** native/SConstruct: link command of the library: flag(s) outside the floating-point allowlist: -Wl,-plugin-opt=-enable-unsafe-fp-math
+OK   rc=2   LINKFLAGS += -Xlinker ...                      scons: *** native/SConstruct: link command of the library: flag(s) outside the floating-point allowlist: -Xlinker --no-gc-sections
+OK   rc=2   CPPDEFINES value with a flag inside            scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -DX=1 -ffast-math
+OK   rc=2   CPPPATH with a space                           scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -I/tmp/a b
+OK   rc=2   FP_FLAGS without -ffp-contract=off             scons: *** native/SConstruct: compile command of native/src/build_info.cpp: required flag(s) missing: -ffp-contract=off
+OK   rc=2   FP_FLAGS without -fno-fast-math                scons: *** native/SConstruct: compile command of native/src/build_info.cpp: required flag(s) missing: -fno-fast-math
+OK   rc=2   FP_FLAGS = -ffp-contract=fast                  scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -ffp-contract=fast
+OK   rc=2   optimize=speed (-O3)                           scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -O3
+OK   rc=2   lto=full pinned in the SConstruct              scons: *** native/SConstruct: compile command of native/src/build_info.cpp: flag(s) outside the floating-point allowlist: -flto
+
+67 cases, 67 as expected, 0 NOT as expected
+OK   rc=2   argument optimize=speed                        scons: *** native/SConstruct: the argument 'optimize' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument lto=full                              scons: *** native/SConstruct: the argument 'lto' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument production=yes                        scons: *** native/SConstruct: the argument 'production' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument precision=double                      scons: *** native/SConstruct: the argument 'precision' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument custom_api_file=$CACHE/godot-api/4.7.2-stable/extension_api.json scons: *** native/SConstruct: the argument 'custom_api_file' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument profile=/tmp/x                        scons: *** native/SConstruct: the argument 'profile' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument use_llvm=no                           scons: *** native/SConstruct: the argument 'use_llvm' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument build_profile=/tmp/x.json             scons: *** native/SConstruct: the argument 'build_profile' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument CCFLAGS=-ffast-math                   scons: *** native/SConstruct: the argument 'CCFLAGS' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument debug_symbols=yes                     scons: *** native/SConstruct: the argument 'debug_symbols' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument dev_build=yes                         scons: *** native/SConstruct: the argument 'dev_build' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument threads=no                            scons: *** native/SConstruct: the argument 'threads' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument api_version=4.6                       scons: *** native/SConstruct: the argument 'api_version' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument ndk_version=1                         scons: *** native/SConstruct: the argument 'ndk_version' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument verbose=yes extra=1                   scons: *** native/SConstruct: the argument 'extra' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument SCONSFLAGS=x                          scons: *** native/SConstruct: the argument 'SCONSFLAGS' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument generate_bindings=yes                 scons: *** native/SConstruct: the argument 'generate_bindings' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=2   argument disable_exceptions=no                 scons: *** native/SConstruct: the argument 'disable_exceptions' is not accepted; only platform, target, arch, out_dir, verbose are (everything else is fixed here)
+OK   rc=0   argument verbose=yes (allowed)                 
+OK   rc=2   command line target 'compiledb'                scons: *** native/SConstruct: no targets may be given on the command line: compiledb
+OK   rc=2   env SCONSFLAGS='lto=full' (direct scons)       scons: *** native/SConstruct: SCONSFLAGS is set in the environment; it changes what scons builds. Run this through tools/build_native.sh
+OK   rc=2   env SCONSFLAGS='-Q' (direct scons)             scons: *** native/SConstruct: SCONSFLAGS is set in the environment; it changes what scons builds. Run this through tools/build_native.sh
+OK   rc=2   env SCONS_CACHE=/tmp/c (direct scons)          scons: *** native/SConstruct: SCONS_CACHE is set in the environment; it changes what scons builds. Run this through tools/build_native.sh
+OK   rc=0   env SCONSFLAGS=lto=full via swarm_scons (stripped) 
+OK   rc=2   direct scons without PYTHONDONTWRITEBYTECODE   scons: *** native/SConstruct: Python may write .pyc files next to the sources; run this through tools/build_native.sh (PYTHONDONTWRITEBYTECODE=1)
+
+25 cases, 25 as expected, 0 NOT as expected
+OK   rc=2   build_profile.json: missing classes            scons: *** native/SConstruct: the build profile <scratch>/mut/p/native/build_profile.json must be {"enabled_classes": [<class names>]} and nothing else
+OK   rc=2   build_profile.json: extra key                  scons: *** native/SConstruct: the build profile <scratch>/mut/p/native/build_profile.json must be {"enabled_classes": [<class names>]} and nothing else
+OK   rc=2   build_profile.json: not json                   scons: *** native/SConstruct: cannot read the build profile <scratch>/mut/p/native/build_profile.json: Expecting value: line 1 column 1 (char 0)
+OK   rc=2   build_profile.json: bad class name             scons: *** native/SConstruct: the build profile <scratch>/mut/p/native/build_profile.json must be {"enabled_classes": [<class names>]} and nothing else
+OK   rc=2   build_profile.json: list                       scons: *** native/SConstruct: the build profile <scratch>/mut/p/native/build_profile.json must be {"enabled_classes": [<class names>]} and nothing else
+OK   rc=2   build_profile.json: string classes             scons: *** native/SConstruct: the build profile <scratch>/mut/p/native/build_profile.json must be {"enabled_classes": [<class names>]} and nothing else
+OK   rc=2   build_profile.json missing                     scons: *** native/SConstruct: cannot read the build profile <scratch>/mut/p/native/build_profile.json: [Errno 2] No such file or directory: '<scratch>/mut/p/native/buil
+
+7 cases, 7 as expected, 0 NOT as expected
+OK   rc=0   godot-cpp copy, untouched (control)            
+OK   rc=2   godot-cpp HEAD != pin                          scons: *** native/SConstruct: godot-cpp in <scratch>/mut/godot-cpp is not at the pinned commit 0000000000000000000000000000000000000000
+OK   rc=2   godot-cpp tracked file modified                scons: *** native/SConstruct: godot-cpp in <scratch>/mut/godot-cpp is not clean (run tools/setup_cpp.sh to restore it):
+OK   rc=0   godot-cpp restored (control)                   
+OK   rc=2   godot-cpp untracked/ignored custom.py          scons: *** native/SConstruct: godot-cpp in <scratch>/mut/godot-cpp is not clean (run tools/setup_cpp.sh to restore it):
+OK   rc=2   godot-cpp untracked file                       scons: *** native/SConstruct: godot-cpp in <scratch>/mut/godot-cpp is not clean (run tools/setup_cpp.sh to restore it):
+OK   rc=2   godot-cpp ignored __pycache__ file             scons: *** native/SConstruct: godot-cpp in <scratch>/mut/godot-cpp is not clean (run tools/setup_cpp.sh to restore it):
+OK   rc=0   godot-cpp clean again (control)                
+
+8 cases, 8 as expected, 0 NOT as expected
+OK   rc=2   src/extra.cc (not .cpp)                        scons: *** native/SConstruct: src/extra.cc: only .cpp files are compiled; rename it or extend native/SConstruct
+OK   rc=2   src/sim/deep/x.c                               scons: *** native/SConstruct: src/sim/deep/x.c: only .cpp files are compiled; rename it or extend native/SConstruct
+OK   rc=2   no .cpp at all                                 scons: *** native/SConstruct: no .cpp files below <scratch>/mut/s/native/src
+
+3 cases, 3 as expected, 0 NOT as expected
