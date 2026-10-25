@@ -14,6 +14,8 @@
 #   SWARM_GODOT_API_JSON   extension_api.json dumped from the pinned Godot (reference for api checks)
 #   SWARM_NATIVE_BUILD_DIR object files and intermediate libraries (outside the repo)
 #   SWARM_NDK_VERSION, SWARM_SCONS_VERSION, SWARM_NDK_BIN (the NDK's llvm bin dir)
+#   SWARM_QEMU_AARCH64, SWARM_QEMU_ARM  qemu-user (static, from a pinned Ubuntu package) that runs the
+#                          statically linked arm64 / armv7 test programs on the x86-64 host
 # Defines swarm_scons: runs scons with a confined environment (no bytecode files next to the sources,
 # no user site-packages, HOME and TMPDIR inside the cache, and none of the environment variables that
 # change what scons builds: SCONSFLAGS, SCONS_CACHE, SCONS_LIB_DIR, PYTHONPATH, PYTHONHOME, PYTHONSTARTUP).
@@ -21,7 +23,7 @@
 # untracked or ignored file.
 #
 # Host-only mode: set SWARM_CPP_HOST_ONLY=1 BEFORE sourcing this file when only the Linux host build is
-# needed (the headless tests). The Android NDK (2.2 GB) is then not required and not checked; scons, the
+# needed (the headless tests). The Android NDK (2.2 GB) and qemu are then not required and not checked; scons, the
 # pinned godot-cpp checkout, the API dump and a host clang/llvm-objdump still are. Without the variable
 # everything is required (tools/build_android.sh).
 #
@@ -46,6 +48,7 @@ SWARM_GODOT_CPP_REPO="https://github.com/godotengine/godot-cpp"
 SWARM_GODOT_CPP_COMMIT="8070599885b6df675fcad033dd032ce44be2b850"   # master, 2026-10-22 (godot-cpp v10 line)
 SWARM_GODOT_API_VERSION="4.7"                     # godot-cpp api_version; checked against Godot 4.7.2's own dump
 SWARM_SCONS_VERSION="4.10.1"
+SWARM_QEMU_VERSION="8.2.2+ds-0ubuntu1.18"         # Ubuntu 24.04 (noble-updates) qemu-user-static, epoch 1 left out
 
 ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/$SWARM_NDK_VERSION"
 SWARM_NDK_BIN="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin"
@@ -56,6 +59,9 @@ SWARM_GODOT_API_DIR="$SWARM_CACHE_DIR/godot-api/$SWARM_GODOT_VERSION"
 SWARM_GODOT_API_JSON="$SWARM_GODOT_API_DIR/extension_api.json"
 SWARM_NATIVE_BUILD_DIR="$SWARM_CACHE_DIR/native-build"
 SWARM_CPP_TOOLCHAIN_ENV="$SWARM_CACHE_DIR/cpp-toolchain.env"   # facts recorded by setup_cpp.sh
+SWARM_QEMU_DIR="$SWARM_CACHE_DIR/qemu/$SWARM_QEMU_VERSION"
+SWARM_QEMU_AARCH64="$SWARM_QEMU_DIR/qemu-aarch64-static"
+SWARM_QEMU_ARM="$SWARM_QEMU_DIR/qemu-arm-static"
 
 # Run scons from the venv. Nothing may be written next to the sources (godot-cpp checkout, repo):
 # no .pyc files, no user site-packages; HOME and TMPDIR are inside the cache like for Godot. The variables
@@ -105,6 +111,9 @@ _swarm_cpp_problems() {
   elif ! grep -qx "Pkg.Revision *= *$SWARM_NDK_VERSION" "$ANDROID_NDK_ROOT/source.properties" 2>/dev/null; then
     problems+=("Android NDK is not revision $SWARM_NDK_VERSION: $ANDROID_NDK_ROOT")
   fi
+  if [[ "${SWARM_CPP_HOST_ONLY:-0}" != "1" ]] && ! [[ -x "$SWARM_QEMU_AARCH64" && -x "$SWARM_QEMU_ARM" ]]; then
+    problems+=("qemu-user $SWARM_QEMU_VERSION missing: $SWARM_QEMU_DIR")
+  fi
   if [[ ! -x "$SCONS" ]]; then
     problems+=("scons missing: $SCONS")
   else
@@ -148,5 +157,6 @@ if [[ "${SWARM_CPP_TOOLCHAIN_SKIP_CHECK:-0}" != "1" ]]; then
   unset _swarm_problems
   export ANDROID_NDK_ROOT SCONS GODOT_CPP_DIR SWARM_GODOT_CPP_COMMIT SWARM_GODOT_API_VERSION SWARM_GODOT_API_JSON
   export SWARM_NATIVE_BUILD_DIR SWARM_NDK_VERSION SWARM_SCONS_VERSION SWARM_NDK_BIN
+  export SWARM_QEMU_VERSION SWARM_QEMU_AARCH64 SWARM_QEMU_ARM
   export -f swarm_scons
 fi

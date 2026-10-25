@@ -8,6 +8,8 @@
 #     network for pip); every installed file, the entry script bin/scons included, is checked against the
 #     wheel's RECORD and no compiled .pyc file may exist
 #   - Godot 4.7.2's own extension API (--dump-extension-api), compared with godot-cpp's api_version file
+#   - qemu-user (qemu-aarch64-static, qemu-arm-static) from a pinned Ubuntu package, to run the statically
+#     linked arm64 / armv7 test programs on this host (skipped by --host-only, like the NDK)
 # Idempotent: a re-run verifies every installed file against a stamp (and the godot-cpp checkout against
 # its commit) and downloads nothing when everything is in place. Every download is checked against a
 # pinned size and hash before it is extracted or installed.
@@ -15,7 +17,7 @@
 #
 # Usage: tools/setup_cpp.sh [--host-only] [--report]
 #   --host-only  install only what the Linux host build and the headless tests (tools/run_godot_tests.sh)
-#                need: no Android NDK. tools/build_android.sh still needs the full setup (run without it).
+#                need: no Android NDK, no qemu. tools/build_android.sh still needs the full setup (run without it).
 #   --report     change nothing; print the pins and what is installed (used for the C1 evidence)
 set -euo pipefail
 
@@ -44,6 +46,19 @@ SCONS_WHEEL_URL="https://files.pythonhosted.org/packages/ce/bf/931fb9fbb87234c32
 SCONS_WHEEL_SIZE=4136069
 SCONS_WHEEL_SHA256="bd9d1c52f908d874eba92a8c0c0a8dcf2ed9f3b88ab956d0fce1da479c4e7126"
 
+# qemu-user-static 1:8.2.2+ds-0ubuntu1.18, amd64 (Ubuntu 24.04 noble-updates, universe). Size, SHA-256 and
+# SHA-512 are the ones in dists/noble-updates/universe/binary-amd64/Packages.gz, whose hash is listed in
+# dists/noble-updates/InRelease, signed by "Ubuntu Archive Automatic Signing Key (2018)" (checked with gpgv
+# and /usr/share/keyrings/ubuntu-archive-keyring.gpg on 2026-10-25). The URL is Launchpad's librarian, which
+# keeps every published file; archive.ubuntu.com drops a -updates package from its pool once it is superseded.
+QEMU_DEB="qemu-user-static_${SWARM_QEMU_VERSION}_amd64.deb"
+QEMU_DEB_URL="https://launchpadlibrarian.net/868126304/$QEMU_DEB"
+QEMU_DEB_SIZE=14709858
+QEMU_DEB_SHA256="5bb397f66063efa349f6fd5cb3b68cd96f29edd0994e4ba5115cf0859a716bf0"
+QEMU_DEB_SHA512="c18a17c7651d344933deb327237576ba7d585d46201daa68586d6bb6dfbed662c203b278cf7d62e6e9cfcf5f2042a21fc37c9f473b914f97477dfb590fce82c6"
+# The only members taken out of the package (regular files); the binfmt links and everything else stay in it.
+QEMU_MEMBERS=(./usr/bin/qemu-aarch64-static ./usr/bin/qemu-arm-static ./usr/share/doc/qemu-user-static/copyright)
+
 usage() { awk 'NR > 1 { if (!/^#/) exit; sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"; }
 HOST_ONLY=0
 
@@ -56,6 +71,10 @@ preflight() {
   done
   if ((HOST_ONLY)); then # the NDK's llvm-objdump is not there, so the host's checks the x86-64 objects
     [[ -n "$(swarm_find_host_objdump)" ]] || die "llvm-objdump not found (Debian/Ubuntu: apt install llvm)"
+  else
+    for c in dpkg-deb tar; do
+      command -v "$c" >/dev/null 2>&1 || die "required command not found: $c (it unpacks the pinned qemu package)"
+    done
   fi
   python3 -c 'import sys, venv, ensurepip; sys.exit(0 if sys.version_info >= (3, 8) else 1)' 2>/dev/null \
     || die "python3 (3.8+) with the venv and ensurepip modules is required (Debian/Ubuntu: apt install python3-venv)"
@@ -84,6 +103,39 @@ install_ndk() {
   mv -- "$STAGING/$NDK_TOP_DIR" "$dest"
   stamp_write "$dest" "$stamp"
   log "OK (NDK installed): $dest"
+}
+
+install_qemu() {
+  local dest="$SWARM_QEMU_DIR" stamp=.swarm-installed.sha256 deb member listing out emu
+  if [[ -x "$SWARM_QEMU_AARCH64" && -x "$SWARM_QEMU_ARM" ]] && stamp_ok "$dest" "$stamp" all; then
+    log "OK (qemu unchanged): $dest"
+    return 0
+  fi
+  fetch_verified "$QEMU_DEB" "$QEMU_DEB_URL" "$QEMU_DEB_SIZE" "sha256:$QEMU_DEB_SHA256" "sha512:$QEMU_DEB_SHA512"
+  deb="$SWARM_DOWNLOAD_DIR/$QEMU_DEB"
+  # Each wanted member must be a regular file in the package's data archive (tar -tv: type letter "-").
+  listing="$(dpkg-deb --fsys-tarfile "$deb" | tar -tv)" || die "cannot list the members of $QEMU_DEB"
+  for member in "${QEMU_MEMBERS[@]}"; do
+    awk -v m="$member" '$NF == m && substr($1, 1, 1) == "-" { found = 1 } END { exit !found }' <<<"$listing" \
+      || die "$member is not a regular file in $QEMU_DEB"
+  done
+  log "extracting qemu-aarch64-static, qemu-arm-static and the copyright file -> $dest"
+  make_staging
+  dpkg-deb --fsys-tarfile "$deb" | tar -x -C "$STAGING" --no-same-owner -f - "${QEMU_MEMBERS[@]}" \
+    || die "could not extract qemu from $QEMU_DEB"
+  mkdir -p "$STAGING/qemu"
+  for member in "${QEMU_MEMBERS[@]}"; do
+    mv -- "$STAGING/$member" "$STAGING/qemu/"
+  done
+  for emu in qemu-aarch64-static qemu-arm-static; do
+    out="$("$STAGING/qemu/$emu" --version 2>&1 | head -n 1)" || die "$emu does not run: $out"
+    grep -qF "version 8.2.2 (Debian 1:$SWARM_QEMU_VERSION)" <<<"$out" || die "$emu reports '$out', expected 1:$SWARM_QEMU_VERSION"
+  done
+  if [[ -e "$dest" ]]; then remove_cache_tree "$dest"; fi
+  mkdir -p "$(dirname "$dest")"
+  mv -- "$STAGING/qemu" "$dest"
+  stamp_write "$dest" "$stamp"
+  log "OK (qemu installed): $dest"
 }
 
 # verify_scons_install: every installed scons file is the one in the wheel's RECORD (sha256 each, the entry
@@ -221,6 +273,7 @@ record_toolchain() {
     printf 'GODOT_CPP_COMMIT_DATE=%s\n' "$(git -C "$GODOT_CPP_DIR" show -s --format=%cI HEAD)"
     printf 'GODOT_CPP_API_VERSION=%s\n' "$SWARM_GODOT_API_VERSION"
     if ((HOST_ONLY)); then printf 'NDK_VERSION=not installed (setup_cpp.sh --host-only)\n'; else printf 'NDK_VERSION=%s\n' "$SWARM_NDK_VERSION"; fi
+    if ((HOST_ONLY)); then printf 'QEMU_VERSION=not installed (setup_cpp.sh --host-only)\n'; else printf 'QEMU_VERSION=%s\n' "$SWARM_QEMU_VERSION"; fi
     printf 'SCONS_VERSION=%s\n' "$SWARM_SCONS_VERSION"
     printf 'HOST_CLANG=%s\n' "$(clang --version | head -n 1)"
     printf 'API_CHECK=identical\n'
@@ -246,6 +299,21 @@ smoke_test() {
       || die "the NDK cannot build a shared library for $target"
   done
   log "  NDK builds shared libraries for arm64 and armv7"
+  # A static executable for each ABI, run under qemu: the way the C++ test programs run on this host.
+  # 6 * 7 = 42 is printed as "42 <sizeof(long)>": 8 on arm64, 4 on armv7.
+  printf '#include <stdio.h>\nint main(void) { volatile int a = 6; printf("%%d %%zu\\n", a * 7, sizeof(long)); return 0; }\n' >"$STAGING/smoke_main.c"
+  local emu expect
+  for target in aarch64-linux-android24 armv7a-linux-androideabi24; do
+    case "$target" in
+      aarch64-*) emu="$SWARM_QEMU_AARCH64" expect="42 8" ;;
+      *) emu="$SWARM_QEMU_ARM" expect="42 4" ;;
+    esac
+    "$SWARM_NDK_BIN/clang" --target="$target" -static -O2 -o "$STAGING/smoke-$target" "$STAGING/smoke_main.c" \
+      || die "the NDK cannot build a static executable for $target"
+    out="$("$emu" "$STAGING/smoke-$target" 2>&1)" || die "qemu cannot run the $target executable: $out"
+    [[ "$out" == "$expect" ]] || die "the $target executable under qemu printed '$out', expected '$expect'"
+  done
+  log "  qemu $SWARM_QEMU_VERSION runs static arm64 and armv7 executables"
 }
 
 report() {
@@ -265,6 +333,13 @@ report() {
   else
     printf '  clang          : (NDK not installed; host-only setup)\n'
   fi
+  if [[ -x "$SWARM_QEMU_AARCH64" ]]; then
+    printf 'qemu-user        : %s  %s\n' "$SWARM_QEMU_VERSION" "$SWARM_QEMU_DIR"
+  else
+    printf 'qemu-user        : %s  NOT INSTALLED (host-only setup)\n' "$SWARM_QEMU_VERSION"
+  fi
+  printf '  deb            : %s  %s bytes\n' "$QEMU_DEB" "$QEMU_DEB_SIZE"
+  printf '  deb sha256     : %s  (published in noble-updates Packages, signed InRelease)\n' "$QEMU_DEB_SHA256"
   printf 'SCons            : %s  %s\n' "$SWARM_SCONS_VERSION" "$SCONS"
   printf '  wheel          : %s  %s bytes\n' "$SCONS_WHEEL" "$SCONS_WHEEL_SIZE"
   printf '  wheel sha256   : %s\n' "$SCONS_WHEEL_SHA256"
@@ -313,7 +388,7 @@ main() {
   fi
   preflight
   rm -f -- "$SWARM_CPP_TOOLCHAIN_ENV"   # a failed run must not leave the "set up" marker of an earlier one
-  if ((HOST_ONLY)); then log "--host-only: the Android NDK is neither installed nor checked"; else install_ndk; fi
+  if ((HOST_ONLY)); then log "--host-only: the Android NDK and qemu are neither installed nor checked"; else install_ndk; install_qemu; fi
   install_scons
   install_godot_cpp
   dump_godot_api
