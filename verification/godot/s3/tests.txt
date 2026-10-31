@@ -1,0 +1,261 @@
+S3 evidence: tests (design 9.1; deterministic simulation foundation)
+date: 2026-10-19    Godot 4.7.2-stable    node v22.22.0    Linux x86_64 (Intel Xeon 2.80 GHz, 4 cores)
+
+----------------------------------------------------------------------
+0. Result
+----------------------------------------------------------------------
+tools/run_godot_tests.sh   -> exit code 0, RESULT: PASS, 120/120 tests, 7175 assertions, about 56 s  (final run after the review fixes, 2026-10-19)
+  order: tools/check_assets.sh (S2, Node)  ->  tools/check_generated.sh (S3, Node)  ->  incremental headless import  ->  GDScript runner
+  engine/script errors in the output: none (the script fails on any push_error / SCRIPT ERROR)
+  git add / commit / push / stash / reset / checkout were never run; nothing under webview-fg4/ or docs/ changed (git status checked)
+
+----------------------------------------------------------------------
+1. Design 9.1 criteria -> tests
+----------------------------------------------------------------------
+RNG: the first 1000 values per seed are bit-identical to the original's makeSeededRandom
+  test_rng.gd::test_first_1000_outputs_of_every_seed_match_the_original     8 seeds x 1000 outputs (424242, 24681357, 0, 1, 4294967295,
+                                                                            2147483648, 2654435769, 123456789), compared as integers k / 2^32
+  test_rng.gd::test_later_outputs_match_the_checkpoints                     later positions of the same streams
+  test_rng.gd::test_seed_normalisation_follows_seed_ushr_0_or_default       17 seed normalisations (seed>>>0 || 2654435769)
+  test_rng.gd::test_game_rng_helpers_and_draw_counter_match_the_original    rand / randi / chance / shuffle / index and gameRandomDraws
+  test_rng.gd::test_fx_rng_is_separate_and_seedable                         FxRng never changes GameRng.draws
+js_compat edge cases (20000 rows per ported function, bit pattern compared, -0 != +0, any NaN == any NaN)
+  test_js_math.gd: sin cos atan atan2 exp log hypot round trunc mod max min max3 min3 max5 min5 clamp to_int32 to_uint32 imul shl sar shr_u,
+  floor ceil sqrt abs (2048 rows), pow (490 rows, JS special cases), 48 named pitfall cases, constants vs their bit patterns
+enemySpec / XP curve / weaponDamage identical to the original's functions
+  test_formulas.gd::test_enemy_spec_matches_the_original                    1140 rows: 9 kinds + 1 unknown kind x 45 waves (normal), other difficulties, endless (waves 1, 10, 49-51, 99-101, 149-151: both sides of every defense milestone), contract multipliers
+  test_formulas.gd::test_xp_curve_matches_the_original                      220 levels + 5 sequences + gainXp/collect cases
+  test_formulas.gd::test_weapon_damage_matches_the_original                 360 (weapon, level) rows
+  test_formulas.gd::test_weapon_interval_matches_the_original               6 scenarios
+  test_formulas.gd::test_wave_predicates / test_wave_theme_draws / test_input_vector (256 + 176 rows) / test_camera_follow
+newGame, system lists, movement and camera
+  test_new_game.gd      newGame literal field by field (catalyst/normal), 9 other characters + 4 difficulties + endless as diffs, the original's
+                        5 / 43 / 5 system lists, generator position after newGame for 8 seeds
+  test_sim_movement.gd  13 scripted input runs through Sim.step vs the original's update(): 28 columns bit for bit; runSystems stops before EVERY slot
+                        when the player dies or the state leaves PLAYING (2 tests added by the review fixes)
+  test_defs.gd          5 definition files vs the original (every non-integer double bit for bit), both pointer variants, export filter
+  test_main_sim.gd      main.gd drives the Sim from the keyboard
+
+Added by the integration step (new): godot/tests/test_sim_source_rules.gd (3 tests, 112 assertions)
+  scans every godot/sim/**/*.gd except js_compat.gd and fails on a call of the engine's sin/cos/tan/atan/atan2/exp/log/pow/round/roundf/
+  fmod/posmod/max/min/maxf/minf/clamp/clampf/lerp/sign/randf/randi..., on **, on Vector2/Color/... (float32), on Time/OS/Input/Engine, and on
+  scripts that extend Node. Mutation check: replacing JsMath.atan2 by atan2 in player_movement_system.gd made it fail with
+    "res://sim/systems/player_movement_system.gd: line 47: p.last_facing = atan2(p.vy, p.vx)"
+  (file restored; sha256 checked identical). The scanner itself is tested with 38 lines it must flag and 31 it must accept (plus a line-number check).
+  Result of the scan on the integrated tree: 0 violations in 37 files (38 scripts, js_compat.gd exempt).
+
+Added by the review fixes (agent F): 2 tests more than the integrated 118 / 7087, and one more step in check_generated.sh:
+  test_sim_movement.gd::test_a_slot_in_the_middle_of_the_main_list_that_kills_the_player_stops_the_rest_of_the_step (70 assertions) and
+  test_sim_movement.gd::test_a_slot_that_leaves_the_playing_state_stops_the_rest_of_the_step (18 assertions): a probe slot inserted at index 0, 1, 15, 26 or 38
+    kills the player, or (index 0, 15 or 40) sets the state to LEVELUP; the following slots (a probe that draws a number, fx/screen-flash, a last slot) must not run,
+    the draw count must stay 1 and the knock-out must start in the same step. Mutation (the per-slot check only before the first slot, the reviewer's M14):
+    both tests FAIL (9/11 passed in test_sim_movement); file restored, sha256 checked.
+  test_new_game.gd::test_stubs_say_where_the_original_draws_random_numbers now expects wave/progress, enemy/update, projectile/player, enemy/cleanup-2
+    (weapon/update was wrong); the set is verified against the real original by tools/census_rng_slots_chromium.mjs (rng_slots.txt).
+  test_formulas.gd::test_enemy_spec_matches_the_original: mutation (maxi(0, wave - 1) -> maxi(0, wave) in the endless defense milestone) now FAILS
+    (before: 118/118 passed); file restored, sha256 checked.
+  tools/check_js_compat_consts.mjs (step 3/5 of check_generated.sh): 95 constants, CONST_BITS, SINCOSTAB_BITS, TOVERP vs the upstream literals; mutations
+    EX_P3 changed consistently in the expression and CONST_BITS, AT_T5 expression only, LG_5 removed from CONST_BITS, SINCOSTAB entry +1, TOVERP[0] +1,
+    LG_THIRD expression: all six FAIL with the offending name; js_compat.gd restored, sha256 checked.
+
+Stability: tests/test_main_sim.gd ran 8 times in a row alone (4/4 each time) and the whole suite 4 times during this step (115/115, 118/118 x3); after the review fixes 120/120 (twice: tools/run_godot_tests.sh and inside tools/build_android.sh).
+  An earlier intermediate failure of test_keyboard_moves_the_player reported by implementer M happened while G was still editing main.gd; it did not recur.
+
+----------------------------------------------------------------------
+2. Full output of the final run: tools/run_godot_tests.sh
+----------------------------------------------------------------------
+[tests] checking the atlas assets against the original game ...
+[assets] 1/3 extract_assets.mjs --check --compare-fg4
+    check OK: 16 files in godot/assets/atlas are identical to a fresh extraction
+    compare-fg4 OK: all 14 data URIs occur exactly once, byte for byte
+[assets] 2/3 node --test tools/test_extract_assets.mjs
+    # tests 23 # pass 23 # fail 0
+[assets] 3/3 import files
+    14 .webp files, each with a .import file
+[assets] PASS
+[tests] checking the generated definition tables and golden vectors against the original game ...
+[generated] 1/5 extract_defs.mjs --check
+    check OK: 5 files in godot/sim/defs are identical to a fresh extraction
+[generated] 2/5 gen_golden.mjs --check
+    check OK: 6 golden file(s) in godot/tests/golden are identical to a fresh generation
+[generated] 3/5 check_js_compat_consts.mjs
+    check OK: 95 constants of js_compat.gd = their CONST_BITS entries = the upstream literals; SINCOSTAB_BITS (440) and TOVERP (75) = tools/golden/_glibc_sin.mjs
+[generated] 4/5 node --test tools/test_gen_golden.mjs
+    # tests 15 # pass 15 # fail 0
+[generated] 5/5 node --test tools/test_extract_defs.mjs
+    # tests 17 # pass 17 # fail 0
+[generated] PASS
+[tests] importing project (headless, incremental) ...
+[tests] running tests with 4.7.2.stable.official.ed1daf0bf
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+Godot 4.7.2-stable (official) - running 11 test file(s)
+PASS  test_atlas_assets.gd::test_art_ids_are_aliases_of_the_idle1_cell (36 assertions)
+PASS  test_atlas_assets.gd::test_art_maps_and_generated_fx (38 assertions)
+PASS  test_atlas_assets.gd::test_every_atlas_has_a_texture_through_atlas_layout (21 assertions)
+PASS  test_atlas_assets.gd::test_every_manifest_image_loads_as_a_texture_of_the_manifest_size (84 assertions)
+PASS  test_atlas_assets.gd::test_expected_misses_in_overhaul_and_meta_atlases_are_not_errors (23 assertions)
+PASS  test_atlas_assets.gd::test_geometry_equals_the_json_and_lies_inside_the_texture (1635 assertions)
+PASS  test_atlas_assets.gd::test_geometry_follows_buildAtlasDrawGeometry (623 assertions)
+PASS  test_atlas_assets.gd::test_geometry_is_read_only (1 assertions)
+PASS  test_atlas_assets.gd::test_geometry_spot_checks_from_the_game_function (27 assertions)
+PASS  test_atlas_assets.gd::test_godot_decodes_the_webp_files_exactly (42 assertions)
+PASS  test_atlas_assets.gd::test_id_order_matches_the_game (37 assertions)
+PASS  test_atlas_assets.gd::test_ids_are_unique_and_fit_the_grid (382 assertions)
+PASS  test_atlas_assets.gd::test_import_settings_are_pixel_art_lossless (141 assertions)
+PASS  test_atlas_assets.gd::test_imported_textures_keep_every_texel (28 assertions)
+PASS  test_atlas_assets.gd::test_layout_sheets_reference_manifest_images (93 assertions)
+PASS  test_atlas_assets.gd::test_manifest_lists_the_14_images (29 assertions)
+PASS  test_atlas_assets.gd::test_meta_atlas_frames (522 assertions)
+PASS  test_atlas_assets.gd::test_overhaul_character_icon_and_range_cells (11 assertions)
+PASS  test_atlas_assets.gd::test_pointer_dependent_constants_hold_both_modes (2 assertions)
+PASS  test_atlas_assets.gd::test_runtime_derived_image_parameters (27 assertions)
+PASS  test_atlas_assets.gd::test_shared_instance_is_created_once (3 assertions)
+PASS  test_atlas_assets.gd::test_unknown_lookups_return_empty_values_without_crashing (51 assertions)
+PASS  test_atlas_assets.gd::test_unusable_layout_files_fail_quietly_for_every_helper (76 assertions)
+PASS  test_atlas_assets.gd::test_webp_files_are_the_bytes_of_the_data_uris (28 assertions)
+PASS  test_defs.gd::test_counts_and_order_of_the_tables (10 assertions)
+PASS  test_defs.gd::test_every_non_integer_number_equals_the_originals_double (2 assertions)
+PASS  test_defs.gd::test_files_load_with_the_pinned_source (16 assertions)
+PASS  test_defs.gd::test_infinity_and_other_markers_are_restored (7 assertions)
+PASS  test_defs.gd::test_pointer_dependent_limits_have_both_variants (14 assertions)
+PASS  test_defs.gd::test_rules_are_the_originals (17 assertions)
+PASS  test_defs.gd::test_the_android_export_ships_the_definition_files (12 assertions)
+PASS  test_defs.gd::test_typed_wrappers_read_the_tables (21 assertions)
+PASS  test_formulas.gd::test_camera_follow_matches_the_original (9 assertions)
+PASS  test_formulas.gd::test_enemy_spec_for_game_reads_the_game_fields (4 assertions)
+PASS  test_formulas.gd::test_enemy_spec_matches_the_original (13 assertions)
+PASS  test_formulas.gd::test_input_vector_matches_the_original (3 assertions)
+PASS  test_formulas.gd::test_wave_predicates_match_the_original (3 assertions)
+PASS  test_formulas.gd::test_wave_theme_draws_match_the_original (28 assertions)
+PASS  test_formulas.gd::test_weapon_damage_matches_the_original (2 assertions)
+PASS  test_formulas.gd::test_weapon_interval_matches_the_original (16 assertions)
+PASS  test_formulas.gd::test_xp_curve_matches_the_original (22 assertions)
+PASS  test_js_math.gd::test_atan (4 assertions)
+PASS  test_js_math.gd::test_atan2 (4 assertions)
+BENCH  (typed GDScript, headless; each line is net of the loop cost; a builtin call costs about 30 to 70 ns)
+BENCH  builtin sin                     51 ns/call   19.76 M calls/s
+BENCH  JsMath.sin                     836 ns/call    1.20 M calls/s
+BENCH  JsMath.cos                     846 ns/call    1.18 M calls/s
+BENCH  builtin atan2                   60 ns/call   16.62 M calls/s
+BENCH  JsMath.atan2                   761 ns/call    1.31 M calls/s
+BENCH  JsMath.atan                    570 ns/call    1.76 M calls/s
+BENCH  builtin exp                     24 ns/call   42.37 M calls/s
+BENCH  JsMath.exp                     567 ns/call    1.76 M calls/s
+BENCH  JsMath.log                     986 ns/call    1.01 M calls/s
+BENCH  JsMath.hypot                   316 ns/call    3.16 M calls/s
+BENCH  JsMath.js_round                136 ns/call    7.34 M calls/s
+BENCH  JsMath.to_int32                145 ns/call    6.89 M calls/s
+BENCH  JsMath.js_max                  132 ns/call    7.58 M calls/s
+BENCH  JsMath.clamp                   160 ns/call    6.26 M calls/s
+BENCH  JsMath.js_min                  147 ns/call    6.82 M calls/s
+BENCH  JsMath.max3                    381 ns/call    2.63 M calls/s
+BENCH  JsMath.min3                    378 ns/call    2.64 M calls/s
+BENCH  JsMath.max5                    653 ns/call    1.53 M calls/s
+BENCH  JsMath.min5                    676 ns/call    1.48 M calls/s
+BENCH  JsMath.max_n (5 values)        953 ns/call    1.05 M calls/s
+BENCH  JsMath.min_n (5 values)        867 ns/call    1.15 M calls/s
+BENCH  JsMath.trunc                   125 ns/call    8.02 M calls/s
+BENCH  JsMath.to_uint32               265 ns/call    3.77 M calls/s
+BENCH  JsMath.sqrt (wrapper)          111 ns/call    9.02 M calls/s
+BENCH  builtin sqrt                    51 ns/call   19.62 M calls/s
+BENCH  JsMath.js_mod                  198 ns/call    5.04 M calls/s
+BENCH  JsMath.pow                     268 ns/call    3.73 M calls/s
+BENCH  JsMath.imul                    147 ns/call    6.79 M calls/s
+BENCH  JsMath.i32                      99 ns/call   10.10 M calls/s
+BENCH  JsMath.shl                     308 ns/call    3.24 M calls/s
+BENCH  JsMath.sar                     196 ns/call    5.09 M calls/s
+BENCH  JsMath.shr_u                   102 ns/call    9.82 M calls/s
+BENCH  checksum 426709294743277 60599923992737 (keeps the loops from being optimised away)
+PASS  test_js_math.gd::test_benchmark_prints_calls_per_second (2 assertions)
+PASS  test_js_math.gd::test_bit_helpers_and_negative_zero (10 assertions)
+PASS  test_js_math.gd::test_clamp_is_the_games_clamp (4 assertions)
+PASS  test_js_math.gd::test_constants_match_their_bit_patterns (2 assertions)
+PASS  test_js_math.gd::test_cos (4 assertions)
+PASS  test_js_math.gd::test_exact_wrappers_sqrt_floor_ceil_abs (16 assertions)
+PASS  test_js_math.gd::test_exp (4 assertions)
+PASS  test_js_math.gd::test_hypot (4 assertions)
+PASS  test_js_math.gd::test_i32_wraps_to_the_int32_range (11 assertions)
+PASS  test_js_math.gd::test_imul (4 assertions)
+PASS  test_js_math.gd::test_js_max (4 assertions)
+PASS  test_js_math.gd::test_js_min (4 assertions)
+PASS  test_js_math.gd::test_js_mod (4 assertions)
+PASS  test_js_math.gd::test_js_round (4 assertions)
+PASS  test_js_math.gd::test_log (4 assertions)
+PASS  test_js_math.gd::test_max3_min3 (8 assertions)
+PASS  test_js_math.gd::test_max5_min5 (8 assertions)
+PASS  test_js_math.gd::test_max_n_min_n_agree_with_the_five_argument_vectors (10 assertions)
+PASS  test_js_math.gd::test_named_pitfall_cases (2 assertions)
+PASS  test_js_math.gd::test_pow_special_cases (4 assertions)
+PASS  test_js_math.gd::test_shifts (12 assertions)
+PASS  test_js_math.gd::test_sin (4 assertions)
+PASS  test_js_math.gd::test_to_int32 (4 assertions)
+PASS  test_js_math.gd::test_to_uint32 (4 assertions)
+PASS  test_js_math.gd::test_trunc (4 assertions)
+PASS  test_main_sim.gd::test_arrow_keys_work_too (3 assertions)
+PASS  test_main_sim.gd::test_each_fixed_step_steps_the_simulation_and_the_label_shows_it (9 assertions)
+PASS  test_main_sim.gd::test_keyboard_moves_the_player (6 assertions)
+PASS  test_main_sim.gd::test_ready_creates_a_catalyst_run_with_the_view_size (8 assertions)
+PASS  test_new_game.gd::test_catalyst_state_equals_the_originals_literal (5 assertions)
+PASS  test_new_game.gd::test_every_field_of_the_game_literal_is_accounted_for (250 assertions)
+PASS  test_new_game.gd::test_new_game_draws_and_leaves_the_stream_where_the_original_does (66 assertions)
+PASS  test_new_game.gd::test_other_characters_difficulties_and_the_endless_mode (151 assertions)
+PASS  test_new_game.gd::test_player_has_every_field_of_the_literal_and_nothing_else (167 assertions)
+PASS  test_new_game.gd::test_state_after_the_literal (14 assertions)
+PASS  test_new_game.gd::test_stubs_say_where_the_original_draws_random_numbers (88 assertions)
+PASS  test_new_game.gd::test_system_lists_equal_the_originals (219 assertions)
+PASS  test_new_game.gd::test_unknown_character_and_difficulty_fall_back_like_the_original (4 assertions)
+PASS  test_project_settings.gd::test_android_preset_identity (5 assertions)
+PASS  test_project_settings.gd::test_android_preset_options (10 assertions)
+PASS  test_project_settings.gd::test_android_preset_requests_no_permissions (156 assertions)
+PASS  test_project_settings.gd::test_application_identity (7 assertions)
+PASS  test_project_settings.gd::test_engine_version_is_4_7 (3 assertions)
+PASS  test_project_settings.gd::test_export_presets_hold_no_secrets (1 assertions)
+PASS  test_project_settings.gd::test_fixed_step_is_60hz_without_engine_interpolation (7 assertions)
+PASS  test_project_settings.gd::test_gdscript_is_statically_typed (1 assertions)
+PASS  test_project_settings.gd::test_orientation_follows_the_sensor (2 assertions)
+PASS  test_project_settings.gd::test_pixel_art_filtering_and_screen_on (2 assertions)
+PASS  test_project_settings.gd::test_project_file_is_config_version_5 (3 assertions)
+PASS  test_project_settings.gd::test_renderer_is_compatibility_everywhere (3 assertions)
+PASS  test_project_settings.gd::test_stretch_and_viewport (6 assertions)
+BENCH  SeededRng.next_u32             327 ns/call    3.06 M calls/s
+BENCH  SeededRng.next_float           364 ns/call    2.74 M calls/s
+BENCH  GameRng.random                 465 ns/call    2.15 M calls/s
+BENCH  GameRng.rand                   506 ns/call    1.98 M calls/s
+BENCH  GameRng.chance                 516 ns/call    1.94 M calls/s
+BENCH  GameRng.index                  703 ns/call    1.42 M calls/s
+BENCH  FxRng.random                   474 ns/call    2.11 M calls/s
+BENCH  checksum 20000198461.7815 429135612668478 (keeps the loops from being optimised away)
+PASS  test_rng.gd::test_benchmark_prints_draws_per_second (2 assertions)
+PASS  test_rng.gd::test_equal_streams_for_seeds_that_normalise_alike (150 assertions)
+PASS  test_rng.gd::test_every_helper_draws_as_often_as_in_the_original (10 assertions)
+PASS  test_rng.gd::test_first_1000_outputs_of_every_seed_match_the_original (23 assertions)
+PASS  test_rng.gd::test_fx_rng_is_separate_and_seedable (403 assertions)
+PASS  test_rng.gd::test_game_rng_and_seeded_rng_give_the_same_stream (101 assertions)
+PASS  test_rng.gd::test_game_rng_helpers_and_draw_counter_match_the_original (12 assertions)
+PASS  test_rng.gd::test_later_outputs_match_the_checkpoints (26 assertions)
+PASS  test_rng.gd::test_seed_normalisation_follows_seed_ushr_0_or_default (69 assertions)
+PASS  test_rng.gd::test_state_can_be_saved_and_restored (21 assertions)
+PASS  test_scenes.gd::test_main_scene_loads_and_runs_one_frame (8 assertions)
+PASS  test_scenes.gd::test_scene_nodes_carry_unique_ids (1 assertions)
+PASS  test_sim_movement.gd::test_a_slot_in_the_middle_of_the_main_list_that_kills_the_player_stops_the_rest_of_the_step (70 assertions)
+PASS  test_sim_movement.gd::test_a_slot_that_leaves_the_playing_state_stops_the_rest_of_the_step (18 assertions)
+PASS  test_sim_movement.gd::test_dt_is_clamped_to_one_thirtieth_and_nan_counts_as_zero (5 assertions)
+PASS  test_sim_movement.gd::test_implemented_slots_are_the_ones_the_design_assigns_to_s3 (3 assertions)
+PASS  test_sim_movement.gd::test_knock_out_sequence (12 assertions)
+PASS  test_sim_movement.gd::test_no_slot_of_step_s3_draws_a_random_number (8 assertions)
+PASS  test_sim_movement.gd::test_port_stubs_are_not_slots_the_golden_runs_for_real (140 assertions)
+PASS  test_sim_movement.gd::test_previous_transforms_are_the_state_before_the_step (9 assertions)
+PASS  test_sim_movement.gd::test_scripted_input_matches_the_original_update (437 assertions)
+PASS  test_sim_movement.gd::test_update_does_nothing_unless_the_state_is_playing (24 assertions)
+PASS  test_sim_movement.gd::test_view_size_is_an_input_of_the_sim (7 assertions)
+PASS  test_sim_source_rules.gd::test_every_sim_class_is_a_ref_counted_object_without_scene_tree (38 assertions)
+PASS  test_sim_source_rules.gd::test_the_scanner_finds_what_it_must_and_nothing_else (71 assertions)
+PASS  test_sim_source_rules.gd::test_the_simulation_sources_follow_the_numerics_rules (3 assertions)
+Summary: 120/120 passed, 0 failed, 7175 assertions
+RESULT: PASS
+[tests] PASS
+
+real	0m53.628s
+user	0m51.652s
+sys	0m4.675s

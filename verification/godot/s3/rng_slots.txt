@@ -1,0 +1,66 @@
+census of gameRandom draws per update slot: Chromium 141.0.7390.37
+M1: catalyst / normal / standard, 390x844, touch (IS_COARSE_POINTER = true); frames count from 1; slots that drew nothing are not listed
+
+run seed 424242, design 9.2 input (8 directions, 60 steps each): 3721 steps, wave 2, state ended, 3875 draws in all
+  first hit on the player: frame 586; first level-up: frame 834 (wave 1, 831 draws)
+  slot                 first frame   draws to level-up   draws in the run
+  wave/progress                  1                 588               2568
+  projectile/player             74                 210               1147
+  enemy/cleanup-2              152                  26                126
+  enemy/update                 586                   6                 33
+  weapon/update                  -                   0                  0
+  newGame itself: 1 draw(s)
+      126 x enemy/cleanup-2 :: rand<spawnXp<killEnemy<cleanupDeadEnemies
+       33 x enemy/update :: rand<showDamageNumber<hurtPlayer<updateEnemies
+      229 x projectile/player :: chance<calculateDamage<dealDamage<hitEnemy
+      231 x projectile/player :: chance<hitEnemy<handleSignatureProjectileHit<updateProjectiles
+      687 x projectile/player :: rand<showDamageNumber<dealDamage<hitEnemy
+
+run seed 424242, no input: 3313 steps, wave 2, state ended, 3870 draws in all
+  first hit on the player: frame 2287; first level-up: frame 2266 (wave 2, 2616 draws)
+  slot                 first frame   draws to level-up   draws in the run
+  wave/progress                  1                1908               2736
+  projectile/player             63                 633                996
+  enemy/cleanup-2              109                  74                104
+  enemy/update                2287                   0                 33
+  weapon/update                  -                   0                  0
+  newGame itself: 1 draw(s)
+      104 x enemy/cleanup-2 :: rand<spawnXp<killEnemy<cleanupDeadEnemies
+       33 x enemy/update :: rand<showDamageNumber<hurtPlayer<updateEnemies
+      198 x projectile/player :: chance<calculateDamage<dealDamage<hitEnemy
+      204 x projectile/player :: chance<hitEnemy<handleSignatureProjectileHit<updateProjectiles
+      594 x projectile/player :: rand<showDamageNumber<dealDamage<hitEnemy
+
+run seed 24681357, design 9.2 input (8 directions, 60 steps each): 4895 steps, wave 3, state ended, 4986 draws in all
+  first hit on the player: frame 1516; first level-up: frame 786 (wave 1, 687 draws)
+  slot                 first frame   draws to level-up   draws in the run
+  wave/progress                  1                 555               3307
+  projectile/player             75                 111               1496
+  enemy/cleanup-2              140                  20                152
+  enemy/update                1516                   0                 30
+  weapon/update                  -                   0                  0
+  newGame itself: 1 draw(s)
+      152 x enemy/cleanup-2 :: rand<spawnXp<killEnemy<cleanupDeadEnemies
+       30 x enemy/update :: rand<showDamageNumber<hurtPlayer<updateEnemies
+      298 x projectile/player :: chance<calculateDamage<dealDamage<hitEnemy
+      304 x projectile/player :: chance<hitEnemy<handleSignatureProjectileHit<updateProjectiles
+      894 x projectile/player :: rand<showDamageNumber<dealDamage<hitEnemy
+
+run seed 24681357, no input: 4195 steps, wave 2, state ended, 5013 draws in all
+  first hit on the player: frame 2398; first level-up: frame 1551 (wave 1, 1742 draws)
+  slot                 first frame   draws to level-up   draws in the run
+  wave/progress                  1                1296               3480
+  projectile/player             63                 397               1361
+  enemy/cleanup-2              154                  48                138
+  enemy/update                2398                   0                 33
+  weapon/update                  -                   0                  0
+  newGame itself: 1 draw(s)
+      138 x enemy/cleanup-2 :: rand<spawnXp<killEnemy<cleanupDeadEnemies
+       33 x enemy/update :: rand<showDamageNumber<hurtPlayer<updateEnemies
+      271 x projectile/player :: chance<calculateDamage<dealDamage<hitEnemy
+      277 x projectile/player :: chance<hitEnemy<handleSignatureProjectileHit<updateProjectiles
+      813 x projectile/player :: rand<showDamageNumber<dealDamage<hitEnemy
+
+slots that drew in at least one run: enemy/cleanup-2, enemy/update, projectile/player, wave/progress
+slots marked consumes_rng_in_m1 in godot/sim/system_runner.gd: enemy/cleanup-2, enemy/update, projectile/player, wave/progress
+check OK: the marked slots are exactly the slots that drew

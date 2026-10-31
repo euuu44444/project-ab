@@ -1,0 +1,412 @@
+S4 evidence: tests, after the review fixes
+date: 2026-10-20    Godot 4.7.2-stable    node v22.22.0    Chromium 141.0.7390.37    Linux x86_64
+
+----------------------------------------------------------------------
+0. Result
+----------------------------------------------------------------------
+tools/run_godot_tests.sh   -> exit code 0, RESULT: PASS, 130/130 tests, 7688 assertions, 1m34.241s wall (the first S4 version: 126/126 and 7508; S3 ended at 120/120 and 7175)
+                              godot/tests/test_reference_trace.gd now holds 10 tests (6 before; 4 new, and the 6 old ones extended)
+  order: tools/check_assets.sh (S2, Node) -> tools/check_generated.sh (S3, Node) -> incremental headless import -> GDScript runner
+  engine/script errors in the output: none (the script fails on any push_error / SCRIPT ERROR); all GDScript is statically typed
+node --test tools/test_compare_trace.mjs   -> exit code 0, 18/18 (the comparator, the trace codec and the committed headers; no browser, no Godot; was 14)
+tools/build_android.sh --skip-tests        -> exit code 0, RESULT: PASS, 0 godot/tests/ entries in the APK (the traces are not packed): see apk.txt
+tools/verify_golden_chromium.mjs and tools/census_rng_slots_chromium.mjs re-run -> same output as before (section 5)
+git add / commit / push / stash / reset / checkout were never run; nothing under webview-fg4/ or docs/ changed (git status checked)
+
+----------------------------------------------------------------------
+1. The tests of step S4 (godot/tests/test_reference_trace.gd) and what each proves
+----------------------------------------------------------------------
+test_the_committed_reference_traces_are_complete_and_consistent   every committed trace (7): recorded by the original in Chromium 141 with
+    IS_COARSE_POINTER, 390x844, catalyst / normal / standard mode; source sha256 equals the current original.html; 5/43/5 slots; the header's field lists equal
+    SimTrace.REFERENCE_FIELDS (schema drift fails the test); step numbers 1..n; draws = previous draws + slot draws + outside draws at every step; no draw
+    outside the slots; particles stay below the damage-number gate; the first director tick draws 27 values (28 idle); the mandatory dirs8 traces exist.
+    NEW: variant is standard or long_run, a long run has exactly the overrides player.hp / maxHp / xpNext = 1e9 and a standard trace has none; a long run stops at
+    a step cap, a wave or the end of the run, a standard trace at the first level-up (pendingLevelUps > 0 at the last step only, never in a long run);
+    header.boundaries (Node, trace_io.mjs) equals first_effects() (GDScript) for every trace; stats.never_defined is empty; at least one long run is committed
+test_the_sim_matches_each_reference_trace_up_to_the_first_effect_it_does_not_have   replays every trace's inputs through Sim (with the header's overrides) and compares the
+    movement, camera, time, day-phase and hp fields bit for bit up to the first contact effect (at least 100 steps per trace). NEW: the animation fields attackAnim /
+    attackAngle / lastFacing on every step of that range in which the reference shows no shot, teacher-forced from the reference's values of the step before
+    (at least 50 countdown steps per trace, at least 100 atan2 steps in the traces whose player moves)
+test_the_enemy_list_follows_the_spawn_and_removal_rule_in_every_committed_trace   NEW: new enemies are appended in ascending id order, dead ones leave by swap-pop while
+    cleanupDeadEnemies walks from the end: TraceReader.next_enemy_order(...) reproduces the reference list at EVERY step of all 7 traces; wave.kills grows by exactly the
+    number of removed ids (no despawns); ids only grow. This is the 'oracle removal' rule for S5 (FORMAT.md, 'Following the reference past the first kill')
+test_the_getter_table_flattens_the_wave_theme_the_way_the_reference_does   NEW: every entry of SimTrace.port_getters() names a reference field; newGame's theme (wave 1, swarm) is
+    read through the getters; a null theme gives 0 / "" / false; a theme with counts {swarm 2, assassin 1} gives "swarm=2,assassin=1", history "swarm,assassin"; plain
+    properties (pendingDirectorEnemyKind, enemiesVersion) need no getter
+test_the_overrides_of_a_long_run_header_are_applied_by_the_replay   NEW: a header with variant long_run and the three overrides gives a port trace whose first row has
+    xpNext / hp / maxHp = 1e9 and which carries variant and overrides; a standard trace's port header has neither
+test_the_long_run_trace_reaches_what_the_standard_traces_never_see   NEW: swarm and assassin enemies, wave 3, the assassin theme in some steps (the coverage that review finding 2 asked for)
+test_the_port_schema_is_a_partition_of_the_reference_schema   every reference field is either ported or listed as unported; S3's groups (player, camera, wave incl. the
+    director fields, through the getter table) are complete; camelCase -> snake_case
+test_the_slot_wrappers_credit_the_draws_to_the_slot_that_makes_them   a slot that draws 3 values is credited main:5 3; a draw outside the slots is outside_draws 1;
+    the wrapper is transparent (is_implemented, stub_slots)
+test_the_input_of_a_reference_step_reaches_the_sim   moveX / moveY / keys of a trace step -> SimInput; hex of 0, -0, NaN and FIXED_DT
+test_a_written_trace_is_standard_gzip_and_reads_back   the port's trace written as .gz starts with 1f 8b, reads back through TraceReader, rows survive, unported fields listed
+
+Output of the comparison tests (boundary and animation counts per trace, from the full run below):
+      zigzag_424242_longrun.jsonl.gz: 5400 steps, waves up to 3, enemy kinds ["swarm", "assassin"], assassin theme in 1079 steps
+      dirs8_24681357.jsonl.gz: first contact effect at step none, first weapon shot at step 2, 786 steps; movement and animation fields compared for steps 1..786
+      dirs8_24681357.jsonl.gz: animation fields compared on 770 steps (16 with a shot skipped; attackAnim counting down on 272, lastFacing set from the velocity to a non-zero angle on 653)
+      dirs8_424242.jsonl.gz: first contact effect at step 586, first weapon shot at step 3, 834 steps; movement and animation fields compared for steps 1..585
+      dirs8_424242.jsonl.gz: animation fields compared on 573 steps (12 with a shot skipped; attackAnim counting down on 204, lastFacing set from the velocity to a non-zero angle on 456)
+      idle_24681357.jsonl.gz: first contact effect at step none, first weapon shot at step 2, 1551 steps; movement and animation fields compared for steps 1..1551
+      idle_24681357.jsonl.gz: animation fields compared on 1520 steps (31 with a shot skipped; attackAnim counting down on 527, lastFacing set from the velocity to a non-zero angle on 0)
+      idle_424242.jsonl.gz: first contact effect at step none, first weapon shot at step 3, 2266 steps; movement and animation fields compared for steps 1..2266
+      idle_424242.jsonl.gz: animation fields compared on 2221 steps (45 with a shot skipped; attackAnim counting down on 765, lastFacing set from the velocity to a non-zero angle on 0)
+      zigzag_24681357.jsonl.gz: first contact effect at step none, first weapon shot at step 2, 1710 steps; movement and animation fields compared for steps 1..1710
+      zigzag_24681357.jsonl.gz: animation fields compared on 1676 steps (34 with a shot skipped; attackAnim counting down on 578, lastFacing set from the velocity to a non-zero angle on 1533)
+      zigzag_424242.jsonl.gz: first contact effect at step none, first weapon shot at step 3, 1704 steps; movement and animation fields compared for steps 1..1704
+      zigzag_424242.jsonl.gz: animation fields compared on 1670 steps (34 with a shot skipped; attackAnim counting down on 578, lastFacing set from the velocity to a non-zero angle on 1527)
+      zigzag_424242_longrun.jsonl.gz (long run): first contact effect at step 2835, first weapon shot at step 3, 5400 steps; movement and animation fields compared for steps 1..2834
+      zigzag_424242_longrun.jsonl.gz: animation fields compared on 2778 steps (56 with a shot skipped; attackAnim counting down on 952, lastFacing set from the velocity to a non-zero angle on 2544)
+
+----------------------------------------------------------------------
+2. Full run: tools/run_godot_tests.sh   (exit code 0)
+----------------------------------------------------------------------
+[tests] checking the atlas assets against the original game ...
+[assets] 1/3 extract_assets.mjs --check --compare-fg4
+    check OK: 16 files in godot/assets/atlas are identical to a fresh extraction
+    compare-fg4 OK: all 14 data URIs occur exactly once, byte for byte
+[assets] 2/3 node --test tools/test_extract_assets.mjs
+    # tests 23 # pass 23 # fail 0
+[assets] 3/3 import files
+    14 .webp files, each with a .import file
+[assets] PASS
+[tests] checking the generated definition tables and golden vectors against the original game ...
+[generated] 1/5 extract_defs.mjs --check
+    check OK: 5 files in godot/sim/defs are identical to a fresh extraction
+[generated] 2/5 gen_golden.mjs --check
+    check OK: 6 golden file(s) in godot/tests/golden are identical to a fresh generation
+[generated] 3/5 check_js_compat_consts.mjs
+    check OK: 95 constants of js_compat.gd = their CONST_BITS entries = the upstream literals; SINCOSTAB_BITS (440) and TOVERP (75) = tools/golden/_glibc_sin.mjs
+[generated] 4/5 node --test tools/test_gen_golden.mjs
+    # tests 15 # pass 15 # fail 0
+[generated] 5/5 node --test tools/test_extract_defs.mjs
+    # tests 17 # pass 17 # fail 0
+[generated] PASS
+[tests] importing project (headless, incremental) ...
+[tests] running tests with 4.7.2.stable.official.ed1daf0bf
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+Godot 4.7.2-stable (official) - running 12 test file(s)
+PASS  test_atlas_assets.gd::test_art_ids_are_aliases_of_the_idle1_cell (36 assertions)
+PASS  test_atlas_assets.gd::test_art_maps_and_generated_fx (38 assertions)
+PASS  test_atlas_assets.gd::test_every_atlas_has_a_texture_through_atlas_layout (21 assertions)
+PASS  test_atlas_assets.gd::test_every_manifest_image_loads_as_a_texture_of_the_manifest_size (84 assertions)
+PASS  test_atlas_assets.gd::test_expected_misses_in_overhaul_and_meta_atlases_are_not_errors (23 assertions)
+PASS  test_atlas_assets.gd::test_geometry_equals_the_json_and_lies_inside_the_texture (1635 assertions)
+PASS  test_atlas_assets.gd::test_geometry_follows_buildAtlasDrawGeometry (623 assertions)
+PASS  test_atlas_assets.gd::test_geometry_is_read_only (1 assertions)
+PASS  test_atlas_assets.gd::test_geometry_spot_checks_from_the_game_function (27 assertions)
+PASS  test_atlas_assets.gd::test_godot_decodes_the_webp_files_exactly (42 assertions)
+PASS  test_atlas_assets.gd::test_id_order_matches_the_game (37 assertions)
+PASS  test_atlas_assets.gd::test_ids_are_unique_and_fit_the_grid (382 assertions)
+PASS  test_atlas_assets.gd::test_import_settings_are_pixel_art_lossless (141 assertions)
+PASS  test_atlas_assets.gd::test_imported_textures_keep_every_texel (28 assertions)
+PASS  test_atlas_assets.gd::test_layout_sheets_reference_manifest_images (93 assertions)
+PASS  test_atlas_assets.gd::test_manifest_lists_the_14_images (29 assertions)
+PASS  test_atlas_assets.gd::test_meta_atlas_frames (522 assertions)
+PASS  test_atlas_assets.gd::test_overhaul_character_icon_and_range_cells (11 assertions)
+PASS  test_atlas_assets.gd::test_pointer_dependent_constants_hold_both_modes (2 assertions)
+PASS  test_atlas_assets.gd::test_runtime_derived_image_parameters (27 assertions)
+PASS  test_atlas_assets.gd::test_shared_instance_is_created_once (3 assertions)
+PASS  test_atlas_assets.gd::test_unknown_lookups_return_empty_values_without_crashing (51 assertions)
+PASS  test_atlas_assets.gd::test_unusable_layout_files_fail_quietly_for_every_helper (76 assertions)
+PASS  test_atlas_assets.gd::test_webp_files_are_the_bytes_of_the_data_uris (28 assertions)
+PASS  test_defs.gd::test_counts_and_order_of_the_tables (10 assertions)
+PASS  test_defs.gd::test_every_non_integer_number_equals_the_originals_double (2 assertions)
+PASS  test_defs.gd::test_files_load_with_the_pinned_source (16 assertions)
+PASS  test_defs.gd::test_infinity_and_other_markers_are_restored (7 assertions)
+PASS  test_defs.gd::test_pointer_dependent_limits_have_both_variants (14 assertions)
+PASS  test_defs.gd::test_rules_are_the_originals (17 assertions)
+PASS  test_defs.gd::test_the_android_export_ships_the_definition_files (12 assertions)
+PASS  test_defs.gd::test_typed_wrappers_read_the_tables (21 assertions)
+PASS  test_formulas.gd::test_camera_follow_matches_the_original (9 assertions)
+PASS  test_formulas.gd::test_enemy_spec_for_game_reads_the_game_fields (4 assertions)
+PASS  test_formulas.gd::test_enemy_spec_matches_the_original (13 assertions)
+PASS  test_formulas.gd::test_input_vector_matches_the_original (3 assertions)
+PASS  test_formulas.gd::test_wave_predicates_match_the_original (3 assertions)
+PASS  test_formulas.gd::test_wave_theme_draws_match_the_original (28 assertions)
+PASS  test_formulas.gd::test_weapon_damage_matches_the_original (2 assertions)
+PASS  test_formulas.gd::test_weapon_interval_matches_the_original (16 assertions)
+PASS  test_formulas.gd::test_xp_curve_matches_the_original (22 assertions)
+PASS  test_js_math.gd::test_atan (4 assertions)
+PASS  test_js_math.gd::test_atan2 (4 assertions)
+BENCH  (typed GDScript, headless; each line is net of the loop cost; a builtin call costs about 30 to 70 ns)
+BENCH  builtin sin                     56 ns/call   17.88 M calls/s
+BENCH  JsMath.sin                    1240 ns/call    0.81 M calls/s
+BENCH  JsMath.cos                    1108 ns/call    0.90 M calls/s
+BENCH  builtin atan2                   60 ns/call   16.68 M calls/s
+BENCH  JsMath.atan2                  1067 ns/call    0.94 M calls/s
+BENCH  JsMath.atan                    713 ns/call    1.40 M calls/s
+BENCH  builtin exp                     20 ns/call   49.79 M calls/s
+BENCH  JsMath.exp                     527 ns/call    1.90 M calls/s
+BENCH  JsMath.log                    1180 ns/call    0.85 M calls/s
+BENCH  JsMath.hypot                   737 ns/call    1.36 M calls/s
+BENCH  JsMath.js_round                317 ns/call    3.15 M calls/s
+BENCH  JsMath.to_int32                367 ns/call    2.73 M calls/s
+BENCH  JsMath.js_max                  319 ns/call    3.14 M calls/s
+BENCH  JsMath.clamp                   408 ns/call    2.45 M calls/s
+BENCH  JsMath.js_min                  351 ns/call    2.85 M calls/s
+BENCH  JsMath.max3                    782 ns/call    1.28 M calls/s
+BENCH  JsMath.min3                    772 ns/call    1.30 M calls/s
+BENCH  JsMath.max5                    896 ns/call    1.12 M calls/s
+BENCH  JsMath.min5                    843 ns/call    1.19 M calls/s
+BENCH  JsMath.max_n (5 values)       1570 ns/call    0.64 M calls/s
+BENCH  JsMath.min_n (5 values)       1660 ns/call    0.60 M calls/s
+BENCH  JsMath.trunc                   153 ns/call    6.54 M calls/s
+BENCH  JsMath.to_uint32               326 ns/call    3.07 M calls/s
+BENCH  JsMath.sqrt (wrapper)          133 ns/call    7.49 M calls/s
+BENCH  builtin sqrt                    29 ns/call   34.46 M calls/s
+BENCH  JsMath.js_mod                  134 ns/call    7.45 M calls/s
+BENCH  JsMath.pow                     556 ns/call    1.80 M calls/s
+BENCH  JsMath.imul                    253 ns/call    3.95 M calls/s
+BENCH  JsMath.i32                     235 ns/call    4.25 M calls/s
+BENCH  JsMath.shl                     433 ns/call    2.31 M calls/s
+BENCH  JsMath.sar                     254 ns/call    3.93 M calls/s
+BENCH  JsMath.shr_u                   122 ns/call    8.21 M calls/s
+BENCH  checksum 426709294743277 60599923992737 (keeps the loops from being optimised away)
+PASS  test_js_math.gd::test_benchmark_prints_calls_per_second (2 assertions)
+PASS  test_js_math.gd::test_bit_helpers_and_negative_zero (10 assertions)
+PASS  test_js_math.gd::test_clamp_is_the_games_clamp (4 assertions)
+PASS  test_js_math.gd::test_constants_match_their_bit_patterns (2 assertions)
+PASS  test_js_math.gd::test_cos (4 assertions)
+PASS  test_js_math.gd::test_exact_wrappers_sqrt_floor_ceil_abs (16 assertions)
+PASS  test_js_math.gd::test_exp (4 assertions)
+PASS  test_js_math.gd::test_hypot (4 assertions)
+PASS  test_js_math.gd::test_i32_wraps_to_the_int32_range (11 assertions)
+PASS  test_js_math.gd::test_imul (4 assertions)
+PASS  test_js_math.gd::test_js_max (4 assertions)
+PASS  test_js_math.gd::test_js_min (4 assertions)
+PASS  test_js_math.gd::test_js_mod (4 assertions)
+PASS  test_js_math.gd::test_js_round (4 assertions)
+PASS  test_js_math.gd::test_log (4 assertions)
+PASS  test_js_math.gd::test_max3_min3 (8 assertions)
+PASS  test_js_math.gd::test_max5_min5 (8 assertions)
+PASS  test_js_math.gd::test_max_n_min_n_agree_with_the_five_argument_vectors (10 assertions)
+PASS  test_js_math.gd::test_named_pitfall_cases (2 assertions)
+PASS  test_js_math.gd::test_pow_special_cases (4 assertions)
+PASS  test_js_math.gd::test_shifts (12 assertions)
+PASS  test_js_math.gd::test_sin (4 assertions)
+PASS  test_js_math.gd::test_to_int32 (4 assertions)
+PASS  test_js_math.gd::test_to_uint32 (4 assertions)
+PASS  test_js_math.gd::test_trunc (4 assertions)
+PASS  test_main_sim.gd::test_arrow_keys_work_too (3 assertions)
+PASS  test_main_sim.gd::test_each_fixed_step_steps_the_simulation_and_the_label_shows_it (9 assertions)
+PASS  test_main_sim.gd::test_keyboard_moves_the_player (6 assertions)
+PASS  test_main_sim.gd::test_ready_creates_a_catalyst_run_with_the_view_size (8 assertions)
+PASS  test_new_game.gd::test_catalyst_state_equals_the_originals_literal (5 assertions)
+PASS  test_new_game.gd::test_every_field_of_the_game_literal_is_accounted_for (250 assertions)
+PASS  test_new_game.gd::test_new_game_draws_and_leaves_the_stream_where_the_original_does (66 assertions)
+PASS  test_new_game.gd::test_other_characters_difficulties_and_the_endless_mode (151 assertions)
+PASS  test_new_game.gd::test_player_has_every_field_of_the_literal_and_nothing_else (167 assertions)
+PASS  test_new_game.gd::test_state_after_the_literal (14 assertions)
+PASS  test_new_game.gd::test_stubs_say_where_the_original_draws_random_numbers (88 assertions)
+PASS  test_new_game.gd::test_system_lists_equal_the_originals (219 assertions)
+PASS  test_new_game.gd::test_unknown_character_and_difficulty_fall_back_like_the_original (4 assertions)
+PASS  test_project_settings.gd::test_android_preset_identity (5 assertions)
+PASS  test_project_settings.gd::test_android_preset_options (10 assertions)
+PASS  test_project_settings.gd::test_android_preset_requests_no_permissions (156 assertions)
+PASS  test_project_settings.gd::test_application_identity (7 assertions)
+PASS  test_project_settings.gd::test_engine_version_is_4_7 (3 assertions)
+PASS  test_project_settings.gd::test_export_presets_hold_no_secrets (1 assertions)
+PASS  test_project_settings.gd::test_fixed_step_is_60hz_without_engine_interpolation (7 assertions)
+PASS  test_project_settings.gd::test_gdscript_is_statically_typed (1 assertions)
+PASS  test_project_settings.gd::test_orientation_follows_the_sensor (2 assertions)
+PASS  test_project_settings.gd::test_pixel_art_filtering_and_screen_on (2 assertions)
+PASS  test_project_settings.gd::test_project_file_is_config_version_5 (3 assertions)
+PASS  test_project_settings.gd::test_renderer_is_compatibility_everywhere (3 assertions)
+PASS  test_project_settings.gd::test_stretch_and_viewport (6 assertions)
+PASS  test_reference_trace.gd::test_a_written_trace_is_standard_gzip_and_reads_back (11 assertions)
+PASS  test_reference_trace.gd::test_the_committed_reference_traces_are_complete_and_consistent (258 assertions)
+PASS  test_reference_trace.gd::test_the_enemy_list_follows_the_spawn_and_removal_rule_in_every_committed_trace (29 assertions)
+PASS  test_reference_trace.gd::test_the_getter_table_flattens_the_wave_theme_the_way_the_reference_does (27 assertions)
+PASS  test_reference_trace.gd::test_the_input_of_a_reference_step_reaches_the_sim (12 assertions)
+      zigzag_424242_longrun.jsonl.gz: 5400 steps, waves up to 3, enemy kinds ["swarm", "assassin"], assassin theme in 1079 steps
+PASS  test_reference_trace.gd::test_the_long_run_trace_reaches_what_the_standard_traces_never_see (4 assertions)
+PASS  test_reference_trace.gd::test_the_overrides_of_a_long_run_header_are_applied_by_the_replay (7 assertions)
+PASS  test_reference_trace.gd::test_the_port_schema_is_a_partition_of_the_reference_schema (107 assertions)
+      dirs8_24681357.jsonl.gz: first contact effect at step none, first weapon shot at step 2, 786 steps; movement and animation fields compared for steps 1..786
+      dirs8_24681357.jsonl.gz: animation fields compared on 770 steps (16 with a shot skipped; attackAnim counting down on 272, lastFacing set from the velocity to a non-zero angle on 653)
+      dirs8_424242.jsonl.gz: first contact effect at step 586, first weapon shot at step 3, 834 steps; movement and animation fields compared for steps 1..585
+      dirs8_424242.jsonl.gz: animation fields compared on 573 steps (12 with a shot skipped; attackAnim counting down on 204, lastFacing set from the velocity to a non-zero angle on 456)
+      idle_24681357.jsonl.gz: first contact effect at step none, first weapon shot at step 2, 1551 steps; movement and animation fields compared for steps 1..1551
+      idle_24681357.jsonl.gz: animation fields compared on 1520 steps (31 with a shot skipped; attackAnim counting down on 527, lastFacing set from the velocity to a non-zero angle on 0)
+      idle_424242.jsonl.gz: first contact effect at step none, first weapon shot at step 3, 2266 steps; movement and animation fields compared for steps 1..2266
+      idle_424242.jsonl.gz: animation fields compared on 2221 steps (45 with a shot skipped; attackAnim counting down on 765, lastFacing set from the velocity to a non-zero angle on 0)
+      zigzag_24681357.jsonl.gz: first contact effect at step none, first weapon shot at step 2, 1710 steps; movement and animation fields compared for steps 1..1710
+      zigzag_24681357.jsonl.gz: animation fields compared on 1676 steps (34 with a shot skipped; attackAnim counting down on 578, lastFacing set from the velocity to a non-zero angle on 1533)
+      zigzag_424242.jsonl.gz: first contact effect at step none, first weapon shot at step 3, 1704 steps; movement and animation fields compared for steps 1..1704
+      zigzag_424242.jsonl.gz: animation fields compared on 1670 steps (34 with a shot skipped; attackAnim counting down on 578, lastFacing set from the velocity to a non-zero angle on 1527)
+      zigzag_424242_longrun.jsonl.gz (long run): first contact effect at step 2835, first weapon shot at step 3, 5400 steps; movement and animation fields compared for steps 1..2834
+      zigzag_424242_longrun.jsonl.gz: animation fields compared on 2778 steps (56 with a shot skipped; attackAnim counting down on 952, lastFacing set from the velocity to a non-zero angle on 2544)
+PASS  test_reference_trace.gd::test_the_sim_matches_each_reference_trace_up_to_the_first_effect_it_does_not_have (48 assertions)
+PASS  test_reference_trace.gd::test_the_slot_wrappers_credit_the_draws_to_the_slot_that_makes_them (10 assertions)
+BENCH  SeededRng.next_u32             860 ns/call    1.16 M calls/s
+BENCH  SeededRng.next_float           544 ns/call    1.84 M calls/s
+BENCH  GameRng.random                 774 ns/call    1.29 M calls/s
+BENCH  GameRng.rand                   690 ns/call    1.45 M calls/s
+BENCH  GameRng.chance                 642 ns/call    1.56 M calls/s
+BENCH  GameRng.index                  816 ns/call    1.23 M calls/s
+BENCH  FxRng.random                   560 ns/call    1.79 M calls/s
+BENCH  checksum 20000198461.7815 429135612668478 (keeps the loops from being optimised away)
+PASS  test_rng.gd::test_benchmark_prints_draws_per_second (2 assertions)
+PASS  test_rng.gd::test_equal_streams_for_seeds_that_normalise_alike (150 assertions)
+PASS  test_rng.gd::test_every_helper_draws_as_often_as_in_the_original (10 assertions)
+PASS  test_rng.gd::test_first_1000_outputs_of_every_seed_match_the_original (23 assertions)
+PASS  test_rng.gd::test_fx_rng_is_separate_and_seedable (403 assertions)
+PASS  test_rng.gd::test_game_rng_and_seeded_rng_give_the_same_stream (101 assertions)
+PASS  test_rng.gd::test_game_rng_helpers_and_draw_counter_match_the_original (12 assertions)
+PASS  test_rng.gd::test_later_outputs_match_the_checkpoints (26 assertions)
+PASS  test_rng.gd::test_seed_normalisation_follows_seed_ushr_0_or_default (69 assertions)
+PASS  test_rng.gd::test_state_can_be_saved_and_restored (21 assertions)
+PASS  test_scenes.gd::test_main_scene_loads_and_runs_one_frame (8 assertions)
+PASS  test_scenes.gd::test_scene_nodes_carry_unique_ids (1 assertions)
+PASS  test_sim_movement.gd::test_a_slot_in_the_middle_of_the_main_list_that_kills_the_player_stops_the_rest_of_the_step (70 assertions)
+PASS  test_sim_movement.gd::test_a_slot_that_leaves_the_playing_state_stops_the_rest_of_the_step (18 assertions)
+PASS  test_sim_movement.gd::test_dt_is_clamped_to_one_thirtieth_and_nan_counts_as_zero (5 assertions)
+PASS  test_sim_movement.gd::test_implemented_slots_are_the_ones_the_design_assigns_to_s3 (3 assertions)
+PASS  test_sim_movement.gd::test_knock_out_sequence (12 assertions)
+PASS  test_sim_movement.gd::test_no_slot_of_step_s3_draws_a_random_number (8 assertions)
+PASS  test_sim_movement.gd::test_port_stubs_are_not_slots_the_golden_runs_for_real (140 assertions)
+PASS  test_sim_movement.gd::test_previous_transforms_are_the_state_before_the_step (9 assertions)
+PASS  test_sim_movement.gd::test_scripted_input_matches_the_original_update (437 assertions)
+PASS  test_sim_movement.gd::test_update_does_nothing_unless_the_state_is_playing (24 assertions)
+PASS  test_sim_movement.gd::test_view_size_is_an_input_of_the_sim (7 assertions)
+PASS  test_sim_source_rules.gd::test_every_sim_class_is_a_ref_counted_object_without_scene_tree (38 assertions)
+PASS  test_sim_source_rules.gd::test_the_scanner_finds_what_it_must_and_nothing_else (71 assertions)
+PASS  test_sim_source_rules.gd::test_the_simulation_sources_follow_the_numerics_rules (3 assertions)
+Summary: 130/130 passed, 0 failed, 7688 assertions
+RESULT: PASS
+[tests] PASS
+
+real	1m34.241s
+user	1m24.696s
+sys	0m12.237s
+
+----------------------------------------------------------------------
+3. The tests notice a wrong port
+----------------------------------------------------------------------
+Three perturbations of godot/sim (camera factor, atan2 arguments, attackAnim countdown), each caught, each reverted byte for byte: see compare.txt section 4.
+The animation tier is the one that was blind in the first version (1 or 2 steps with both sides 0): the atan2 swap and the countdown error are found at step 1 / 3 of every trace.
+
+----------------------------------------------------------------------
+4. Node tests of the comparator (node --test tools/test_compare_trace.mjs)
+----------------------------------------------------------------------
+ok 1 - double <-> hex round trip, -0, NaN, subnormal, infinity
+ok 2 - identical traces are the same (exit 0), also gzip against plain text
+ok 3 - a float that differs: first step, field, both values as double and hex, the delta (exit 1)
+ok 4 - --until stops before the divergence, --from starts after it
+ok 5 - --fields and --ignore select groups and single fields
+ok 6 - a selector without such a field is a usage error naming the field
+ok 7 - entity lists: a different length, a different field, ids in the report
+ok 8 - draws and the per-slot draws, with the slot name
+ok 9 - state and input are compared
+ok 10 - the port may carry fewer fields (unported): compared on the common ones
+ok 11 - a tolerance accepts small float differences, bit-exact does not
+ok 12 - traces of different length differ unless --until limits the comparison to steps both have
+ok 13 - --until beyond the end of the shorter trace is a divergence, not a silent shorter comparison
+ok 14 - an empty port trace or an empty range never passes
+ok 15 - selecting a field of an entity list also compares the list length; particles are effects-only
+ok 16 - NaN equals NaN, +0 does not equal -0, --json is parseable
+ok 17 - wrong format and missing files are errors
+ok 18 - the boundaries in the header of every committed reference trace equal firstEffects() (the Godot test checks the other implementation)
+# tests 18
+# pass 18
+# fail 0
+rc=0
+
+New in the fix step: 'traces of different length ...', '--until beyond the end of the shorter trace ...' (--until 20 against 8 steps, with and without --fields, reference short or port short,
+--ignore steps, --json), 'an empty port trace or an empty range never passes' (header-only port trace with --until 585 --fields player, two empty traces, --from past the end,
+--from after --until), 'selecting a field of an entity list also compares the list length; particles are effects-only', and the check of the committed headers.
+
+----------------------------------------------------------------------
+5. tools/lib/chromium.mjs: the tools that use it still behave as before
+----------------------------------------------------------------------
+$ node tools/verify_golden_chromium.mjs   -> exit code 0, output unchanged by the fix step (re-run: "named cases: 48/48", "verify OK")
+ok    pow           490 rows  0 mismatch(es)
+named cases: 48/48 agree with Chromium
+ok    rng        8 streams x 1000 outputs and 17 seed normalisations: 0 mismatch(es)
+verify OK: the golden vectors equal the results of Chromium
+
+$ node tools/census_rng_slots_chromium.mjs   -> exit code 0, output identical to the committed verification/godot/s3/rng_slots.txt
+  diff against verification/godot/s3/rng_slots.txt: no difference
+slots that drew in at least one run: enemy/cleanup-2, enemy/update, projectile/player, wave/progress
+slots marked consumes_rng_in_m1 in godot/sim/system_runner.gd: enemy/cleanup-2, enemy/update, projectile/player, wave/progress
+check OK: the marked slots are exactly the slots that drew
+  (the census now runs with deviceScaleFactor 3 instead of 1, the Android emulation; its counts do not depend on it)
+
+Lookup order of Playwright and Chromium (tools/lib/chromium.mjs):
+  $ node tools/lib/chromium.mjs loadPlaywright() / chromeBinary()   [pinned install present]
+  playwright 1.62.1 from /home/user/project-ab/tools/reference-trace/node_modules/playwright
+  chrome /opt/pw-browsers/chromium-1194/chrome-linux/chrome
+  
+  $ [pinned install moved away] PLAYWRIGHT_DIR=<dir that holds node_modules/playwright 1.62.1>
+  playwright 1.62.1 from <scratchpad>/s3/pw/node_modules/playwright
+  $ [pinned install moved away] PLAYWRIGHT_DIR=/opt/node22/lib/node_modules (a node_modules itself)
+  playwright 1.56.1 from /opt/node22/lib/node_modules/playwright
+  $ [pinned install moved away] no PLAYWRIGHT_DIR -> global
+  playwright 1.56.1 from /opt/node22/lib/node_modules/playwright
+  $ [pinned install moved away] node tools/verify_golden_chromium.mjs | tail -1
+  verify OK: the golden vectors equal the results of Chromium
+  
+  $ SWARM_CHROME_BINARY=/nonexistent/chrome ... chromeBinary()
+  Error: Chromium not found at /nonexistent/chrome (set SWARM_CHROME_BINARY to a chrome executable)
+  $ [restored] SWARM_CHROME_BINARY=/opt/pw-browsers/chromium-1194/chrome-linux/chrome
+  chrome /opt/pw-browsers/chromium-1194/chrome-linux/chrome
+
+(re-run in the fix step: node tools/verify_golden_chromium.mjs -> exit code 0, verify OK; node tools/census_rng_slots_chromium.mjs -> exit code 0, check OK, output equal to verification/godot/s3/rng_slots.txt apart from timing lines)
+
+----------------------------------------------------------------------
+6. Pinned Playwright, gzip compatibility, other checks
+----------------------------------------------------------------------
+$ cd tools/reference-trace && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci   (in a clean copy of package.json + package-lock.json, re-run after adding the npm scripts) -> 2 packages, playwright 1.62.1, playwright-core 1.62.1
+  node_modules is ignored by .gitignore (rule 'node_modules/'): git check-ignore -v tools/reference-trace/node_modules -> .gitignore:10:node_modules/
+  package.json now also has "scripts": {"test": "node --test ../test_compare_trace.mjs", "capture": "node capture.mjs --all"}; package-lock.json is unchanged
+
+Godot 4.7.2 and standard gzip (probe script on the committed traces; the long run is the largest file):
+  idle_424242.jsonl.gz:           gz 1437316 bytes -> 14872111 bytes decompressed, 2267 lines parsed in 500 ms, recompressed by Godot 1599439 bytes (magic 1f8b), whole probe 1.25 s
+  zigzag_424242_longrun.jsonl.gz: gz 5427880 bytes -> 52584006 bytes decompressed, 5401 lines parsed in 1728 ms, recompressed by Godot 5979662 bytes (magic 1f8b), whole probe 3.74 s
+  for both: gunzip of the Godot-written stream == gunzip of the Node-written file (byte for byte)
+
+----------------------------------------------------------------------
+7. Files of step S4 (git status --short -uall; nothing was staged or committed)
+----------------------------------------------------------------------
+ M tools/build_android.sh
+ M tools/census_rng_slots_chromium.mjs
+ M tools/verify_golden_chromium.mjs
+?? godot/tests/reference/dirs8_24681357.jsonl.gz
+?? godot/tests/reference/dirs8_424242.jsonl.gz
+?? godot/tests/reference/idle_24681357.jsonl.gz
+?? godot/tests/reference/idle_424242.jsonl.gz
+?? godot/tests/reference/zigzag_24681357.jsonl.gz
+?? godot/tests/reference/zigzag_424242.jsonl.gz
+?? godot/tests/reference/zigzag_424242_longrun.jsonl.gz
+?? godot/tests/test_reference_trace.gd
+?? godot/tests/test_reference_trace.gd.uid
+?? godot/tests/trace/emit_port_trace.gd
+?? godot/tests/trace/emit_port_trace.gd.uid
+?? godot/tests/trace/sim_trace.gd
+?? godot/tests/trace/sim_trace.gd.uid
+?? godot/tests/trace/trace_reader.gd
+?? godot/tests/trace/trace_reader.gd.uid
+?? godot/tests/trace/traced_system.gd
+?? godot/tests/trace/traced_system.gd.uid
+?? tools/compare_trace.mjs
+?? tools/emit_port_trace.sh
+?? tools/lib/chromium.mjs
+?? tools/lib/trace_io.mjs
+?? tools/reference-trace/FORMAT.md
+?? tools/reference-trace/capture.mjs
+?? tools/reference-trace/hook.js
+?? tools/reference-trace/package-lock.json
+?? tools/reference-trace/package.json
+?? tools/reference-trace/scripts/dirs8.json
+?? tools/reference-trace/scripts/idle.json
+?? tools/reference-trace/scripts/zigzag.json
+?? tools/test_compare_trace.mjs
+?? verification/godot/s4/apk.txt
+?? verification/godot/s4/capture.txt
+?? verification/godot/s4/compare.txt
+?? verification/godot/s4/tests.txt
+(tools/build_android.sh was already modified before step S4 and was not changed by the fix step; godot/sim is unchanged: git diff --stat godot/sim is empty)

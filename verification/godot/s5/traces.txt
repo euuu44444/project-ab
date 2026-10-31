@@ -1,0 +1,525 @@
+S5 evidence: the Godot port against the 7 reference traces (tools/emit_port_trace.sh --oracle + tools/compare_trace.mjs)
+godot 4.7.2.stable.official.ed1daf0bf    node v22.22.0    HEAD 59247d8 (the S5 work is uncommitted in the working tree)
+PORT = /tmp/claude-0/-home-user-project-ab/36c1a11d-6a97-57da-98e3-4ad67f95aea2/scratchpad/s5/integ/traces    (the port traces written by tools/emit_port_trace.sh; paths below are relative to /home/user/project-ab)
+
+----------------------------------------------------------------------
+0. Result
+----------------------------------------------------------------------
+trace                     steps  oracle dry draws       forced kills          S5 set    xp_orbs+counts.xp_orbs up to the first orb pulled by pickup/xp (S6)
+dirs8_424242                834  { "main:29": 210 }     13 kills, 0 oracle problems  SAME      SAME at steps 1..574
+dirs8_24681357              786  { "main:29": 111 }     10 kills, 0 oracle problems  SAME      SAME at steps 1..364
+idle_424242                2266  { "main:29": 633 }     37 kills, 0 oracle problems  SAME      SAME at steps 1..1089
+idle_24681357              1551  { "main:29": 397 }     24 kills, 0 oracle problems  SAME      SAME at steps 1..1288
+zigzag_424242              1704  { "main:29": 430 }     26 kills, 0 oracle problems  SAME      SAME at steps 1..1343
+zigzag_24681357            1710  { "main:29": 427 }     26 kills, 0 oracle problems  SAME      SAME at steps 1..1275
+zigzag_424242_longrun      5400  { "main:29": 1811 }    95 kills, 0 oracle problems  SAME      SAME at steps 1..1343
+
+oracle dry draws: gameRandom values drawn by the TEST-ONLY replay oracle (godot/tests/trace/replay_oracle.gd) in the placeholder slot main:29 projectile/player
+  (S6), as many as the reference's slot_draws record. enemy/update (main:15) and enemy/cleanup-2 (main:31) are real slots: nothing is injected for them.
+forced kills: enemies that the reference removed in front of enemy/cleanup-2 (hp damage is S6), taken from the reference's enemy list.
+
+----------------------------------------------------------------------
+1. The S5 field set
+----------------------------------------------------------------------
+node tools/compare_trace.mjs godot/tests/reference/<trace>.jsonl.gz $PORT/port_<trace>.jsonl.gz \
+    --fields state,input,draws,slot_draws,outside_draws,counts,player,camera,wave,enemies \
+    --ignore counts.projectiles,counts.xp_orbs,player.lastFacing,player.attackAnim,player.attackAngle,player.xp,player.level,player.xpNext,player.xpBaseNext,wave.pendingLevelUps,wave.levelUpChoiceReadyAt,enemies.hp,enemies.flash
+
+Compared bit for bit on EVERY step of the trace (tolerance 0): the input, the state, gameRandom's draw count, the draws of every slot and outside any slot,
+counts.enemies / enemy_projectiles / hazards, every player field but the six below, the camera, every wave/director field but two, and every field of every
+enemy but hp and flash (id, kind, x, y, vx, vy, maxHp, prevX, prevY, r, speed, facing, aiState, shootCd, aiTimer, abilityCd, strafeDir, aiSeed, thinkCd, animPhase,
+tacticCd, dotNumberTimer, damage, spawnWave, telegraph, attackAnim, tacticPulse) plus the length and ORDER of the enemy list.
+Left out, and why (each is written only by a system that step S6 ports; the unfiltered comparison further down shows that nothing else differs):
+  counts.projectiles, counts.xp_orbs        projectiles are created by weapon/update, orbs are collected by pickup/xp (S6)
+  player.lastFacing/attackAnim/attackAngle  set by a weapon shot (weapon/update, S6)
+  player.xp                                 pickup/xp (S6); player.level, xpNext, xpBaseNext: the level-up on the last step of every trace (S6)
+  wave.pendingLevelUps, levelUpChoiceReadyAt  the level-up on the last step (S6, hud/pending-choice)
+  enemies.hp, enemies.flash                 damage (projectile/player, S6)
+The xp_orbs group is compared separately, up to the step before the first orb is moved by the (unported) magnet of pickup/xp (table above).
+
+======================================================================
+== dirs8_424242
+======================================================================
+reference: {"steps":834,"enemyRows":4613,"enemyFieldsPerRow":29,"enemyValuesCompared":124551,"maxEnemies":8,"boundaries":{"fire":3,"pickup":576,"steps":834},"variant":null}
+$ tools/emit_port_trace.sh godot/tests/reference/dirs8_424242.jsonl.gz $PORT/port_dirs8_424242.jsonl.gz --oracle
+emit_port_trace: 834 steps of dirs8_424242.jsonl.gz (seed 424242, dirs8) -> $PORT/port_dirs8_424242.jsonl.gz in 1177 ms (with the replay oracle)
+emit_port_trace: oracle injected { "main:29": 210 } dry draws, forced 13 kills, 0 problems
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_424242.jsonl.gz $PORT/port_dirs8_424242.jsonl.gz --fields state,input,draws,slot_draws,outside_draws,counts,player,camera,wave,enemies --ignore counts.projectiles,counts.xp_orbs,player.lastFacing,player.attackAnim,player.attackAngle,player.xp,player.level,player.xpNext,player.xpBaseNext,wave.pendingLevelUps,wave.levelUpChoiceReadyAt,enemies.hp,enemies.flash
+reference godot/tests/reference/dirs8_424242.jsonl.gz (original-chromium, 834 steps, seed 424242, script dirs8)
+port      $PORT/port_dirs8_424242.jsonl.gz (godot-port, 834 steps, seed 424242, script dirs8)
+compared steps 1..834, bit-exact
+
+group         result    first step  differing steps   detail
+state         same      -           0 of 834          
+input         same      -           0 of 834          
+draws         same      -           0 of 834          
+slot_draws    same      -           0 of 834          
+outside_draws same      -           0 of 834          
+counts        same      -           0 of 834          
+player        same      -           0 of 834          
+camera        same      -           0 of 834          
+wave          same      -           0 of 834          
+enemies       same      -           0 of 834          
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_424242.jsonl.gz $PORT/port_dirs8_424242.jsonl.gz --fields xp_orbs,counts.xp_orbs --until 574
+reference godot/tests/reference/dirs8_424242.jsonl.gz (original-chromium, 834 steps, seed 424242, script dirs8)
+port      $PORT/port_dirs8_424242.jsonl.gz (godot-port, 834 steps, seed 424242, script dirs8)
+compared steps 1..574, bit-exact
+
+group         result    first step  differing steps   detail
+counts        same      -           0 of 574          
+xp_orbs       same      -           0 of 574          
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_424242.jsonl.gz $PORT/port_dirs8_424242.jsonl.gz      (everything, nothing ignored: the divergences are the S6 fields and nothing else)
+reference godot/tests/reference/dirs8_424242.jsonl.gz (original-chromium, 834 steps, seed 424242, script dirs8)
+port      $PORT/port_dirs8_424242.jsonl.gz (godot-port, 834 steps, seed 424242, script dirs8)
+compared steps 1..834, bit-exact
+not carried by the port, not compared: projectiles: x, y, vx, vy, life, age, r, damage, weapon
+
+group         result    first step  differing steps   detail
+steps         same      -           0 of 1            
+state         same      -           0 of 834          
+input         same      -           0 of 834          
+draws         same      -           0 of 834          
+slot_draws    same      -           0 of 834          
+outside_draws same      -           0 of 834          
+counts        DIFFERS   12          282 of 834        projectiles
+player        DIFFERS   3           832 of 834        lastFacing
+camera        same      -           0 of 834          
+wave          DIFFERS   834         1 of 834          pendingLevelUps
+enemies       DIFFERS   74          653 of 834        [0] (id 1).hp
+projectiles   DIFFERS   12          32 of 834         length
+xp_orbs       DIFFERS   575         260 of 834        [7].x
+
+      every diverging field, with its first step: projectiles@12 xp_orbs@576
+      every diverging field, with its first step: lastFacing@3 attackAnim@3 attackAngle@3 xp@576 level@834 xpNext@834 xpBaseNext@834
+      every diverging field, with its first step: pendingLevelUps@834 levelUpChoiceReadyAt@834
+      every diverging field, with its first step: hp@74 flash@74
+      every diverging field, with its first step: x@575 y@575 length@576
+
+======================================================================
+== dirs8_24681357
+======================================================================
+reference: {"steps":786,"enemyRows":4697,"enemyFieldsPerRow":29,"enemyValuesCompared":126819,"maxEnemies":9,"boundaries":{"fire":2,"pickup":373,"steps":786},"variant":null}
+$ tools/emit_port_trace.sh godot/tests/reference/dirs8_24681357.jsonl.gz $PORT/port_dirs8_24681357.jsonl.gz --oracle
+emit_port_trace: 786 steps of dirs8_24681357.jsonl.gz (seed 24681357, dirs8) -> $PORT/port_dirs8_24681357.jsonl.gz in 1086 ms (with the replay oracle)
+emit_port_trace: oracle injected { "main:29": 111 } dry draws, forced 10 kills, 0 problems
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_24681357.jsonl.gz $PORT/port_dirs8_24681357.jsonl.gz --fields state,input,draws,slot_draws,outside_draws,counts,player,camera,wave,enemies --ignore counts.projectiles,counts.xp_orbs,player.lastFacing,player.attackAnim,player.attackAngle,player.xp,player.level,player.xpNext,player.xpBaseNext,wave.pendingLevelUps,wave.levelUpChoiceReadyAt,enemies.hp,enemies.flash
+reference godot/tests/reference/dirs8_24681357.jsonl.gz (original-chromium, 786 steps, seed 24681357, script dirs8)
+port      $PORT/port_dirs8_24681357.jsonl.gz (godot-port, 786 steps, seed 24681357, script dirs8)
+compared steps 1..786, bit-exact
+
+group         result    first step  differing steps   detail
+state         same      -           0 of 786          
+input         same      -           0 of 786          
+draws         same      -           0 of 786          
+slot_draws    same      -           0 of 786          
+outside_draws same      -           0 of 786          
+counts        same      -           0 of 786          
+player        same      -           0 of 786          
+camera        same      -           0 of 786          
+wave          same      -           0 of 786          
+enemies       same      -           0 of 786          
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_24681357.jsonl.gz $PORT/port_dirs8_24681357.jsonl.gz --fields xp_orbs,counts.xp_orbs --until 364
+reference godot/tests/reference/dirs8_24681357.jsonl.gz (original-chromium, 786 steps, seed 24681357, script dirs8)
+port      $PORT/port_dirs8_24681357.jsonl.gz (godot-port, 786 steps, seed 24681357, script dirs8)
+compared steps 1..364, bit-exact
+
+group         result    first step  differing steps   detail
+counts        same      -           0 of 364          
+xp_orbs       same      -           0 of 364          
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/dirs8_24681357.jsonl.gz $PORT/port_dirs8_24681357.jsonl.gz      (everything, nothing ignored: the divergences are the S6 fields and nothing else)
+reference godot/tests/reference/dirs8_24681357.jsonl.gz (original-chromium, 786 steps, seed 24681357, script dirs8)
+port      $PORT/port_dirs8_24681357.jsonl.gz (godot-port, 786 steps, seed 24681357, script dirs8)
+compared steps 1..786, bit-exact
+not carried by the port, not compared: projectiles: x, y, vx, vy, life, age, r, damage, weapon
+
+group         result    first step  differing steps   detail
+steps         same      -           0 of 1            
+state         same      -           0 of 786          
+input         same      -           0 of 786          
+draws         same      -           0 of 786          
+slot_draws    same      -           0 of 786          
+outside_draws same      -           0 of 786          
+counts        DIFFERS   11          429 of 786        projectiles
+player        DIFFERS   2           785 of 786        lastFacing
+camera        same      -           0 of 786          
+wave          DIFFERS   786         1 of 786          pendingLevelUps
+enemies       DIFFERS   75          683 of 786        [1] (id 2).hp
+projectiles   DIFFERS   11          31 of 786         length
+xp_orbs       DIFFERS   365         422 of 786        [3].x
+
+      every diverging field, with its first step: projectiles@11 xp_orbs@373
+      every diverging field, with its first step: lastFacing@2 attackAnim@2 attackAngle@2 xp@373 level@786 xpNext@786 xpBaseNext@786
+      every diverging field, with its first step: pendingLevelUps@786 levelUpChoiceReadyAt@786
+      every diverging field, with its first step: hp@75 flash@75
+      every diverging field, with its first step: x@365 y@365 length@373
+
+======================================================================
+== idle_424242
+======================================================================
+reference: {"steps":2266,"enemyRows":19123,"enemyFieldsPerRow":29,"enemyValuesCompared":516321,"maxEnemies":15,"boundaries":{"fire":3,"pickup":1099,"steps":2266},"variant":null}
+$ tools/emit_port_trace.sh godot/tests/reference/idle_424242.jsonl.gz $PORT/port_idle_424242.jsonl.gz --oracle
+emit_port_trace: 2266 steps of idle_424242.jsonl.gz (seed 424242, idle) -> $PORT/port_idle_424242.jsonl.gz in 4916 ms (with the replay oracle)
+emit_port_trace: oracle injected { "main:29": 633 } dry draws, forced 37 kills, 0 problems
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/idle_424242.jsonl.gz $PORT/port_idle_424242.jsonl.gz --fields state,input,draws,slot_draws,outside_draws,counts,player,camera,wave,enemies --ignore counts.projectiles,counts.xp_orbs,player.lastFacing,player.attackAnim,player.attackAngle,player.xp,player.level,player.xpNext,player.xpBaseNext,wave.pendingLevelUps,wave.levelUpChoiceReadyAt,enemies.hp,enemies.flash
+reference godot/tests/reference/idle_424242.jsonl.gz (original-chromium, 2266 steps, seed 424242, script idle)
+port      $PORT/port_idle_424242.jsonl.gz (godot-port, 2266 steps, seed 424242, script idle)
+compared steps 1..2266, bit-exact
+
+group         result    first step  differing steps   detail
+state         same      -           0 of 2266         
+input         same      -           0 of 2266         
+draws         same      -           0 of 2266         
+slot_draws    same      -           0 of 2266         
+outside_draws same      -           0 of 2266         
+counts        same      -           0 of 2266         
+player        same      -           0 of 2266         
+camera        same      -           0 of 2266         
+wave          same      -           0 of 2266         
+enemies       same      -           0 of 2266         
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/idle_424242.jsonl.gz $PORT/port_idle_424242.jsonl.gz --fields xp_orbs,counts.xp_orbs --until 1089
+reference godot/tests/reference/idle_424242.jsonl.gz (original-chromium, 2266 steps, seed 424242, script idle)
+port      $PORT/port_idle_424242.jsonl.gz (godot-port, 2266 steps, seed 424242, script idle)
+compared steps 1..1089, bit-exact
+
+group         result    first step  differing steps   detail
+counts        same      -           0 of 1089         
+xp_orbs       same      -           0 of 1089         
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/idle_424242.jsonl.gz $PORT/port_idle_424242.jsonl.gz      (everything, nothing ignored: the divergences are the S6 fields and nothing else)
+reference godot/tests/reference/idle_424242.jsonl.gz (original-chromium, 2266 steps, seed 424242, script idle)
+port      $PORT/port_idle_424242.jsonl.gz (godot-port, 2266 steps, seed 424242, script idle)
+compared steps 1..2266, bit-exact
+not carried by the port, not compared: projectiles: x, y, vx, vy, life, age, r, damage, weapon
+
+group         result    first step  differing steps   detail
+steps         same      -           0 of 1            
+state         same      -           0 of 2266         
+input         same      -           0 of 2266         
+draws         same      -           0 of 2266         
+slot_draws    same      -           0 of 2266         
+outside_draws same      -           0 of 2266         
+counts        DIFFERS   12          1211 of 2266      projectiles
+player        DIFFERS   3           2264 of 2266      lastFacing
+camera        same      -           0 of 2266         
+wave          DIFFERS   2266        1 of 2266         pendingLevelUps
+enemies       DIFFERS   63          2101 of 2266      [0] (id 1).hp
+projectiles   DIFFERS   12          87 of 2266        length
+xp_orbs       DIFFERS   1090        1177 of 2266      [14].x
+
+      every diverging field, with its first step: projectiles@12 xp_orbs@1099
+      every diverging field, with its first step: lastFacing@3 attackAnim@3 attackAngle@3 xp@1099 level@2266 xpNext@2266 xpBaseNext@2266
+      every diverging field, with its first step: pendingLevelUps@2266 levelUpChoiceReadyAt@2266
+      every diverging field, with its first step: hp@63 flash@63
+      every diverging field, with its first step: x@1090 y@1090 length@1099
+
+======================================================================
+== idle_24681357
+======================================================================
+reference: {"steps":1551,"enemyRows":12047,"enemyFieldsPerRow":29,"enemyValuesCompared":325269,"maxEnemies":11,"boundaries":{"fire":2,"pickup":1293,"steps":1551},"variant":null}
+$ tools/emit_port_trace.sh godot/tests/reference/idle_24681357.jsonl.gz $PORT/port_idle_24681357.jsonl.gz --oracle
+emit_port_trace: 1551 steps of idle_24681357.jsonl.gz (seed 24681357, idle) -> $PORT/port_idle_24681357.jsonl.gz in 2610 ms (with the replay oracle)
+emit_port_trace: oracle injected { "main:29": 397 } dry draws, forced 24 kills, 0 problems
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/idle_24681357.jsonl.gz $PORT/port_idle_24681357.jsonl.gz --fields state,input,draws,slot_draws,outside_draws,counts,player,camera,wave,enemies --ignore counts.projectiles,counts.xp_orbs,player.lastFacing,player.attackAnim,player.attackAngle,player.xp,player.level,player.xpNext,player.xpBaseNext,wave.pendingLevelUps,wave.levelUpChoiceReadyAt,enemies.hp,enemies.flash
+reference godot/tests/reference/idle_24681357.jsonl.gz (original-chromium, 1551 steps, seed 24681357, script idle)
+port      $PORT/port_idle_24681357.jsonl.gz (godot-port, 1551 steps, seed 24681357, script idle)
+compared steps 1..1551, bit-exact
+
+group         result    first step  differing steps   detail
+state         same      -           0 of 1551         
+input         same      -           0 of 1551         
+draws         same      -           0 of 1551         
+slot_draws    same      -           0 of 1551         
+outside_draws same      -           0 of 1551         
+counts        same      -           0 of 1551         
+player        same      -           0 of 1551         
+camera        same      -           0 of 1551         
+wave          same      -           0 of 1551         
+enemies       same      -           0 of 1551         
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/idle_24681357.jsonl.gz $PORT/port_idle_24681357.jsonl.gz --fields xp_orbs,counts.xp_orbs --until 1288
+reference godot/tests/reference/idle_24681357.jsonl.gz (original-chromium, 1551 steps, seed 24681357, script idle)
+port      $PORT/port_idle_24681357.jsonl.gz (godot-port, 1551 steps, seed 24681357, script idle)
+compared steps 1..1288, bit-exact
+
+group         result    first step  differing steps   detail
+counts        same      -           0 of 1288         
+xp_orbs       same      -           0 of 1288         
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/idle_24681357.jsonl.gz $PORT/port_idle_24681357.jsonl.gz      (everything, nothing ignored: the divergences are the S6 fields and nothing else)
+reference godot/tests/reference/idle_24681357.jsonl.gz (original-chromium, 1551 steps, seed 24681357, script idle)
+port      $PORT/port_idle_24681357.jsonl.gz (godot-port, 1551 steps, seed 24681357, script idle)
+compared steps 1..1551, bit-exact
+not carried by the port, not compared: projectiles: x, y, vx, vy, life, age, r, damage, weapon
+
+group         result    first step  differing steps   detail
+steps         same      -           0 of 1            
+state         same      -           0 of 1551         
+input         same      -           0 of 1551         
+draws         same      -           0 of 1551         
+slot_draws    same      -           0 of 1551         
+outside_draws same      -           0 of 1551         
+counts        DIFFERS   11          307 of 1551       projectiles
+player        DIFFERS   2           1550 of 1551      lastFacing
+camera        same      -           0 of 1551         
+wave          DIFFERS   1551        1 of 1551         pendingLevelUps
+enemies       DIFFERS   109         1365 of 1551      [1] (id 2).hp
+projectiles   DIFFERS   11          59 of 1551        length
+xp_orbs       DIFFERS   1289        263 of 1551       [18].x
+
+      every diverging field, with its first step: projectiles@11 xp_orbs@1293
+      every diverging field, with its first step: lastFacing@2 attackAnim@2 attackAngle@2 xp@1293 level@1551 xpNext@1551 xpBaseNext@1551
+      every diverging field, with its first step: pendingLevelUps@1551 levelUpChoiceReadyAt@1551
+      every diverging field, with its first step: hp@109 flash@109
+      every diverging field, with its first step: x@1289 y@1289 length@1293
+
+======================================================================
+== zigzag_424242
+======================================================================
+reference: {"steps":1704,"enemyRows":13538,"enemyFieldsPerRow":29,"enemyValuesCompared":365526,"maxEnemies":11,"boundaries":{"fire":3,"pickup":1356,"steps":1704},"variant":null}
+$ tools/emit_port_trace.sh godot/tests/reference/zigzag_424242.jsonl.gz $PORT/port_zigzag_424242.jsonl.gz --oracle
+emit_port_trace: 1704 steps of zigzag_424242.jsonl.gz (seed 424242, zigzag) -> $PORT/port_zigzag_424242.jsonl.gz in 3289 ms (with the replay oracle)
+emit_port_trace: oracle injected { "main:29": 430 } dry draws, forced 26 kills, 0 problems
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/zigzag_424242.jsonl.gz $PORT/port_zigzag_424242.jsonl.gz --fields state,input,draws,slot_draws,outside_draws,counts,player,camera,wave,enemies --ignore counts.projectiles,counts.xp_orbs,player.lastFacing,player.attackAnim,player.attackAngle,player.xp,player.level,player.xpNext,player.xpBaseNext,wave.pendingLevelUps,wave.levelUpChoiceReadyAt,enemies.hp,enemies.flash
+reference godot/tests/reference/zigzag_424242.jsonl.gz (original-chromium, 1704 steps, seed 424242, script zigzag)
+port      $PORT/port_zigzag_424242.jsonl.gz (godot-port, 1704 steps, seed 424242, script zigzag)
+compared steps 1..1704, bit-exact
+
+group         result    first step  differing steps   detail
+state         same      -           0 of 1704         
+input         same      -           0 of 1704         
+draws         same      -           0 of 1704         
+slot_draws    same      -           0 of 1704         
+outside_draws same      -           0 of 1704         
+counts        same      -           0 of 1704         
+player        same      -           0 of 1704         
+camera        same      -           0 of 1704         
+wave          same      -           0 of 1704         
+enemies       same      -           0 of 1704         
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/zigzag_424242.jsonl.gz $PORT/port_zigzag_424242.jsonl.gz --fields xp_orbs,counts.xp_orbs --until 1343
+reference godot/tests/reference/zigzag_424242.jsonl.gz (original-chromium, 1704 steps, seed 424242, script zigzag)
+port      $PORT/port_zigzag_424242.jsonl.gz (godot-port, 1704 steps, seed 424242, script zigzag)
+compared steps 1..1343, bit-exact
+
+group         result    first step  differing steps   detail
+counts        same      -           0 of 1343         
+xp_orbs       same      -           0 of 1343         
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/zigzag_424242.jsonl.gz $PORT/port_zigzag_424242.jsonl.gz      (everything, nothing ignored: the divergences are the S6 fields and nothing else)
+reference godot/tests/reference/zigzag_424242.jsonl.gz (original-chromium, 1704 steps, seed 424242, script zigzag)
+port      $PORT/port_zigzag_424242.jsonl.gz (godot-port, 1704 steps, seed 424242, script zigzag)
+compared steps 1..1704, bit-exact
+not carried by the port, not compared: projectiles: x, y, vx, vy, life, age, r, damage, weapon
+
+group         result    first step  differing steps   detail
+steps         same      -           0 of 1            
+state         same      -           0 of 1704         
+input         same      -           0 of 1704         
+draws         same      -           0 of 1704         
+slot_draws    same      -           0 of 1704         
+outside_draws same      -           0 of 1704         
+counts        DIFFERS   12          400 of 1704       projectiles
+player        DIFFERS   3           1702 of 1704      lastFacing
+camera        same      -           0 of 1704         
+wave          DIFFERS   1704        1 of 1704         pendingLevelUps
+enemies       DIFFERS   73          1621 of 1704      [0] (id 1).hp
+projectiles   DIFFERS   12          64 of 1704        length
+xp_orbs       DIFFERS   1344        361 of 1704       [19].x
+
+      every diverging field, with its first step: projectiles@12 xp_orbs@1356
+      every diverging field, with its first step: lastFacing@3 attackAnim@3 attackAngle@3 xp@1356 level@1704 xpNext@1704 xpBaseNext@1704
+      every diverging field, with its first step: pendingLevelUps@1704 levelUpChoiceReadyAt@1704
+      every diverging field, with its first step: hp@73 flash@73
+      every diverging field, with its first step: x@1344 y@1344 length@1356
+
+======================================================================
+== zigzag_24681357
+======================================================================
+reference: {"steps":1710,"enemyRows":13994,"enemyFieldsPerRow":29,"enemyValuesCompared":377838,"maxEnemies":12,"boundaries":{"fire":2,"pickup":1283,"steps":1710},"variant":null}
+$ tools/emit_port_trace.sh godot/tests/reference/zigzag_24681357.jsonl.gz $PORT/port_zigzag_24681357.jsonl.gz --oracle
+emit_port_trace: 1710 steps of zigzag_24681357.jsonl.gz (seed 24681357, zigzag) -> $PORT/port_zigzag_24681357.jsonl.gz in 3170 ms (with the replay oracle)
+emit_port_trace: oracle injected { "main:29": 427 } dry draws, forced 26 kills, 0 problems
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/zigzag_24681357.jsonl.gz $PORT/port_zigzag_24681357.jsonl.gz --fields state,input,draws,slot_draws,outside_draws,counts,player,camera,wave,enemies --ignore counts.projectiles,counts.xp_orbs,player.lastFacing,player.attackAnim,player.attackAngle,player.xp,player.level,player.xpNext,player.xpBaseNext,wave.pendingLevelUps,wave.levelUpChoiceReadyAt,enemies.hp,enemies.flash
+reference godot/tests/reference/zigzag_24681357.jsonl.gz (original-chromium, 1710 steps, seed 24681357, script zigzag)
+port      $PORT/port_zigzag_24681357.jsonl.gz (godot-port, 1710 steps, seed 24681357, script zigzag)
+compared steps 1..1710, bit-exact
+
+group         result    first step  differing steps   detail
+state         same      -           0 of 1710         
+input         same      -           0 of 1710         
+draws         same      -           0 of 1710         
+slot_draws    same      -           0 of 1710         
+outside_draws same      -           0 of 1710         
+counts        same      -           0 of 1710         
+player        same      -           0 of 1710         
+camera        same      -           0 of 1710         
+wave          same      -           0 of 1710         
+enemies       same      -           0 of 1710         
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/zigzag_24681357.jsonl.gz $PORT/port_zigzag_24681357.jsonl.gz --fields xp_orbs,counts.xp_orbs --until 1275
+reference godot/tests/reference/zigzag_24681357.jsonl.gz (original-chromium, 1710 steps, seed 24681357, script zigzag)
+port      $PORT/port_zigzag_24681357.jsonl.gz (godot-port, 1710 steps, seed 24681357, script zigzag)
+compared steps 1..1275, bit-exact
+
+group         result    first step  differing steps   detail
+counts        same      -           0 of 1275         
+xp_orbs       same      -           0 of 1275         
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/zigzag_24681357.jsonl.gz $PORT/port_zigzag_24681357.jsonl.gz      (everything, nothing ignored: the divergences are the S6 fields and nothing else)
+reference godot/tests/reference/zigzag_24681357.jsonl.gz (original-chromium, 1710 steps, seed 24681357, script zigzag)
+port      $PORT/port_zigzag_24681357.jsonl.gz (godot-port, 1710 steps, seed 24681357, script zigzag)
+compared steps 1..1710, bit-exact
+not carried by the port, not compared: projectiles: x, y, vx, vy, life, age, r, damage, weapon
+
+group         result    first step  differing steps   detail
+steps         same      -           0 of 1            
+state         same      -           0 of 1710         
+input         same      -           0 of 1710         
+draws         same      -           0 of 1710         
+slot_draws    same      -           0 of 1710         
+outside_draws same      -           0 of 1710         
+counts        DIFFERS   11          474 of 1710       projectiles
+player        DIFFERS   2           1709 of 1710      lastFacing
+camera        same      -           0 of 1710         
+wave          DIFFERS   1710        1 of 1710         pendingLevelUps
+enemies       DIFFERS   74          1534 of 1710      [1] (id 2).hp
+projectiles   DIFFERS   11          61 of 1710        length
+xp_orbs       DIFFERS   1276        435 of 1710       [5].x
+
+      every diverging field, with its first step: projectiles@11 xp_orbs@1283
+      every diverging field, with its first step: lastFacing@2 attackAnim@2 attackAngle@2 xp@1283 level@1710 xpNext@1710 xpBaseNext@1710
+      every diverging field, with its first step: pendingLevelUps@1710 levelUpChoiceReadyAt@1710
+      every diverging field, with its first step: hp@74 flash@74
+      every diverging field, with its first step: x@1276 y@1276 length@1283
+
+======================================================================
+== zigzag_424242_longrun
+======================================================================
+reference: {"steps":5400,"enemyRows":75486,"enemyFieldsPerRow":29,"enemyValuesCompared":2038122,"maxEnemies":23,"boundaries":{"fire":3,"pickup":1356,"steps":5400},"variant":"long_run"}
+$ tools/emit_port_trace.sh godot/tests/reference/zigzag_424242_longrun.jsonl.gz $PORT/port_zigzag_424242_longrun.jsonl.gz --oracle
+emit_port_trace: 5400 steps of zigzag_424242_longrun.jsonl.gz (seed 424242, zigzag) -> $PORT/port_zigzag_424242_longrun.jsonl.gz in 23840 ms (with the replay oracle)
+emit_port_trace: oracle injected { "main:29": 1811 } dry draws, forced 95 kills, 0 problems
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/zigzag_424242_longrun.jsonl.gz $PORT/port_zigzag_424242_longrun.jsonl.gz --fields state,input,draws,slot_draws,outside_draws,counts,player,camera,wave,enemies --ignore counts.projectiles,counts.xp_orbs,player.lastFacing,player.attackAnim,player.attackAngle,player.xp,player.level,player.xpNext,player.xpBaseNext,wave.pendingLevelUps,wave.levelUpChoiceReadyAt,enemies.hp,enemies.flash
+reference godot/tests/reference/zigzag_424242_longrun.jsonl.gz (original-chromium, 5400 steps, seed 424242, script zigzag)
+port      $PORT/port_zigzag_424242_longrun.jsonl.gz (godot-port, 5400 steps, seed 424242, script zigzag)
+compared steps 1..5400, bit-exact
+
+group         result    first step  differing steps   detail
+state         same      -           0 of 5400         
+input         same      -           0 of 5400         
+draws         same      -           0 of 5400         
+slot_draws    same      -           0 of 5400         
+outside_draws same      -           0 of 5400         
+counts        same      -           0 of 5400         
+player        same      -           0 of 5400         
+camera        same      -           0 of 5400         
+wave          same      -           0 of 5400         
+enemies       same      -           0 of 5400         
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/zigzag_424242_longrun.jsonl.gz $PORT/port_zigzag_424242_longrun.jsonl.gz --fields xp_orbs,counts.xp_orbs --until 1343
+reference godot/tests/reference/zigzag_424242_longrun.jsonl.gz (original-chromium, 5400 steps, seed 424242, script zigzag)
+port      $PORT/port_zigzag_424242_longrun.jsonl.gz (godot-port, 5400 steps, seed 424242, script zigzag)
+compared steps 1..1343, bit-exact
+
+group         result    first step  differing steps   detail
+counts        same      -           0 of 1343         
+xp_orbs       same      -           0 of 1343         
+
+RESULT: SAME in the selected fields
+-> exit code 0
+
+$ node tools/compare_trace.mjs godot/tests/reference/zigzag_424242_longrun.jsonl.gz $PORT/port_zigzag_424242_longrun.jsonl.gz      (everything, nothing ignored: the divergences are the S6 fields and nothing else)
+reference godot/tests/reference/zigzag_424242_longrun.jsonl.gz (original-chromium, 5400 steps, seed 424242, script zigzag)
+port      $PORT/port_zigzag_424242_longrun.jsonl.gz (godot-port, 5400 steps, seed 424242, script zigzag)
+compared steps 1..5400, bit-exact
+not carried by the port, not compared: projectiles: x, y, vx, vy, life, age, r, damage, weapon
+
+group         result    first step  differing steps   detail
+steps         same      -           0 of 1            
+state         same      -           0 of 5400         
+input         same      -           0 of 5400         
+draws         same      -           0 of 5400         
+slot_draws    same      -           0 of 5400         
+outside_draws same      -           0 of 5400         
+counts        DIFFERS   12          4096 of 5400      projectiles
+player        DIFFERS   3           5398 of 5400      lastFacing
+camera        same      -           0 of 5400         
+wave          same      -           0 of 5400         
+enemies       DIFFERS   73          5277 of 5400      [0] (id 1).hp
+projectiles   DIFFERS   12          210 of 5400       length
+xp_orbs       DIFFERS   1344        4057 of 5400      [19].x
+
+      every diverging field, with its first step: projectiles@12 xp_orbs@1356
+      every diverging field, with its first step: lastFacing@3 attackAnim@3 attackAngle@3 xp@1356
+      every diverging field, with its first step: hp@73 flash@73
+      every diverging field, with its first step: x@1344 y@1344 length@1356
+
+----------------------------------------------------------------------
+2. The committed reference traces against HEAD
+----------------------------------------------------------------------
+S5 changes header.boundaries from {contact, fire, steps} to {fire, pickup, steps} (contact: enemy/update is ported now; pickup: the first step where player.xp changes); the step lines of the committed files must not change.
+dirs8_424242             bodies byte-identical: 834 step lines; header keys that differ from HEAD: boundaries; boundaries {"contact":586,"fire":3,"steps":834} (HEAD) -> {"fire":3,"pickup":576,"steps":834} (working tree)
+dirs8_24681357           bodies byte-identical: 786 step lines; header keys that differ from HEAD: boundaries; boundaries {"contact":787,"fire":2,"steps":786} (HEAD) -> {"fire":2,"pickup":373,"steps":786} (working tree)
+idle_424242              bodies byte-identical: 2266 step lines; header keys that differ from HEAD: boundaries; boundaries {"contact":2267,"fire":3,"steps":2266} (HEAD) -> {"fire":3,"pickup":1099,"steps":2266} (working tree)
+idle_24681357            bodies byte-identical: 1551 step lines; header keys that differ from HEAD: boundaries; boundaries {"contact":1552,"fire":2,"steps":1551} (HEAD) -> {"fire":2,"pickup":1293,"steps":1551} (working tree)
+zigzag_424242            bodies byte-identical: 1704 step lines; header keys that differ from HEAD: boundaries; boundaries {"contact":1705,"fire":3,"steps":1704} (HEAD) -> {"fire":3,"pickup":1356,"steps":1704} (working tree)
+zigzag_24681357          bodies byte-identical: 1710 step lines; header keys that differ from HEAD: boundaries; boundaries {"contact":1711,"fire":2,"steps":1710} (HEAD) -> {"fire":2,"pickup":1283,"steps":1710} (working tree)
+zigzag_424242_longrun    bodies byte-identical: 5400 step lines; header keys that differ from HEAD: boundaries; boundaries {"contact":2835,"fire":3,"steps":5400} (HEAD) -> {"fire":3,"pickup":1356,"steps":5400} (working tree)

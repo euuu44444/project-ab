@@ -1,0 +1,119 @@
+C1 evidence: first headless import on a fresh checkout (review finding M1)
+godot 4.7.2.stable.official.ed1daf0bf    HEAD fed8002 (the C1 work is uncommitted in the working tree)
+
+Problem (found by the C1 review): with no godot/.godot (a fresh checkout), the first `godot --headless --import` loads the GDExtension class
+SwarmNative during its first filesystem scan and then crashes while shutting down (SIGSEGV, shell exit code 134). Godot 4.7.2 editor behaviour,
+intermittent.
+Fix: tools/lib/godot_project.sh, swarm_seed_extension_list "$PROJECT_DIR": if godot/.godot/extension_list.cfg does not exist, it is created with one
+line per *.gdextension file of the project (today: `res://swarm_native.gdextension`). tools/run_godot_tests.sh calls it after the native build and before the
+first Godot start; tools/build_android.sh calls it after the native build and before tests/import/export (so --skip-tests --skip-import also profits).
+An existing extension_list.cfg is never touched; the editor maintains it from then on (the file the editor writes is the same one line).
+
+How a fresh checkout is made (every run, <scratch>/fix/fresh_lib.sh): a new directory, filled from
+  git ls-files -co --exclude-standard -z | tar --null -T - -cf - | tar -xf - -C <dir>
+= the 367 files of the working tree that git would track (committed + untracked-not-ignored), so no godot/.godot, no godot/bin (libraries), no
+export/. The run builds the libraries itself (tools/build_native.sh --host-only --debug-only inside run_godot_tests.sh; objects of godot-cpp come
+from the shared cache, the clone's own 4 sources are compiled: "built in 1-2s"), so the libraries exist when the first import starts.
+
+----------------------------------------------------------------------
+1. Reproduction without the fix
+----------------------------------------------------------------------
+a) The first import alone, 6 fresh clones, libraries present, no extension_list.cfg (what the scripts did before):
+   swarm_godot --headless --path <clone>/godot --import
+   fresh clone 1: exit 134   <- crash
+   fresh clone 2: exit 134   <- crash
+   fresh clone 3: exit 134   <- crash
+   fresh clone 4: exit 134   <- crash
+   fresh clone 5: exit 0
+   fresh clone 6: exit 134   <- crash
+   => 5 of 6 crashed. Tail of such a log (identical for all five):
+   [   0% ] loading_editor_layout | Loading editor layout...
+   [  16% ] loading_editor_layout | Loading docks...
+   [ DONE ] loading_editor_layout
+   
+   cannot connect to daemon at tcp:5199: Address family not supported by protocol
+   environment: line 1: 14096 Aborted                 HOME="$home" TMPDIR="$home/tmp" XDG_DATA_HOME="$SWARM_CACHE_DIR/xdg-data" ANDROID_ADB_SERVER_PORT="${SWARM_ADB_PORT:-5199}" "$@"
+b) The same through the script, fresh clone, tools/run_godot_tests.sh with the seed switched off (the clone's tools/lib/godot_project.sh replaced by a
+   function that does nothing; SWARM_SKIP_ASSET_CHECK=1 SWARM_SKIP_GENERATED_CHECK=1 to save time):
+clone: <scratch>/fresh_control (367 files); godot/.godot exists: no; godot/bin exists: no
+run 1 (control): exit=0 wall=47s
+    [native] linux.template_debug.x86_64: built in 2s (4 file(s) compiled)
+    RESULT: PASS
+    [tests] importing project (headless, incremental) ...
+    Summary: 210/210 passed, 0 failed, 10387 assertions
+    RESULT: PASS
+    [tests] PASS
+    extension_list.cfg after the run: res://swarm_native.gdextension 
+clone: <scratch>/fresh_control (367 files); godot/.godot exists: no; godot/bin exists: no
+run 2 (control): exit=0 wall=46s
+    [native] linux.template_debug.x86_64: built in 1s (0 file(s) compiled)
+    RESULT: PASS
+    [tests] importing project (headless, incremental) ...
+    Summary: 210/210 passed, 0 failed, 10387 assertions
+    RESULT: PASS
+    [tests] PASS
+    extension_list.cfg after the run: res://swarm_native.gdextension 
+clone: <scratch>/fresh_control (367 files); godot/.godot exists: no; godot/bin exists: no
+run 3 (control): exit=1 wall=5s
+    [native] linux.template_debug.x86_64: built in 1s (0 file(s) compiled)
+    RESULT: PASS
+    [tests] importing project (headless, incremental) ...
+    [tests] ERROR: Godot import failed (exit code 134)
+    extension_list.cfg after the run: res://swarm_native.gdextension 
+   => 1 of 3 failed with `[tests] ERROR: Godot import failed (exit code 134)`; the other two passed: the crash is intermittent.
+
+----------------------------------------------------------------------
+2. With the fix
+----------------------------------------------------------------------
+
+a) The first import alone after swarm_seed_extension_list, 8 fresh clones (same procedure as 1a):
+   fresh clone 1: exit 0   (.godot/.gdignore created by the editor; extension_list.cfg = res://swarm_native.gdextension)
+   fresh clone 2: exit 0   (.godot/.gdignore created by the editor; extension_list.cfg = res://swarm_native.gdextension)
+   fresh clone 3: exit 0   (.godot/.gdignore created by the editor; extension_list.cfg = res://swarm_native.gdextension)
+   fresh clone 4: exit 0   (.godot/.gdignore created by the editor; extension_list.cfg = res://swarm_native.gdextension)
+   fresh clone 5: exit 0   (.godot/.gdignore created by the editor; extension_list.cfg = res://swarm_native.gdextension)
+   fresh clone 6: exit 0   (.godot/.gdignore created by the editor; extension_list.cfg = res://swarm_native.gdextension)
+   fresh clone 7: exit 0   (.godot/.gdignore created by the editor; extension_list.cfg = res://swarm_native.gdextension)
+   fresh clone 8: exit 0   (.godot/.gdignore created by the editor; extension_list.cfg = res://swarm_native.gdextension)
+   => 8 of 8 passed (without the fix: 5 of 6 crashed).
+
+b) tools/run_godot_tests.sh (complete script: asset check, generated-data check, native build, import, 210 tests) in a fresh clone, 3 runs after all
+   other final runs (<scratch>/fix/fresh_run.sh fixed N):
+clone: <scratch>/fresh_fixed (367 files); godot/.godot exists: no; godot/bin exists: no
+run 1 (fixed): exit=0 wall=76s
+    [native] linux.template_debug.x86_64: built in 2s (4 file(s) compiled)
+    RESULT: PASS
+    [tests] importing project (headless, incremental) ...
+    Summary: 210/210 passed, 0 failed, 10387 assertions
+    RESULT: PASS
+    [tests] PASS
+    extension_list.cfg after the run: res://swarm_native.gdextension 
+clone: <scratch>/fresh_fixed (367 files); godot/.godot exists: no; godot/bin exists: no
+run 2 (fixed): exit=0 wall=75s
+    [native] linux.template_debug.x86_64: built in 1s (0 file(s) compiled)
+    RESULT: PASS
+    [tests] importing project (headless, incremental) ...
+    Summary: 210/210 passed, 0 failed, 10387 assertions
+    RESULT: PASS
+    [tests] PASS
+    extension_list.cfg after the run: res://swarm_native.gdextension 
+clone: <scratch>/fresh_fixed (367 files); godot/.godot exists: no; godot/bin exists: no
+run 3 (fixed): exit=0 wall=76s
+    [native] linux.template_debug.x86_64: built in 1s (0 file(s) compiled)
+    RESULT: PASS
+    [tests] importing project (headless, incremental) ...
+    Summary: 210/210 passed, 0 failed, 10387 assertions
+    RESULT: PASS
+    [tests] PASS
+    extension_list.cfg after the run: res://swarm_native.gdextension 
+   => 3 of 3 passed (210/210, exit 0). Five more runs made earlier the same day with the same files (fresh_fixed_extra5): all 5 passed as well,
+      wall time 74-77 s each, 8 of 8 in total. Logs of every run are kept in <scratch>/fix/final/fresh_*.log.
+
+c) tools/build_android.sh --skip-tests in a fresh clone (no godot/.godot; this is the case where build_android.sh itself runs the first import),
+   2 runs:
+fresh clone, tools/build_android.sh --skip-tests, run 1: exit=0 27 s; 20 PASS, 0 FAIL, 1 WARN; extension_list.cfg: res://swarm_native.gdextension 
+fresh clone, tools/build_android.sh --skip-tests, run 2: exit=0 23 s; 20 PASS, 0 FAIL, 1 WARN; extension_list.cfg: res://swarm_native.gdextension 
+   => exit 0, 20 PASS, 1 WARN (the known duplicate FileProvider authority of Godot 4.7.2's exporter), no permissions.
+
+Notes: a checkout whose godot/.godot exists but has no extension_list.cfg (an interrupted first import) is seeded too, since the test is the
+file, not the directory; an existing extension_list.cfg that is stale is left to the editor.

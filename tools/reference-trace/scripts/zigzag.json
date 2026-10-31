@@ -1,0 +1,19 @@
+{
+  "name": "zigzag",
+  "description": "A fixed zigzag: the stick jumps to a new displacement every 7 steps, through 12 vectors (axis-aligned, diagonal, and deflections below the full 42 px: 33%, 67%, 71%, 77%, 87%, 94%), and the 84-step cycle repeats. Exercises the normalisation of inputVector with magnitudes below 1 and the velocity / acceleration terms of the player's movement.",
+  "repeat": true,
+  "segments": [
+    {"label": "east", "steps": 7, "stick": [42, 0]},
+    {"label": "south-east, 71%", "steps": 7, "stick": [21, 21]},
+    {"label": "north", "steps": 7, "stick": [0, -42]},
+    {"label": "north-west", "steps": 7, "stick": [-42, -42]},
+    {"label": "west, 33%", "steps": 7, "stick": [-14, 0]},
+    {"label": "south, 67%", "steps": 7, "stick": [0, 28]},
+    {"label": "east-north-east, 77%", "steps": 7, "stick": [30, -12]},
+    {"label": "west", "steps": 7, "stick": [-42, 0]},
+    {"label": "south-south-west, 87%", "steps": 7, "stick": [-10, 35]},
+    {"label": "north-east", "steps": 7, "stick": [42, -42]},
+    {"label": "north, 33%", "steps": 7, "stick": [0, -14]},
+    {"label": "north-west, 94%", "steps": 7, "stick": [-28, -28]}
+  ]
+}

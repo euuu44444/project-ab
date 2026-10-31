@@ -1,0 +1,514 @@
+C1 evidence: C++ (GDExtension) toolchain (original run + the review-fix round; the parts changed by the fix round say so)
+date: 2026-10-24
+godot 4.7.2.stable.official.ed1daf0bf    HEAD fed8002 (the C1 work is uncommitted in the working tree)
+install:  tools/setup_cpp.sh   first run 35 s (NDK extraction 2.2 GB, venv, godot-cpp fetch, API dump), re-run 2.8 s
+          (every tree re-hashed against its stamp, godot-cpp checked against its commit, nothing downloaded or extracted).
+          Both exit code 0. Complete logs of both runs at the end of this file.
+          Before that run the NDK zip had already been fetched into the script's own download slot
+          (downloads/android-ndk-r28b-linux.zip.part, same curl command) to compute the SHA-256 that is pinned; the script
+          then verified size + SHA-1 + SHA-256 and installed it. The script's own download path was exercised later
+          (section 7: a corrupted zip is discarded and downloaded again by the script, 55 s in total).
+cache:    $SWARM_CACHE_DIR = ~/.cache/elemental-swarm-engine (outside the repo). Added by C1: android-sdk/ndk/28.1.13356709
+          (2.2 GB), downloads/android-ndk-r28b-linux.zip (722 MB) and the scons wheel (4 MB), godot-cpp/<commit> (42 MB),
+          venv-scons (36 MB), godot-api/4.7.2-stable (7 MB), native-build (1.0 GB after all six targets with the original build; 42 MB with the build profile of the fix round), cpp-toolchain.env.
+          Nothing is written into the repo; godot-cpp's checkout stays clean (`git status --ignored` there is empty) because
+          native/SConstruct builds into native-build/<config>/ through a variant dir.
+scripts:  `source tools/lib/cpp_toolchain.sh` (it sources lib/toolchain.sh first) exports ANDROID_NDK_ROOT, SCONS, GODOT_CPP_DIR,
+          SWARM_GODOT_CPP_COMMIT, SWARM_GODOT_API_VERSION, SWARM_GODOT_API_JSON, SWARM_NATIVE_BUILD_DIR, SWARM_NDK_VERSION,
+          SWARM_SCONS_VERSION, SWARM_NDK_BIN and the function swarm_scons (PYTHONDONTWRITEBYTECODE=1, HOME/TMPDIR in the cache).
+          It returns 1 with a list of what is missing when setup has not run (section 8).
+shared:   tools/lib/setup_common.sh now holds the helpers of setup_godot.sh (fetch_verified, check_file, stamp_*, staging,
+          assert_safe_zip, log/die): a pure move; of the 118 lines removed from setup_godot.sh all but log() and die() exist
+          verbatim in setup_common.sh (those two now take their prefix from SETUP_LOG_TAG; "setup" keeps the old output).
+          setup_godot.sh was re-run afterwards: exit 0, every line "OK (verified, cached / unchanged)" (section 9).
+
+review-fix round (this file was updated; changed sections: 3, 5, 7b, 8, 9, 12, 13):
+  L8   godot-cpp must be clean when it is BUILT, not only when it is set up: native/SConstruct and lib/cpp_toolchain.sh require HEAD == pin and an empty
+       `git status --porcelain --untracked-files=all --ignored` (stricter than the requested --untracked-files=no: an untracked custom.py would be
+       executed by godot-cpp's SConstruct). setup_cpp.sh uses the same function (swarm_godot_cpp_clean). Tests: guards.txt.
+  L9   scons is installed with `pip install --no-compile`; the RECORD check now covers the entry script bin/scons (RECORD lists ../../../bin/scons) and
+       fails on any compiled .pyc in SCons/. The run of this round found the venv of the first install (238 .pyc files) "not as pinned" and reinstalled it.
+  L11  host-only mode: `tools/setup_cpp.sh --host-only` installs scons, godot-cpp and the API dump only (no 2.2 GB NDK); tools/run_godot_tests.sh and
+       tools/build_native.sh --host-only need nothing else (SWARM_CPP_HOST_ONLY=1 for lib/cpp_toolchain.sh; the x86-64 objects are disassembled with the
+       host's llvm-objdump). build_android.sh and a plain build_native.sh still require everything. Section 13.
+  L12  the shared lock message names both scripts (take_setup_lock in lib/setup_common.sh), SETUP_LOG_TAG is assigned by each script instead of read from
+       the environment, the empty "Helpers" section of setup_godot.sh is now "Usage". Section 9.
+  L2   swarm_scons removes SCONSFLAGS, SCONS_CACHE, SCONS_LIB_DIR, PYTHONPATH, PYTHONHOME and PYTHONSTARTUP from the environment of scons.
+
+----------------------------------------------------------------------
+1. Pins and versions (tools/setup_cpp.sh --report)
+----------------------------------------------------------------------
+cache dir        : $CACHE
+Godot            : 4.7.2.stable.official.ed1daf0bf
+NDK              : r28b (28.1.13356709)  $CACHE/android-sdk/ndk/28.1.13356709
+  zip            : android-ndk-r28b-linux.zip  722264879 bytes
+  zip sha1       : f574d3165405bd59ffc5edaadac02689075a729f  (published in repository2-3.xml)
+  zip sha256     : e9f2759862cecfd48c20bbb7d8cfedbb020f4d91b5f78d9a2fc106f7db3c27ed  (computed, pinned)
+  clang          : Android (13324770, +pgo, +bolt, +lto, +mlgo, based on r530567d) clang version 19.0.0 (https://android.googlesource.com/toolchain/llvm-project 97a699bf4812a18fb657c2779f5296a4ab2694d2)
+SCons            : 4.10.1  $CACHE/venv-scons/bin/scons
+  wheel          : scons-4.10.1-py3-none-any.whl  4136069 bytes
+  wheel sha256   : bd9d1c52f908d874eba92a8c0c0a8dcf2ed9f3b88ab956d0fce1da479c4e7126
+  python (venv)  : 3.13.16
+  scons --version: v4.10.1.055b01f429d58b686701a56df863a817c36bb103, Sun, 16 Nov 2025 14:18:20 -0700, by bdbaddog on M1Dog2021
+godot-cpp        : https://github.com/godotengine/godot-cpp
+  commit (pin)   : 8070599885b6df675fcad033dd032ce44be2b850
+  git HEAD       : 8070599885b6df675fcad033dd032ce44be2b850
+  commit date    : 2026-10-22T15:45:13-05:00
+  commit subject : Merge pull request #2077 from godotengine/dependabot/github_actions/j178/prek-action-3.0.2
+  work tree      : clean (no modified, untracked or ignored files)
+  api_version    : 4.7
+host compiler    : Ubuntu clang version 18.1.3 (1ubuntu1)
+host gcc         : gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+python3          : Python 3.13.16
+cmake / ninja    : cmake version 3.28.3 / 1.11.1 (not used by the C1 build)
+
+Godot API check ($CACHE/godot-api/4.7.2-stable/api-compare.txt):
+  dumped header : Godot Engine v4.7.2.stable.official (precision single)
+  bundled header: Godot Engine v4.7.stable.official (precision single)
+    builtin_class_sizes            dumped     4  bundled     4
+    builtin_class_member_offsets   dumped     4  bundled     4
+    global_constants               dumped    11  bundled    11
+    global_enums                   dumped    22  bundled    22
+    utility_functions              dumped   114  bundled   114
+    builtin_classes                dumped    38  bundled    38
+    classes                        dumped  1036  bundled  1036
+    singletons                     dumped    41  bundled    41
+    native_structures              dumped    14  bundled    14
+    class methods (engine, builtin) dumped 16822, 999  bundled 16822, 999
+  RESULT: identical (only version_patch and version_full_name of the header differ)
+
+recorded facts ($CACHE/cpp-toolchain.env):
+  GODOT_CPP_COMMIT=8070599885b6df675fcad033dd032ce44be2b850
+  GODOT_CPP_COMMIT_DATE=2026-10-22T15:45:13-05:00
+  GODOT_CPP_API_VERSION=4.7
+  NDK_VERSION=28.1.13356709
+  SCONS_VERSION=4.10.1
+  HOST_CLANG=Ubuntu clang version 18.1.3 (1ubuntu1)
+  API_CHECK=identical
+
+----------------------------------------------------------------------
+2. Why NDK r28b (28.1.13356709), and where the pins come from
+----------------------------------------------------------------------
+
+NDK r28b (28.1.13356709) is the version the Godot 4.7 documentation names (taken from the C1 brief, not re-read from the docs site here);
+godot-cpp's own tools/android.py defaults `ndk_version` to the same "28.1.13356709". Google's manifest
+https://dl.google.com/android/repository/repository2-3.xml (file sha256 f2bc624c8e1dc14c320fdf17e49a5501c35934948e46a444df8b36a138a03e1e
+when it was read) says for that package:
+package   : ndk;28.1.13356709 - NDK (Side by side) 28.1.13356709 (revision 28.1.13356709)
+linux zip : android-ndk-r28b-linux.zip 722264879 bytes
+sha1      : f574d3165405bd59ffc5edaadac02689075a729f (type sha1)
+The script pins that size and SHA-1, plus the SHA-256 computed from the download once the SHA-1 matched (e9f27598...27ed). All three are
+checked before anything is extracted. (r28c is 28.2.13676358; not used.)
+Archive safety: the NDK zip holds 8,996 entries, 35 of them symlinks (clang -> clang-19, libc++.so.1 -> libc++.so, ...), so the S1 helper
+that rejects every symlink cannot be used. assert_safe_zip_with_links (python3 -I, zipfile) requires: every entry below android-ndk-r28b/,
+no absolute or '..' path, only regular files, directories and symlinks, each symlink relative with a target that stays inside the tree and
+does not pass through another symlink, and no entry below a symlink. It passes the NDK zip and rejects the crafted archives below:
+good -> exit 0 | 
+abs_link -> exit 1 |   symlink with an absolute or empty target: top/l -> '/etc/passwd'
+escape_link -> exit 1 |   symlink escapes top/: top/l -> ../etc
+dotdot -> exit 1 |   unsafe path: 'top/../x'
+outside -> exit 1 |   entry outside top/: 'other/x'
+below_link -> exit 1 |   entry below a symlink: top/l/x
+via_link -> exit 1 |   symlink target passes through another symlink: top/c -> top/a/x
+abs_name -> exit 1 |   unsafe path: '/top/x'
+
+----------------------------------------------------------------------
+3. godot-cpp pin
+----------------------------------------------------------------------
+
+commit  8070599885b6df675fcad033dd032ce44be2b850   (master, committed 2026-10-22T15:45:13-05:00,
+        "Merge pull request #2077 from godotengine/dependabot/github_actions/j178/prek-action-3.0.2")
+Why this commit: godot-cpp has no tag for its v10 line yet (the newest tag is godot-4.5-stable). v10 is versioned independently of Godot and
+selects the Godot version with api_version (supported 4.3 .. 4.8). This is master at the time of C1: after the "v10 is not beta anymore" merge
+(2026-09-15), the SCons production option and the binary-size work (2026-10-07/16), and after the Godot 4.8 update, which only added
+extension_api-4-8.json and changed 6 lines of gdextension_interface.json. gdextension/extension_api-4-7.json was last synced with upstream
+Godot 4.7-stable (godot-cpp commit 5ffd70e, 2026-06-18).
+setup_cpp.sh fetches exactly this SHA (git fetch --depth 1 origin <sha>), requires `git rev-parse HEAD` == pin and a work tree without any
+modified, untracked or ignored file on every run (tested in section 7). The same SHA is checked again by native/SConstruct and by
+cpp_toolchain.sh, and is printed by SwarmNative.version(); since the fix round both also require the clean work tree (see L8 above). Residual risk: the pin is a git object id (SHA-1), not a separately computed
+content hash of the tree.
+
+----------------------------------------------------------------------
+4. api_version=4.7 or custom_api_file: api_version=4.7 is used
+----------------------------------------------------------------------
+
+Godot 4.7.2 was asked for its own API (`swarm_godot --headless --dump-extension-api` and --dump-gdextension-interface; kept in the cache under
+godot-api/4.7.2-stable/) and compared section by section with godot-cpp's gdextension/extension_api-4-7.json by
+tools/lib/compare_extension_api.py. setup_cpp.sh runs the comparison on every run and fails (suggesting custom_api_file) if the two ever differ.
+Result for this pair (cache file godot-api/4.7.2-stable/api-compare.txt):
+dumped header : Godot Engine v4.7.2.stable.official (precision single)
+bundled header: Godot Engine v4.7.stable.official (precision single)
+  builtin_class_sizes            dumped     4  bundled     4
+  builtin_class_member_offsets   dumped     4  bundled     4
+  global_constants               dumped    11  bundled    11
+  global_enums                   dumped    22  bundled    22
+  utility_functions              dumped   114  bundled   114
+  builtin_classes                dumped    38  bundled    38
+  classes                        dumped  1036  bundled  1036
+  singletons                     dumped    41  bundled    41
+  native_structures              dumped    14  bundled    14
+  class methods (engine, builtin) dumped 16822, 999  bundled 16822, 999
+RESULT: identical (only version_patch and version_full_name of the header differ)
+
+Reading: all nine sections are equal, including the hash of each of the 16,822 engine-class methods and 999 builtin-class methods, all 1,036
+classes, the builtin sizes and member offsets. Only header.version_patch (0 vs 2) and header.version_full_name differ, which is what a patch
+release changes. The official file therefore describes Godot 4.7.2 exactly; a custom file would be byte-for-byte the same API and would only
+add a file to keep in sync. Decision: api_version=4.7 (pinned in native/SConstruct through SWARM_GODOT_API_VERSION; a command-line
+api_version=... that differs is refused).
+Negative control (the comparison can fail): the same dump against extension_api-4-6.json:
+  builtin_classes[Basis]/methods[looking_at]/arguments[target]/name: 'target' vs 'scale'
+  builtin_classes[Basis]/methods[looking_at]/hash: 3728732505 vs 3703240166
+  builtin_classes[Basis]/methods[looking_at]/name: 'looking_at' vs 'from_scale'
+  builtin_classes[Basis]/methods[from_scale]/arguments: list length 1 vs 2
+  builtin_classes[Basis]/methods[from_scale]/arguments[scale]/name: 'scale' vs 'euler'
+  builtin_classes[Basis]/methods[from_scale]/hash: 3703240166 vs 2802321791
+  builtin_classes[Basis]/methods[from_scale]/name: 'from_scale' vs 'from_euler'
+  classes: list length 1036 vs 1023
+  classes[AESContext]/enums: only in dumped
+  classes[AESContext]/inherits: 'RefCounted' vs 'AnimationNode'
+  classes[AESContext]/methods: only in dumped
+  classes[AESContext]/name: 'AESContext' vs 'AnimationRootNode'
+  classes[AStar2D]/enums: only in bundled
+Use custom_api_file=<dumped json> instead of api_version if the differences matter.
+Interface header: the gdextension_interface.h that godot-cpp generates from its JSON (gen/include/gdextension_interface.h of the debug build)
+and the one dumped by Godot 4.7.2 differ in 24 of ~3,214 lines: the header preamble, documentation wording, the spelling of 6 function-pointer typedef names
+(CallableCustomGetUserdata/GetUserData, PlaceholderScriptInstanceCreate/PlaceHolder..., EditorHelpLoadXml.../GDExtensionsInterface..., ...) and
+one parameter typedef (ObjectSetScriptInstance: GDExtensionScriptInstancePtr vs GDExtensionScriptInstanceDataPtr; both are `typedef void *`).
+Neither layout nor any function changes: 179 interface functions on both sides.
+
+----------------------------------------------------------------------
+5. SCons
+----------------------------------------------------------------------
+
+scons 4.10.1 (released 2025-11-16), wheel scons-4.10.1-py3-none-any.whl, 4,136,069 bytes,
+sha256 bd9d1c52f908d874eba92a8c0c0a8dcf2ed9f3b88ab956d0fce1da479c4e7126 (as published on PyPI, recomputed locally after download; the URL under
+files.pythonhosted.org/packages/ce/bf/931f.../ is content-addressed by blake2b). 4.11.1 exists (2026-08-27) but 4.10.1 is the older, widely used one.
+Install (setup_cpp.sh): the wheel is fetched like every other download (size + sha256 before use), then
+  python3 -m venv <cache>/venv-scons;  python -I -m pip install --no-index --no-compile --find-links <downloads> --require-hashes --no-deps --only-binary=:all: -r requirements.txt
+with requirements.txt = `scons==4.10.1 --hash=sha256:bd9d1c52...` (pip never talks to a server; it refuses anything without a matching hash).
+Fast path on re-runs: every file the wheel's RECORD lists is re-hashed (sha256) in the installed venv, the entry scripts included (RECORD lists
+../../../bin/scons with the hash of the script pip wrote), bin/scons must be among them, a RECORD entry without a hash (other than RECORD itself) or
+outside the venv is refused, and no .pyc may exist in SCons/; a failure re-creates the venv (sections 7, 7b). 1,544 files are verified.
+venv python 3.13.16 (system python3), pip 26.2.1 (bundled by ensurepip), `scons --version`: v4.10.1.055b01f429d58b686701a56df863a817c36bb103.
+
+----------------------------------------------------------------------
+6. NDK r28b and 16 KiB pages
+----------------------------------------------------------------------
+
+NDK r28b default LOAD alignment, trivial shared library, no -z max-page-size flag:
+  aarch64-linux-android24      0x4000
+  armv7a-linux-androideabi24   0x1000
+  x86_64-linux-android24       0x4000
+NDK r28b already links 64-bit Android libraries with 16 KiB LOAD alignment (0x4000) and 32-bit ARM with 4 KiB. native/SConstruct still passes
+-Wl,-z,max-page-size=16384 for arm64 (and x86_64), so the result does not depend on the NDK default; 32-bit ARM keeps 0x1000 (armeabi-v7a does
+not run on 16 KiB page-size kernels, and the Google Play requirement is for 64-bit libraries). The build checks the result with readelf
+(build.txt) and tools/build_android.sh checks it again inside the APK (apk.txt).
+
+----------------------------------------------------------------------
+7. Tamper tests (the re-run is a verification, not just a skip)
+----------------------------------------------------------------------
+7b. Tamper tests of the fix round: the scons check (L9) on a scratch copy of the venv
+----------------------------------------------------------------------
+The python of verify_scons_install, run with the venv's python against a copy of the venv (cp -a; the real venv was not touched):
+  untouched copy                         1544 files verified                                     exit 0
+  bin/scons gets a line appended         hash mismatch: ../../../bin/scons                       exit 1
+  SCons/Util/__init__.py gets a line     hash mismatch: SCons/Util/__init__.py                   exit 1
+  file restored                          1544 files verified                                     exit 0
+  an empty SCons/__pycache__/x.cpython-313.pyc added
+                                         1 compiled file(s) in SCons/ (installed without --no-compile?), e.g. .../SCons/__pycache__/x.cpython-313.pyc   exit 1
+On the real cache: the venv of the original install had 238 .pyc files; this round's first `tools/setup_cpp.sh` printed
+  scons in $CACHE/venv-scons is not as pinned (RECORD entry without a hash: SCons/Node/__pycache__/Alias.cpython-313.pyc); reinstalling
+and installed it again with --no-compile (complete log, section 12); afterwards `find venv-scons/lib/python3*/site-packages/SCons -name '*.pyc'` is empty.
+
+----------------------------------------------------------------------
+8. Failing clearly when setup has not run (updated)
+----------------------------------------------------------------------
+Cache dir with the Godot toolchain (symlinked) but without any C++ part; `SWARM_CACHE_DIR=<that> tools/build_native.sh --host-only --debug-only`
+and `tools/run_godot_tests.sh` both exit 1 before doing anything else with:
+  The C++ toolchain is not set up (cache: <dir>):
+    - scons missing: <dir>/venv-scons/bin/scons
+    - godot-cpp checkout missing: <dir>/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850
+    - Godot API dump missing: <dir>/godot-api/4.7.2-stable/extension_api.json
+    - setup has not recorded a passing api_version=4.7 check (<dir>/cpp-toolchain.env)
+  Run tools/setup_cpp.sh --host-only first (it is idempotent and re-verifies every download).
+(Run again in the fix round with a cache that has only the Godot toolchain: exit 1 for both commands, exactly this list. In host-only mode there is no NDK line;
+an "llvm-objdump missing" line appears only on a host without llvm-objdump.)
+(For build_native.sh without --host-only and for build_android.sh the first line is "Android NDK missing: <dir>/android-sdk/ndk/28.1.13356709" and the hint
+is "Run tools/setup_cpp.sh first"; shown in section 13.) A godot-cpp checkout with local changes is reported as "godot-cpp has local changes (...)".
+Without the Godot toolchain the S1 message ("The Godot toolchain is not set up ... Run tools/setup_godot.sh first") comes first.
+SWARM_CACHE_DIR inside the repo is refused ("SWARM_CACHE_DIR must be outside the repository"), as in S1.
+
+----------------------------------------------------------------------
+9. setup_godot.sh: helpers in lib/setup_common.sh; fix round: lock message, log tag, section name (L12) - last run, exit 0, 9.8 s
+----------------------------------------------------------------------
+L12 tests, real cache:
+  a) another process holds the shared lock ($CACHE/.setup.lock; `(flock 9; sleep 15) 9>$CACHE/.setup.lock &`):
+       $ tools/setup_godot.sh
+       [setup] ERROR: another setup script (setup_godot.sh or setup_cpp.sh) is already running for $CACHE          exit 1
+       $ SETUP_LOG_TAG=evil tools/setup_cpp.sh
+       [setup-cpp] ERROR: another setup script (setup_godot.sh or setup_cpp.sh) is already running for $CACHE      exit 1
+     (before: setup_godot.sh said "another setup_godot.sh is already running")
+  b) SETUP_LOG_TAG=evil exported, tools/setup_godot.sh run for real: all 18 log lines carry the tag [setup] (before: the environment value would have been
+     used; setup_cpp.sh sets [setup-cpp] the same way). lib/setup_common.sh has no default any more and refuses to be sourced without a tag.
+  c) the "---- Helpers ----" section of setup_godot.sh that only held usage() is "---- Usage ----".
+Complete log of the run in b):
+[setup] JDK: /usr/lib/jvm/java-21-openjdk-amd64 (Java 21)
+[setup] OK (verified, cached): Godot_v4.7.2-stable_linux.x86_64.zip
+[setup] OK (verified, cached): Godot_v4.7.2-stable_export_templates.tpz
+[setup] OK (verified, cached): build-tools_r36_linux.zip
+[setup] OK (verified, cached): platform-tools_r37.0.1-linux.zip
+[setup] OK (editor binary unchanged): $CACHE/godot/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64
+[setup] OK (Android export templates unchanged): $CACHE/godot/4.7.2-stable/editor_data/export_templates/4.7.2.stable
+[setup] OK (unchanged): $CACHE/android-sdk/build-tools/36.0.0
+[setup] OK (unchanged): $CACHE/android-sdk/platform-tools
+[setup] OK (debug keystore): $CACHE/keystore/debug.keystore
+[setup] OK (editor settings): $CACHE/godot/4.7.2-stable/editor_data/editor_settings-4.7.tres
+[setup] smoke test: Godot version
+[setup]   4.7.2.stable.official.ed1daf0bf
+[setup] smoke test: headless start
+[setup] smoke test: apksigner / adb / zipalign
+[setup]   apksigner 0.9
+[setup]   Android Debug Bridge version 1.0.41
+[setup] done. In scripts: source tools/lib/toolchain.sh  (GODOT_BIN=$CACHE/godot/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64)
+----------------------------------------------------------------------
+
+[setup] JDK: /usr/lib/jvm/java-21-openjdk-amd64 (Java 21)
+[setup] OK (verified, cached): Godot_v4.7.2-stable_linux.x86_64.zip
+[setup] OK (verified, cached): Godot_v4.7.2-stable_export_templates.tpz
+[setup] OK (verified, cached): build-tools_r36_linux.zip
+[setup] OK (verified, cached): platform-tools_r37.0.1-linux.zip
+[setup] OK (editor binary unchanged): $CACHE/godot/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64
+[setup] OK (Android export templates unchanged): $CACHE/godot/4.7.2-stable/editor_data/export_templates/4.7.2.stable
+[setup] OK (unchanged): $CACHE/android-sdk/build-tools/36.0.0
+[setup] OK (unchanged): $CACHE/android-sdk/platform-tools
+[setup] OK (debug keystore): $CACHE/keystore/debug.keystore
+[setup] OK (editor settings): $CACHE/godot/4.7.2-stable/editor_data/editor_settings-4.7.tres
+[setup] smoke test: Godot version
+[setup]   4.7.2.stable.official.ed1daf0bf
+[setup] smoke test: headless start
+[setup] smoke test: apksigner / adb / zipalign
+[setup]   apksigner 0.9
+[setup]   Android Debug Bridge version 1.0.41
+[setup] done. In scripts: source tools/lib/toolchain.sh  (GODOT_BIN=$CACHE/godot/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64)
+
+real	0m3.502s
+user	0m3.295s
+sys	0m0.622s
+
+----------------------------------------------------------------------
+10. tools/setup_cpp.sh, first run (empty C++ cache) - complete log, exit 0
+----------------------------------------------------------------------
+
+[setup-cpp] OK (downloaded, verified): android-ndk-r28b-linux.zip
+[setup-cpp] checking the NDK archive entries, then extracting (about 2 GB) -> $CACHE/android-sdk/ndk/28.1.13356709
+[setup-cpp] OK (NDK installed): $CACHE/android-sdk/ndk/28.1.13356709
+[setup-cpp] downloading scons-4.10.1-py3-none-any.whl (4136069 bytes)
+[setup-cpp] OK (downloaded, verified): scons-4.10.1-py3-none-any.whl
+[setup-cpp] creating the venv and installing scons 4.10.1 from the pinned wheel
+[setup-cpp] OK (scons installed): $CACHE/venv-scons
+[setup-cpp] fetching godot-cpp 8070599885b6df675fcad033dd032ce44be2b850
+[setup-cpp] OK (godot-cpp installed, HEAD == pin): $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850
+[setup-cpp] dumping the extension API of 4.7.2.stable.official.ed1daf0bf
+    dumped header : Godot Engine v4.7.2.stable.official (precision single)
+    bundled header: Godot Engine v4.7.stable.official (precision single)
+      builtin_class_sizes            dumped     4  bundled     4
+      builtin_class_member_offsets   dumped     4  bundled     4
+      global_constants               dumped    11  bundled    11
+      global_enums                   dumped    22  bundled    22
+      utility_functions              dumped   114  bundled   114
+      builtin_classes                dumped    38  bundled    38
+      classes                        dumped  1036  bundled  1036
+      singletons                     dumped    41  bundled    41
+      native_structures              dumped    14  bundled    14
+      class methods (engine, builtin) dumped 16822, 999  bundled 16822, 999
+    RESULT: identical (only version_patch and version_full_name of the header differ)
+[setup-cpp] OK: api_version=4.7 equals the API of 4.7.2.stable.official.ed1daf0bf
+[setup-cpp] smoke test: scons, NDK clang, host clang
+[setup-cpp]   scons 4.10.1 runs
+[setup-cpp]   NDK: Android (13324770, +pgo, +bolt, +lto, +mlgo, based on r530567d) clang version 19.0.0 (https://android.googlesource.com/toolchain/llvm-project 97a699bf4812a18fb657c2779f5296a4ab2694d2)
+[setup-cpp]   host: Ubuntu clang version 18.1.3 (1ubuntu1)
+[setup-cpp]   NDK builds shared libraries for arm64 and armv7
+[setup-cpp] done. In scripts: source tools/lib/cpp_toolchain.sh  (ANDROID_NDK_ROOT=$CACHE/android-sdk/ndk/28.1.13356709)
+
+real	0m35.055s
+user	0m19.333s
+sys	0m12.598s
+
+----------------------------------------------------------------------
+11. tools/setup_cpp.sh, second run - complete log, exit 0
+
+----------------------------------------------------------------------
+12. tools/setup_cpp.sh in the fix round: first run (scons reinstalled with --no-compile), exit 0, 16.1 s
+----------------------------------------------------------------------
+[setup-cpp] OK (NDK unchanged): $CACHE/android-sdk/ndk/28.1.13356709
+[setup-cpp] scons in $CACHE/venv-scons is not as pinned (RECORD entry without a hash: SCons/Node/__pycache__/Alias.cpython-313.pyc); reinstalling
+[setup-cpp] OK (verified, cached): scons-4.10.1-py3-none-any.whl
+[setup-cpp] creating the venv and installing scons 4.10.1 from the pinned wheel
+[setup-cpp] OK (scons installed): $CACHE/venv-scons
+[setup-cpp] OK (godot-cpp unchanged): $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850
+[setup-cpp] OK (Godot API dump unchanged): $CACHE/godot-api/4.7.2-stable/extension_api.json
+    dumped header : Godot Engine v4.7.2.stable.official (precision single)
+    bundled header: Godot Engine v4.7.stable.official (precision single)
+      builtin_class_sizes            dumped     4  bundled     4
+      builtin_class_member_offsets   dumped     4  bundled     4
+      global_constants               dumped    11  bundled    11
+      global_enums                   dumped    22  bundled    22
+      utility_functions              dumped   114  bundled   114
+      builtin_classes                dumped    38  bundled    38
+      classes                        dumped  1036  bundled  1036
+      singletons                     dumped    41  bundled    41
+      native_structures              dumped    14  bundled    14
+      class methods (engine, builtin) dumped 16822, 999  bundled 16822, 999
+    RESULT: identical (only version_patch and version_full_name of the header differ)
+[setup-cpp] OK: api_version=4.7 equals the API of 4.7.2.stable.official.ed1daf0bf
+[setup-cpp] smoke test: scons, NDK clang, host clang
+[setup-cpp]   scons 4.10.1 runs
+[setup-cpp]   host: Ubuntu clang version 18.1.3 (1ubuntu1)
+[setup-cpp]   host objdump: /usr/bin/llvm-objdump
+[setup-cpp]   NDK: Android (13324770, +pgo, +bolt, +lto, +mlgo, based on r530567d) clang version 19.0.0 (https://android.googlesource.com/toolchain/llvm-project 97a699bf4812a18fb657c2779f5296a4ab2694d2)
+[setup-cpp]   NDK builds shared libraries for arm64 and armv7
+[setup-cpp] done. In scripts: source tools/lib/cpp_toolchain.sh  (ANDROID_NDK_ROOT=$CACHE/android-sdk/ndk/28.1.13356709)
+----------------------------------------------------------------------
+12b. tools/setup_cpp.sh, final idempotent run - exit 0, 3.0 s (nothing downloaded or extracted; 1,544 scons files re-hashed)
+----------------------------------------------------------------------
+[setup-cpp] OK (NDK unchanged): $CACHE/android-sdk/ndk/28.1.13356709
+[setup-cpp] OK (scons 4.10.1 unchanged, 1544 files verified): $CACHE/venv-scons
+[setup-cpp] OK (godot-cpp unchanged): $CACHE/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850
+[setup-cpp] OK (Godot API dump unchanged): $CACHE/godot-api/4.7.2-stable/extension_api.json
+    dumped header : Godot Engine v4.7.2.stable.official (precision single)
+    bundled header: Godot Engine v4.7.stable.official (precision single)
+      builtin_class_sizes            dumped     4  bundled     4
+      builtin_class_member_offsets   dumped     4  bundled     4
+      global_constants               dumped    11  bundled    11
+      global_enums                   dumped    22  bundled    22
+      utility_functions              dumped   114  bundled   114
+      builtin_classes                dumped    38  bundled    38
+      classes                        dumped  1036  bundled  1036
+      singletons                     dumped    41  bundled    41
+      native_structures              dumped    14  bundled    14
+      class methods (engine, builtin) dumped 16822, 999  bundled 16822, 999
+    RESULT: identical (only version_patch and version_full_name of the header differ)
+[setup-cpp] OK: api_version=4.7 equals the API of 4.7.2.stable.official.ed1daf0bf
+[setup-cpp] smoke test: scons, NDK clang, host clang
+[setup-cpp]   scons 4.10.1 runs
+[setup-cpp]   host: Ubuntu clang version 18.1.3 (1ubuntu1)
+[setup-cpp]   host objdump: /usr/bin/llvm-objdump
+[setup-cpp]   NDK: Android (13324770, +pgo, +bolt, +lto, +mlgo, based on r530567d) clang version 19.0.0 (https://android.googlesource.com/toolchain/llvm-project 97a699bf4812a18fb657c2779f5296a4ab2694d2)
+[setup-cpp]   NDK builds shared libraries for arm64 and armv7
+[setup-cpp] done. In scripts: source tools/lib/cpp_toolchain.sh  (ANDROID_NDK_ROOT=$CACHE/android-sdk/ndk/28.1.13356709)
+----------------------------------------------------------------------
+12c. tools/setup_cpp.sh --report after the final run - exit 0
+----------------------------------------------------------------------
+cache dir        : $CACHE
+Godot            : 4.7.2.stable.official.ed1daf0bf
+NDK              : r28b (28.1.13356709)  $CACHE/android-sdk/ndk/28.1.13356709
+  zip            : android-ndk-r28b-linux.zip  722264879 bytes
+  zip sha1       : f574d3165405bd59ffc5edaadac02689075a729f  (published in repository2-3.xml)
+  zip sha256     : e9f2759862cecfd48c20bbb7d8cfedbb020f4d91b5f78d9a2fc106f7db3c27ed  (computed, pinned)
+  clang          : Android (13324770, +pgo, +bolt, +lto, +mlgo, based on r530567d) clang version 19.0.0 (https://android.googlesource.com/toolchain/llvm-project 97a699bf4812a18fb657c2779f5296a4ab2694d2)
+SCons            : 4.10.1  $CACHE/venv-scons/bin/scons
+  wheel          : scons-4.10.1-py3-none-any.whl  4136069 bytes
+  wheel sha256   : bd9d1c52f908d874eba92a8c0c0a8dcf2ed9f3b88ab956d0fce1da479c4e7126
+  python (venv)  : 3.13.16
+  scons --version: v4.10.1.055b01f429d58b686701a56df863a817c36bb103, Sun, 16 Nov 2025 14:18:20 -0700, by bdbaddog on M1Dog2021
+godot-cpp        : https://github.com/godotengine/godot-cpp
+  commit (pin)   : 8070599885b6df675fcad033dd032ce44be2b850
+  git HEAD       : 8070599885b6df675fcad033dd032ce44be2b850
+  commit date    : 2026-10-22T15:45:13-05:00
+  commit subject : Merge pull request #2077 from godotengine/dependabot/github_actions/j178/prek-action-3.0.2
+  work tree      : clean (no modified, untracked or ignored files)
+  api_version    : 4.7
+host compiler    : Ubuntu clang version 18.1.3 (1ubuntu1)
+host objdump     : /usr/bin/llvm-objdump
+host gcc         : gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+python3          : Python 3.13.16
+cmake / ninja    : cmake version 3.28.3 / 1.11.1 (not used by the C1 build)
+
+Godot API check ($CACHE/godot-api/4.7.2-stable/api-compare.txt):
+  dumped header : Godot Engine v4.7.2.stable.official (precision single)
+  bundled header: Godot Engine v4.7.stable.official (precision single)
+    builtin_class_sizes            dumped     4  bundled     4
+    builtin_class_member_offsets   dumped     4  bundled     4
+    global_constants               dumped    11  bundled    11
+    global_enums                   dumped    22  bundled    22
+    utility_functions              dumped   114  bundled   114
+    builtin_classes                dumped    38  bundled    38
+    classes                        dumped  1036  bundled  1036
+    singletons                     dumped    41  bundled    41
+    native_structures              dumped    14  bundled    14
+    class methods (engine, builtin) dumped 16822, 999  bundled 16822, 999
+  RESULT: identical (only version_patch and version_full_name of the header differ)
+
+recorded facts ($CACHE/cpp-toolchain.env):
+  GODOT_CPP_COMMIT=8070599885b6df675fcad033dd032ce44be2b850
+  GODOT_CPP_COMMIT_DATE=2026-10-22T15:45:13-05:00
+  GODOT_CPP_API_VERSION=4.7
+  NDK_VERSION=28.1.13356709
+  SCONS_VERSION=4.10.1
+  HOST_CLANG=Ubuntu clang version 18.1.3 (1ubuntu1)
+  API_CHECK=identical
+----------------------------------------------------------------------
+13. Host-only mode (L11): tests without the Android NDK
+----------------------------------------------------------------------
+Scratch cache dir (<scratch>/fix/cache_host) with the Godot toolchain symlinked (godot/, keystore/, build-tools, platform-tools) and NOTHING of the C++ part;
+only the scons wheel was copied into downloads/ (4 MB). SWARM_CACHE_DIR=<that> for every command below.
+
+$ tools/setup_cpp.sh --host-only                  exit 0, 5.9 s
+[setup-cpp] --host-only: the Android NDK is neither installed nor checked
+[setup-cpp] OK (verified, cached): scons-4.10.1-py3-none-any.whl
+[setup-cpp] creating the venv and installing scons 4.10.1 from the pinned wheel
+[setup-cpp] OK (scons installed): <scratch>/cache_host/venv-scons
+[setup-cpp] fetching godot-cpp 8070599885b6df675fcad033dd032ce44be2b850
+[setup-cpp] OK (godot-cpp installed, HEAD == pin): <scratch>/cache_host/godot-cpp/8070599885b6df675fcad033dd032ce44be2b850
+[setup-cpp] dumping the extension API of 4.7.2.stable.official.ed1daf0bf
+    dumped header : Godot Engine v4.7.2.stable.official (precision single)
+    bundled header: Godot Engine v4.7.stable.official (precision single)
+      builtin_class_sizes            dumped     4  bundled     4
+      builtin_class_member_offsets   dumped     4  bundled     4
+      global_constants               dumped    11  bundled    11
+      global_enums                   dumped    22  bundled    22
+      utility_functions              dumped   114  bundled   114
+      builtin_classes                dumped    38  bundled    38
+      classes                        dumped  1036  bundled  1036
+      singletons                     dumped    41  bundled    41
+      native_structures              dumped    14  bundled    14
+      class methods (engine, builtin) dumped 16822, 999  bundled 16822, 999
+    RESULT: identical (only version_patch and version_full_name of the header differ)
+[setup-cpp] OK: api_version=4.7 equals the API of 4.7.2.stable.official.ed1daf0bf
+[setup-cpp] smoke test: scons, host clang
+[setup-cpp]   scons 4.10.1 runs
+[setup-cpp]   host: Ubuntu clang version 18.1.3 (1ubuntu1)
+[setup-cpp]   host objdump: /usr/bin/llvm-objdump
+[setup-cpp] done. In scripts: source tools/lib/cpp_toolchain.sh  (ANDROID_NDK_ROOT=<scratch>/cache_host/android-sdk/ndk/28.1.13356709)
+Result: no android-sdk/ndk, no NDK zip; the cache holds 88 MB besides the symlinks (the full C++ toolchain: 2.2 GB NDK + 2.1 GB downloads + the rest).
+A second `setup_cpp.sh --host-only` is a no-op ("OK (scons 4.10.1 unchanged, 1544 files verified)", godot-cpp unchanged, API dump unchanged, "done (host-only)").
+$ tools/setup_cpp.sh --report --host-only          prints "NDK : r28b (28.1.13356709)  NOT INSTALLED (host-only setup; tools/build_android.sh needs the full tools/setup_cpp.sh)".
+
+$ tools/run_godot_tests.sh                          exit 0, 83 s (cold native build inside: "built in 8s (66 file(s) compiled)")
+  [tests] checking the atlas assets against the original game ...
+  [tests] checking the generated definition tables and golden vectors against the original game ...
+  [tests] building the native extension for the host, template_debug (incremental) ...
+  [native] linux.template_debug.x86_64: scons (-j4) ...
+  [native] linux.template_debug.x86_64: built in 8s (66 file(s) compiled)
+  RESULT: PASS
+  [tests] importing project (headless, incremental) ...
+  [tests] running tests with 4.7.2.stable.official.ed1daf0bf
+  Summary: 210/210 passed, 0 failed, 10387 assertions
+  RESULT: PASS
+  [tests] PASS
+  The library it built, sha256 f0298ac45b45c9094fa5f98f56c9c194657ee08fdf85bd631c5068e79c002eed, is the one of the full cache (bit-identical).
+
+Controls (same scratch cache, no NDK): the Android parts still refuse to run:
+$ tools/build_native.sh                            exit 1
+  The C++ toolchain is not set up (cache: <scratch>/cache_host):
+    - Android NDK missing: <scratch>/cache_host/android-sdk/ndk/28.1.13356709
+  Run tools/setup_cpp.sh first (it is idempotent and re-verifies every download).
+$ tools/build_android.sh --skip-tests              exit 1
+  The C++ toolchain is not set up (cache: <scratch>/cache_host):
+    - Android NDK missing: <scratch>/cache_host/android-sdk/ndk/28.1.13356709
+  Run tools/setup_cpp.sh first (it is idempotent and re-verifies every download).
+$ SWARM_CPP_HOST_ONLY=1 tools/build_native.sh      exit 1, same message: an inherited SWARM_CPP_HOST_ONLY does not weaken a build that includes Android
+  (build_native.sh assigns the variable from its options, build_android.sh sets it to 0, run_godot_tests.sh sets it to 1).
+Needed on the host in this mode: clang, clang++, python3 (venv, ensurepip), git, curl, unzip, readelf (binutils) and llvm-objdump (Ubuntu: apt install llvm);
+setup_cpp.sh --host-only checks the last one.
+

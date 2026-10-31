@@ -1,0 +1,285 @@
+S4 evidence: reference traces (design 9.2) recorded from the original game, after the review fixes
+date: 2026-10-20    Chromium 141.0.7390.37    Playwright 1.62.1 (pinned, tools/reference-trace/package-lock.json)    node v22.22.0    Godot 4.7.2-stable    Linux x86_64
+
+----------------------------------------------------------------------
+0. Result
+----------------------------------------------------------------------
+7 traces in godot/tests/reference/: the 6 standard ones (dirs8, idle, zigzag x seeds 424242, 24681357: 5,453,650 bytes = 5.20 MiB) and ONE
+non-standard long run (zigzag_424242_longrun: 5,427,880 bytes = 5.18 MiB; --long-run, section 1b); 10,881,530 bytes = 10.38 MiB in all,
+below the 12 MB limit for committed traces. The standard traces stop at the first level-up (pendingLevelUps > 0); the long run at step 5400 (90 s).
+Every trace has 0 gameRandom draws outside the update slots and an empty stats.never_defined (section 8).
+Reproducible: a second capture in a fresh browser context is byte-identical (--verify-repro), and a separate invocation of the whole tool gives
+byte-identical files (section 3). The original is served from memory with the hook inserted; webview-fg4/ and docs/ are unchanged.
+
+Changes since the first S4 version (review findings; see the summary of the fix step):
+  * schema: wave +14 fields (the enemy director: pendingDirectorEnemyKind, waveFeaturedChangeChance, enemyAiTier, enemyAiSkill, enemiesVersion,
+    the flattened waveSpawnTheme, featuredEnemyHistory), enemy +6 fields (damage, spawnWave, flash, telegraph, attackAnim, tacticPulse), field type b
+  * hook.js counts, per field, how often it was read and how often the game had it defined: stats.never_defined (section 8)
+  * the header carries boundaries {contact, fire, steps}, computed by tools/lib/trace_io.mjs; the Godot test computes them again (section 9)
+  * --long-run / --until-wave: the explicitly non-standard variant with waves 1-3 and assassins (section 1b); the port applies the same overrides
+  * page errors outside window.__trace.run() are collected and fail the capture (exit 2) instead of being thrown from the event listener (section 8)
+  * on every field that existed before, the new standard traces equal the old ones step for step (section 9)
+
+----------------------------------------------------------------------
+1. The capture of the 6 standard traces (node tools/reference-trace/capture.mjs --all --verify-repro) -> exit code 0
+----------------------------------------------------------------------
+reproducibility dirs8_424242.jsonl.gz: a second capture in a fresh context is byte-identical (0dfe367a0e526723 / 0dfe367a0e526723)
+dirs8_424242.jsonl.gz
+  script dirs8, seed 424242, fx seed 2654435769, catalyst / normal / normal, view 390x844, coarse true
+  steps 834, stop level_up at step 834
+  gameRandom draws: 831 in all (1 in newGame, 830 in steps, 0 outside any slot)
+  top slots by draws: main:5 wave/progress 588 (70.8%); main:29 projectile/player 210 (25.3%); main:31 enemy/cleanup-2 26 (3.1%); main:15 enemy/update 6 (0.7%)
+  first events: enemy 1; player hp changes 586; player attackAnim changes 3; first draw per slot: main:5@1 main:29@74 main:31@152 main:15@586
+  first effects the port lacks (design 9.2 boundaries): contact hit step 586, weapon shot step 3
+  maxima: enemies 8, projectiles 2, xp orbs 10, particles 15
+  size: 425897 bytes on disk, 3520326 bytes uncompressed, sha256 of the file 79304eb8e30f6d41226c6d433c7fbf13f1a99c1ac6737e089a5d01ec7210a245
+  source webview-fg4/tests/fixtures/original.html sha256 647860b1d9b510c0cb7bd17d60da80b9a85fa46ab90fdf4c9cb83035e0408d73; 141.0.7390.37; playwright 1.62.1
+reproducibility dirs8_24681357.jsonl.gz: a second capture in a fresh context is byte-identical (81716992f4d445ec / 81716992f4d445ec)
+dirs8_24681357.jsonl.gz
+  script dirs8, seed 24681357, fx seed 2654435769, catalyst / normal / normal, view 390x844, coarse true
+  steps 786, stop level_up at step 786
+  gameRandom draws: 687 in all (1 in newGame, 686 in steps, 0 outside any slot)
+  top slots by draws: main:5 wave/progress 555 (80.9%); main:29 projectile/player 111 (16.2%); main:31 enemy/cleanup-2 20 (2.9%)
+  first events: enemy 1; player hp changes -; player attackAnim changes 2; first draw per slot: main:5@1 main:29@75 main:31@140
+  first effects the port lacks (design 9.2 boundaries): contact hit none, weapon shot step 2
+  maxima: enemies 9, projectiles 2, xp orbs 7, particles 9
+  size: 415407 bytes on disk, 3403946 bytes uncompressed, sha256 of the file 9cdb79a8adae408e82bb9cb32be3620db08c088bcb73dd26d176519d9e1728b1
+  source webview-fg4/tests/fixtures/original.html sha256 647860b1d9b510c0cb7bd17d60da80b9a85fa46ab90fdf4c9cb83035e0408d73; 141.0.7390.37; playwright 1.62.1
+reproducibility idle_424242.jsonl.gz: a second capture in a fresh context is byte-identical (a42e237dda1721ea / a42e237dda1721ea)
+idle_424242.jsonl.gz
+  script idle, seed 424242, fx seed 2654435769, catalyst / normal / normal, view 390x844, coarse true
+  steps 2266, stop level_up at step 2266
+  gameRandom draws: 2616 in all (1 in newGame, 2615 in steps, 0 outside any slot)
+  top slots by draws: main:5 wave/progress 1908 (73.0%); main:29 projectile/player 633 (24.2%); main:31 enemy/cleanup-2 74 (2.8%)
+  first events: enemy 1; player hp changes -; player attackAnim changes 3; first draw per slot: main:5@1 main:29@63 main:31@109
+  first effects the port lacks (design 9.2 boundaries): contact hit none, weapon shot step 3
+  maxima: enemies 15, projectiles 2, xp orbs 34, particles 15
+  size: 1437316 bytes on disk, 14872111 bytes uncompressed, sha256 of the file b520e7bbad6f2d373128eff102ae5bf3b08245a3455165c2d9013a8834aa615d
+  source webview-fg4/tests/fixtures/original.html sha256 647860b1d9b510c0cb7bd17d60da80b9a85fa46ab90fdf4c9cb83035e0408d73; 141.0.7390.37; playwright 1.62.1
+reproducibility idle_24681357.jsonl.gz: a second capture in a fresh context is byte-identical (aa54feb7f44f7ba4 / aa54feb7f44f7ba4)
+idle_24681357.jsonl.gz
+  script idle, seed 24681357, fx seed 2654435769, catalyst / normal / normal, view 390x844, coarse true
+  steps 1551, stop level_up at step 1551
+  gameRandom draws: 1742 in all (1 in newGame, 1741 in steps, 0 outside any slot)
+  top slots by draws: main:5 wave/progress 1296 (74.4%); main:29 projectile/player 397 (22.8%); main:31 enemy/cleanup-2 48 (2.8%)
+  first events: enemy 1; player hp changes -; player attackAnim changes 2; first draw per slot: main:5@1 main:29@63 main:31@154
+  first effects the port lacks (design 9.2 boundaries): contact hit none, weapon shot step 2
+  maxima: enemies 11, projectiles 2, xp orbs 21, particles 14
+  size: 905785 bytes on disk, 8887818 bytes uncompressed, sha256 of the file ba6a1ee2a9c357532935b2e2a7b64fbd013a191716ac1f1a8f1a54a0f4ed8bc5
+  source webview-fg4/tests/fixtures/original.html sha256 647860b1d9b510c0cb7bd17d60da80b9a85fa46ab90fdf4c9cb83035e0408d73; 141.0.7390.37; playwright 1.62.1
+reproducibility zigzag_424242.jsonl.gz: a second capture in a fresh context is byte-identical (7f6d6469203733e3 / 7f6d6469203733e3)
+zigzag_424242.jsonl.gz
+  script zigzag, seed 424242, fx seed 2654435769, catalyst / normal / normal, view 390x844, coarse true
+  steps 1704, stop level_up at step 1704
+  gameRandom draws: 1659 in all (1 in newGame, 1658 in steps, 0 outside any slot)
+  top slots by draws: main:5 wave/progress 1176 (70.9%); main:29 projectile/player 430 (25.9%); main:31 enemy/cleanup-2 52 (3.1%)
+  first events: enemy 1; player hp changes -; player attackAnim changes 3; first draw per slot: main:5@1 main:29@73 main:31@118
+  first effects the port lacks (design 9.2 boundaries): contact hit none, weapon shot step 3
+  maxima: enemies 11, projectiles 3, xp orbs 23, particles 16
+  size: 1128262 bytes on disk, 10146863 bytes uncompressed, sha256 of the file d76d101620b5895ba21d62821a7d83b88385936556ee775af38900f93d14d3e0
+  source webview-fg4/tests/fixtures/original.html sha256 647860b1d9b510c0cb7bd17d60da80b9a85fa46ab90fdf4c9cb83035e0408d73; 141.0.7390.37; playwright 1.62.1
+reproducibility zigzag_24681357.jsonl.gz: a second capture in a fresh context is byte-identical (445601079729a289 / 445601079729a289)
+zigzag_24681357.jsonl.gz
+  script zigzag, seed 24681357, fx seed 2654435769, catalyst / normal / normal, view 390x844, coarse true
+  steps 1710, stop level_up at step 1710
+  gameRandom draws: 1659 in all (1 in newGame, 1658 in steps, 0 outside any slot)
+  top slots by draws: main:5 wave/progress 1179 (71.1%); main:29 projectile/player 427 (25.8%); main:31 enemy/cleanup-2 52 (3.1%)
+  first events: enemy 1; player hp changes -; player attackAnim changes 2; first draw per slot: main:5@1 main:29@74 main:31@161
+  first effects the port lacks (design 9.2 boundaries): contact hit none, weapon shot step 2
+  maxima: enemies 12, projectiles 2, xp orbs 23, particles 14
+  size: 1140983 bytes on disk, 10263206 bytes uncompressed, sha256 of the file ad537a2f8729d027e4706f4631d3c35483554d86151358fff4e20739c29c56b3
+  source webview-fg4/tests/fixtures/original.html sha256 647860b1d9b510c0cb7bd17d60da80b9a85fa46ab90fdf4c9cb83035e0408d73; 141.0.7390.37; playwright 1.62.1
+total size of 6 traces: 5453650 bytes (5.20 MiB)
+
+real	0m36.504s
+user	0m12.993s
+sys	0m3.568s
+
+----------------------------------------------------------------------
+1b. The long run (node tools/reference-trace/capture.mjs --script zigzag --seed 424242 --long-run --max-steps 5400 --verify-repro) -> exit code 0
+----------------------------------------------------------------------
+NON-STANDARD: player.xpNext, player.hp and player.maxHp are set to 1e9 right after newGame() (header: variant long_run, overrides). No level-up is queued, the
+player cannot die. Without this the starting weapon alone lets the player die about 55-65 s in (state:ended at steps 3313 / 3721 / 3865 for idle / dirs8 / zigzag,
+seed 424242, measured with xpNext only), before wave 3 (72 s = step 4320).
+reproducibility zigzag_424242_longrun.jsonl.gz: a second capture in a fresh context is byte-identical (81ee46c563233411 / 81ee46c563233411)
+zigzag_424242_longrun.jsonl.gz
+  script zigzag, seed 424242, fx seed 2654435769, catalyst / normal / normal, view 390x844, coarse true
+  steps 5400, stop max_steps at step 5400; NON-STANDARD variant long_run: {"player.xpNext":"41cdcd6500000000","player.hp":"41cdcd6500000000","player.maxHp":"41cdcd6500000000"}
+  gameRandom draws: 5692 in all (1 in newGame, 5691 in steps, 0 outside any slot)
+  top slots by draws: main:5 wave/progress 3600 (63.3%); main:29 projectile/player 1811 (31.8%); main:31 enemy/cleanup-2 190 (3.3%); main:15 enemy/update 90 (1.6%)
+  first events: enemy 1; player hp changes 2835; player attackAnim changes 3; first draw per slot: main:5@1 main:29@73 main:31@118 main:15@2835
+  first effects the port lacks (design 9.2 boundaries): contact hit step 2835, weapon shot step 3
+  maxima: enemies 23, projectiles 3, xp orbs 33, particles 20
+  size: 5427880 bytes on disk, 52584006 bytes uncompressed, sha256 of the file 8c4955cdfbef8e292a630e53dc98901118cfde801a4f2ba34b956e4f52bf09b9
+  source webview-fg4/tests/fixtures/original.html sha256 647860b1d9b510c0cb7bd17d60da80b9a85fa46ab90fdf4c9cb83035e0408d73; 141.0.7390.37; playwright 1.62.1
+
+real	0m24.508s
+user	0m7.338s
+sys	0m1.822s
+
+What the long run holds that the standard traces do not (tools/reference-trace/FORMAT.md, 'The long-run variant'):
+per trace (last t in seconds, first step in which an enemy has hp < maxHp, first kill, highest wave, steps spent in wave 2 or later, maxima of enemy projectiles and hazards, kinds):
+dirs8_24681357.jsonl.gz           {"steps":786,"lastT":13.1,"firstDamaged":75,"firstKill":140,"maxWave":1,"stepsInWave2":0,"ep":0,"hz":0,"kinds":"swarm"}
+dirs8_424242.jsonl.gz             {"steps":834,"lastT":13.9,"firstDamaged":74,"firstKill":152,"maxWave":1,"stepsInWave2":0,"ep":0,"hz":0,"kinds":"swarm"}
+idle_24681357.jsonl.gz            {"steps":1551,"lastT":25.85,"firstDamaged":109,"firstKill":154,"maxWave":1,"stepsInWave2":0,"ep":0,"hz":0,"kinds":"swarm"}
+idle_424242.jsonl.gz              {"steps":2266,"lastT":37.77,"firstDamaged":63,"firstKill":109,"maxWave":2,"stepsInWave2":106,"ep":0,"hz":0,"kinds":"swarm"}
+zigzag_24681357.jsonl.gz          {"steps":1710,"lastT":28.5,"firstDamaged":74,"firstKill":161,"maxWave":1,"stepsInWave2":0,"ep":0,"hz":0,"kinds":"swarm"}
+zigzag_424242.jsonl.gz            {"steps":1704,"lastT":28.4,"firstDamaged":73,"firstKill":118,"maxWave":1,"stepsInWave2":0,"ep":0,"hz":0,"kinds":"swarm"}
+zigzag_424242_longrun.jsonl.gz    {"steps":5400,"lastT":90,"firstDamaged":73,"firstKill":118,"maxWave":3,"stepsInWave2":3240,"ep":0,"hz":0,"kinds":"swarm/assassin"}
+zigzag_424242_longrun: an assassin is on screen in 1074 steps (wave 3 starts at step 4320); counts.enemy_projectiles and counts.hazards stay 0 throughout.
+Not covered by any committed trace: enemy projectiles, hazards, the knock-out list (the long run cannot die), waves 4 and later (record them with --until-wave 5).
+
+----------------------------------------------------------------------
+2. Files and sizes (godot/tests/reference/; limit for committing all: 12 MB)
+----------------------------------------------------------------------
+dirs8_24681357.jsonl.gz              415,407 bytes
+dirs8_424242.jsonl.gz                425,897 bytes
+idle_24681357.jsonl.gz               905,785 bytes
+idle_424242.jsonl.gz               1,437,316 bytes
+zigzag_24681357.jsonl.gz           1,140,983 bytes
+zigzag_424242.jsonl.gz             1,128,262 bytes
+zigzag_424242_longrun.jsonl.gz     5,427,880 bytes
+total                             10,881,530 bytes = 10.38 MiB
+
+9cdb79a8adae408e82bb9cb32be3620db08c088bcb73dd26d176519d9e1728b1  godot/tests/reference/dirs8_24681357.jsonl.gz
+79304eb8e30f6d41226c6d433c7fbf13f1a99c1ac6737e089a5d01ec7210a245  godot/tests/reference/dirs8_424242.jsonl.gz
+ba6a1ee2a9c357532935b2e2a7b64fbd013a191716ac1f1a8f1a54a0f4ed8bc5  godot/tests/reference/idle_24681357.jsonl.gz
+b520e7bbad6f2d373128eff102ae5bf3b08245a3455165c2d9013a8834aa615d  godot/tests/reference/idle_424242.jsonl.gz
+ad537a2f8729d027e4706f4631d3c35483554d86151358fff4e20739c29c56b3  godot/tests/reference/zigzag_24681357.jsonl.gz
+d76d101620b5895ba21d62821a7d83b88385936556ee775af38900f93d14d3e0  godot/tests/reference/zigzag_424242.jsonl.gz
+8c4955cdfbef8e292a630e53dc98901118cfde801a4f2ba34b956e4f52bf09b9  godot/tests/reference/zigzag_424242_longrun.jsonl.gz
+
+----------------------------------------------------------------------
+3. Repeatability across separate runs of the tool
+----------------------------------------------------------------------
+$ node tools/reference-trace/capture.mjs --all --out-dir <scratch>                                           -> exit code 0 (a third, independent invocation)
+$ node tools/reference-trace/capture.mjs --script zigzag --seed 424242 --long-run --max-steps 5400 --out-dir <scratch>   -> exit code 0
+cmp dirs8_24681357.jsonl.gz: identical bytes
+cmp dirs8_424242.jsonl.gz: identical bytes
+cmp idle_24681357.jsonl.gz: identical bytes
+cmp idle_424242.jsonl.gz: identical bytes
+cmp zigzag_24681357.jsonl.gz: identical bytes
+cmp zigzag_424242.jsonl.gz: identical bytes
+cmp zigzag_424242_longrun.jsonl.gz: identical bytes
+
+----------------------------------------------------------------------
+4. Does the driver need what loop() does around update()? (hook.js explains the reasoning)
+----------------------------------------------------------------------
+$ node tools/reference-trace/capture.mjs --all --emulate-loop --out-dir <scratch>      -> exit code 0
+$ node tools/reference-trace/capture.mjs --script zigzag --seed 424242 --long-run --max-steps 5400 --emulate-loop --out-dir <scratch>   -> exit code 0
+  (after every step it also runs render() and adaptiveSample(), as loop() does after its steps)
+  dirs8_24681357.jsonl.gz: steps identical (786 steps)
+  dirs8_424242.jsonl.gz: steps identical (834 steps)
+  idle_24681357.jsonl.gz: steps identical (1551 steps)
+  idle_424242.jsonl.gz: steps identical (2266 steps)
+  zigzag_24681357.jsonl.gz: steps identical (1710 steps)
+  zigzag_424242.jsonl.gz: steps identical (1704 steps)
+  zigzag_424242_longrun.jsonl.gz: steps identical (5400 steps)
+  the headers differ only in the extra key emulate_loop and stats.render_ms. Whatever adaptiveSample did to the quality tier changed nothing that a trace
+  records; the particle maxima of the runs are 9 to 20, far below the 560 / 1100 gate of showDamageNumber.
+
+----------------------------------------------------------------------
+5. Cross-check against the older census (tools/census_rng_slots_chromium.mjs, verification/godot/s3/rng_slots.txt)
+----------------------------------------------------------------------
+The census drove input.moveX/moveY with literals (0.7071 on the diagonals); the trace driver goes through the game's touch handlers
+(stick displacement 42,42 -> 0.7071067811865475). The numbers of the dirs8 / seed 424242 run agree anyway:
+  census (rng_slots.txt):  3721 steps, first hit frame 586, first level-up frame 834, 831 draws to level-up:
+      slot                 first frame   draws to level-up   draws in the run
+      wave/progress                  1                 588               2568
+      projectile/player             74                 210               1147
+      enemy/cleanup-2              152                  26                126
+      enemy/update                 586                   6                 33
+      weapon/update                  -                   0                  0
+  trace dirs8_424242:      first hit step 586, level-up step 834, 831 draws (1 newGame + 830), per slot:
+      top slots by draws: main:5 wave/progress 588 (70.8%); main:29 projectile/player 210 (25.3%); main:31 enemy/cleanup-2 26 (3.1%); main:15 enemy/update 6 (0.7%)
+      first events: enemy 1; player hp changes 586; player attackAnim changes 3; first draw per slot: main:5@1 main:29@74 main:31@152 main:15@586
+  and idle / seed 424242:  2616 draws to the level-up at step 2266 (analyst A's study: 2616 draws, level-up at t = 37.77 s = step 2266):
+      steps 2266, stop level_up at step 2266
+      gameRandom draws: 2616 in all (1 in newGame, 2615 in steps, 0 outside any slot)
+  (re-checked after the recapture: the six standard traces equal the previous ones on every field they had, section 9; the census run is unchanged)
+
+----------------------------------------------------------------------
+6. Keyboard and mixed input (driver check with a scratch script, not committed)
+----------------------------------------------------------------------
+  {"name":"keys_mix","description":"scratch: keys, both key spellings of one direction, key plus stick, small stick, idle","repeat":true,
+   "segments":[
+    {"steps":20,"keys":["KeyD"]},
+    {"steps":20,"keys":["ArrowDown","KeyD"]},
+    {"steps":20,"keys":["KeyA","ArrowLeft"]},
+    {"steps":20,"keys":["KeyW"],"stick":[42,0]},
+    {"steps":20,"stick":[10,5]},
+    {"steps":10}
+   ]}
+$ node tools/reference-trace/capture.mjs --script <that file> --seed 424242 --max-steps 600     -> exit code 0 (re-run after the fixes)
+  recorded inputs: step 1: keys [KeyD]; 21: [ArrowDown, KeyD]; 41: [ArrowLeft, KeyA] (both spellings of one direction count once);
+  61: key W plus stick (42,0): the row holds keys [KeyW], moveX 1, moveY 0, and inputVector adds them to (1,-1) and normalises;
+  81: stick (10,5): moveX 0.23809523809523808, moveY 0.11904761904761904; 101: released: 0, 0 and no key
+  the port replays these inputs (tools/emit_port_trace.sh) and matches the movement, camera and time fields for all 600 steps:
+    group         result    first step  differing steps   detail
+    player        same      -           0 of 600          
+    camera        same      -           0 of 600          
+    wave          same      -           0 of 600          
+    
+    RESULT: SAME in the selected fields
+
+----------------------------------------------------------------------
+7. Environment recorded in every header (asserted inside the page before the run)
+----------------------------------------------------------------------
+  environment: {"is_coarse_pointer":true,"view_w":390,"view_h":844,"device_pixel_ratio":3,"quality":"auto","max_projectiles":520,"max_xp_orbs":480,"max_enemy_projectiles":420,"base_max_enemies":100,"max_hazards":100,"adaptive_tier":0,"tutorial_active":true}
+  device_scale_factor 3, coarse true, view [390,844], fx_seed 2654435769, source sha256 647860b1d9b510c0cb7bd17d60da80b9a85fa46ab90fdf4c9cb83035e0408d73
+  original.html on disk now: 647860b1d9b510c0cb7bd17d60da80b9a85fa46ab90fdf4c9cb83035e0408d73
+  git status --short webview-fg4 docs: '' (empty: nothing changed)
+  the page's localStorage at the start may hold only the game's own boot records (save-delta of this tab, meta progress defaults);
+  anything else aborts the capture. localStorage.length is not asserted to be 0 because the boot writes those two records.
+
+----------------------------------------------------------------------
+8. The checks of the capture itself (controls: each fails as it should)
+----------------------------------------------------------------------
+$ [scratch copy of tools/ whose hook.js has a misspelt field "pendingDirectorEnemyKnd" added to the wave schema] node tools/reference-trace/capture.mjs --script dirs8 --seed 424242 --out <scratch>/ctrlC.jsonl.gz
+FAIL ctrlC.jsonl.gz: field(s) that the game never defined during the run (a misspelt name in SCHEMA records silent zeros): wave.pendingDirectorEnemyKnd (read 834x); the trace was not written
+-> exit code 1; trace file written: no
+
+$ [scratch copy whose hook.js throws asynchronously: setTimeout(() => { throw new Error("async boom"); }, 0)] node tools/reference-trace/capture.mjs --script dirs8 --seed 424242 --out <scratch>/ctrlD.jsonl.gz
+capture: ERROR: the page reported 1 error(s) during the capture: async boom
+-> exit code 2; trace file written: no
+
+$ [the same scratch copy, with the OLD listener page.on('pageerror', (e) => { throw new Error(`page error: ${e.message}`); }) back in capture.mjs]
+file:///<scratch>/repocopy/tools/reference-trace/capture.mjs:228
+    page.on('pageerror', (e) => { throw new Error(`page error: ${e.message}`); });
+Error: page error: async boom
+    at _Page.<anonymous> (capture.mjs:228:41)  ... (Playwright's event dispatch)
+-> exit code 1; an uncaught exception with a stack trace instead of the tool's own error message and exit code 2 (reproduced; the review had it from reading the code)
+
+(the repository files tools/reference-trace/hook.js and capture.mjs were not touched by these controls: diff against the scratch copy of the unmodified hook.js)
+
+----------------------------------------------------------------------
+9. The recapture against the traces of the first S4 version
+----------------------------------------------------------------------
+The first version of the six standard traces (sha256 in the old evidence, 6970071136445c9e... for dirs8_424242) against the new ones, with the old trace as the
+reference: compare_trace.mjs compares the fields both carry (draws, per-slot draws, player, camera, wave, every enemy / projectile / xp orb row), so SAME means
+that nothing the old traces recorded has changed; only fields were added.
+
+$ node tools/compare_trace.mjs <previous dirs8_424242.jsonl.gz (before the fixes)> godot/tests/reference/dirs8_424242.jsonl.gz
+compared steps 1..834, bit-exact
+RESULT: SAME in the selected fields
+   (counts.particles) RESULT: SAME in the selected fields
+$ node tools/compare_trace.mjs <previous dirs8_24681357.jsonl.gz (before the fixes)> godot/tests/reference/dirs8_24681357.jsonl.gz
+compared steps 1..786, bit-exact
+RESULT: SAME in the selected fields
+   (counts.particles) RESULT: SAME in the selected fields
+$ node tools/compare_trace.mjs <previous idle_424242.jsonl.gz (before the fixes)> godot/tests/reference/idle_424242.jsonl.gz
+compared steps 1..2266, bit-exact
+RESULT: SAME in the selected fields
+   (counts.particles) RESULT: SAME in the selected fields
+$ node tools/compare_trace.mjs <previous idle_24681357.jsonl.gz (before the fixes)> godot/tests/reference/idle_24681357.jsonl.gz
+compared steps 1..1551, bit-exact
+RESULT: SAME in the selected fields
+   (counts.particles) RESULT: SAME in the selected fields
+$ node tools/compare_trace.mjs <previous zigzag_424242.jsonl.gz (before the fixes)> godot/tests/reference/zigzag_424242.jsonl.gz
+compared steps 1..1704, bit-exact
+RESULT: SAME in the selected fields
+   (counts.particles) RESULT: SAME in the selected fields
+$ node tools/compare_trace.mjs <previous zigzag_24681357.jsonl.gz (before the fixes)> godot/tests/reference/zigzag_24681357.jsonl.gz
+compared steps 1..1710, bit-exact
+RESULT: SAME in the selected fields
+   (counts.particles) RESULT: SAME in the selected fields

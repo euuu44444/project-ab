@@ -1,0 +1,15 @@
+[configuration]
+
+entry_symbol = "swarm_native_library_init"
+compatibility_minimum = "4.7"
+
+; Built by tools/build_native.sh into godot/bin/ (gitignored). The editor and the headless tests load
+; the linux debug library; the Android debug and release APKs use the matching android entries.
+[libraries]
+
+linux.debug.x86_64 = "res://bin/libswarm_native.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "res://bin/libswarm_native.linux.template_release.x86_64.so"
+android.debug.arm64 = "res://bin/libswarm_native.android.template_debug.arm64.so"
+android.release.arm64 = "res://bin/libswarm_native.android.template_release.arm64.so"
+android.debug.arm32 = "res://bin/libswarm_native.android.template_debug.arm32.so"
+android.release.arm32 = "res://bin/libswarm_native.android.template_release.arm32.so"

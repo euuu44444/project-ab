@@ -1,0 +1,254 @@
+S2 evidence: extraction of the 14 WebP atlases and their layouts from the original game
+date: 2026-10-19    node: v22.22.0    source: webview-fg4/tests/fixtures/original.html (read only)
+tool: tools/extract_assets.mjs (stdlib only; layouts come from pure declarations evaluated in node:vm with an EMPTY sandbox)
+
+----------------------------------------------------------------------
+1. node tools/extract_assets.mjs   (second run: nothing changes)
+----------------------------------------------------------------------
+extracted 14 images from webview-fg4/tests/fixtures/original.html
+  enemy_fx_elite_shockwave    256x256    9368 bytes  45cd9c81c4b0  GENERATED_ENEMY_FX_SOURCES.eliteShockwave
+  enemy_fx_boss_charge        384x192    5202 bytes  5d061d83fbe7  GENERATED_ENEMY_FX_SOURCES.bossCharge
+  overhaul_characters         896x256   24802 bytes  24e2be597e91  OVERHAUL_CHAR_ATLAS_SOURCE
+  overhaul_fx                 512x1280  74146 bytes  2ff76ba4f6a1  OVERHAUL_FX_SOURCE
+  overhaul_weapon_icons       256x64     2672 bytes  a64b0a486c86  OVERHAUL_ICON_SOURCE
+  art_hits                    128x96     1904 bytes  1f4af781ce9c  ART_SOURCES.hits
+  art_projectiles             128x96     1236 bytes  8cf1ef47ef36  ART_SOURCES.projectiles
+  art_characters              896x704  244902 bytes  81e6996fc573  ART_SOURCES.characters
+  art_enemies                 320x288    5980 bytes  afeb11b5b730  ART_SOURCES.enemies
+  art_weapons                 128x128    1406 bytes  4ce32f0d23c4  ART_SOURCES.weapons
+  art_elements                160x64     1234 bytes  f67220670be8  ART_SOURCES.elements
+  art_effects                 128x96     2106 bytes  f193b29bf54d  ART_SOURCES.effects
+  signature_fx                512x2944  72836 bytes  e89f541c351b  SIGNATURE_FX_SOURCE
+  range_fx                    512x512    8140 bytes  fa63ca53443f  RANGE_FX_SOURCE
+unchanged godot/assets/atlas/enemy_fx_elite_shockwave.webp (9368 bytes)
+unchanged godot/assets/atlas/enemy_fx_boss_charge.webp (5202 bytes)
+unchanged godot/assets/atlas/overhaul_characters.webp (24802 bytes)
+unchanged godot/assets/atlas/overhaul_fx.webp (74146 bytes)
+unchanged godot/assets/atlas/overhaul_weapon_icons.webp (2672 bytes)
+unchanged godot/assets/atlas/art_hits.webp (1904 bytes)
+unchanged godot/assets/atlas/art_projectiles.webp (1236 bytes)
+unchanged godot/assets/atlas/art_characters.webp (244902 bytes)
+unchanged godot/assets/atlas/art_enemies.webp (5980 bytes)
+unchanged godot/assets/atlas/art_weapons.webp (1406 bytes)
+unchanged godot/assets/atlas/art_elements.webp (1234 bytes)
+unchanged godot/assets/atlas/art_effects.webp (2106 bytes)
+unchanged godot/assets/atlas/signature_fx.webp (72836 bytes)
+unchanged godot/assets/atlas/range_fx.webp (8140 bytes)
+unchanged godot/assets/atlas/atlas_manifest.json (5888 bytes)
+unchanged godot/assets/atlas/atlas_layout.json (78242 bytes)
+16 files, 0 written
+exit code: 0  (atlas_layout.json is now 78242 bytes: review round 1 changed only its runtime_derived section, see 8)
+
+----------------------------------------------------------------------
+2. node tools/extract_assets.mjs --check   (writes nothing)
+----------------------------------------------------------------------
+check OK: 16 files in godot/assets/atlas are identical to a fresh extraction
+exit code: 0
+
+----------------------------------------------------------------------
+3. node tools/extract_assets.mjs --check --compare-fg4
+----------------------------------------------------------------------
+extracted 14 images from webview-fg4/tests/fixtures/original.html
+  enemy_fx_elite_shockwave    256x256    9368 bytes  45cd9c81c4b0  GENERATED_ENEMY_FX_SOURCES.eliteShockwave
+  enemy_fx_boss_charge        384x192    5202 bytes  5d061d83fbe7  GENERATED_ENEMY_FX_SOURCES.bossCharge
+  overhaul_characters         896x256   24802 bytes  24e2be597e91  OVERHAUL_CHAR_ATLAS_SOURCE
+  overhaul_fx                 512x1280  74146 bytes  2ff76ba4f6a1  OVERHAUL_FX_SOURCE
+  overhaul_weapon_icons       256x64     2672 bytes  a64b0a486c86  OVERHAUL_ICON_SOURCE
+  art_hits                    128x96     1904 bytes  1f4af781ce9c  ART_SOURCES.hits
+  art_projectiles             128x96     1236 bytes  8cf1ef47ef36  ART_SOURCES.projectiles
+  art_characters              896x704  244902 bytes  81e6996fc573  ART_SOURCES.characters
+  art_enemies                 320x288    5980 bytes  afeb11b5b730  ART_SOURCES.enemies
+  art_weapons                 128x128    1406 bytes  4ce32f0d23c4  ART_SOURCES.weapons
+  art_elements                160x64     1234 bytes  f67220670be8  ART_SOURCES.elements
+  art_effects                 128x96     2106 bytes  f193b29bf54d  ART_SOURCES.effects
+  signature_fx                512x2944  72836 bytes  e89f541c351b  SIGNATURE_FX_SOURCE
+  range_fx                    512x512    8140 bytes  fa63ca53443f  RANGE_FX_SOURCE
+check OK: 16 files in godot/assets/atlas are identical to a fresh extraction
+compare-fg4: webview-fg4/app/src/main/assets/index.html (1923302 chars), 14 data:image URIs
+  enemy_fx_elite_shockwave   identical at char 162592 45cd9c81c4b0
+  enemy_fx_boss_charge       identical at char 175121 5d061d83fbe7
+  overhaul_characters        identical at char 183332 24e2be597e91
+  overhaul_fx                identical at char 216453 2ff76ba4f6a1
+  overhaul_weapon_icons      identical at char 315368 a64b0a486c86
+  art_hits                   identical at char 326373 1f4af781ce9c
+  art_projectiles            identical at char 328951 8cf1ef47ef36
+  art_characters             identical at char 330636 81e6996fc573
+  art_enemies                identical at char 657206 afeb11b5b730
+  art_weapons                identical at char 665216 4ce32f0d23c4
+  art_elements               identical at char 667127 f67220670be8
+  art_effects                identical at char 668809 f193b29bf54d
+  signature_fx               identical at char 671669 e89f541c351b
+  range_fx                   identical at char 780474 fa63ca53443f
+compare-fg4 OK: all 14 data URIs occur exactly once, byte for byte
+exit code: 0
+
+----------------------------------------------------------------------
+4. Determinism: two fresh runs into two directories, then cmp
+----------------------------------------------------------------------
+diff -r a b: identical (16 files)
+fresh output == committed godot/assets/atlas (ignoring *.import)
+
+----------------------------------------------------------------------
+5. Independent verification (not using the tool's own code paths)
+----------------------------------------------------------------------
+5a. sha256sum of the committed .webp files vs the manifest sha256 (the tool checks the same sha256 against the data URI bytes while extracting)
+    (re-run after review round 1: all 14 files unchanged)
+  enemy_fx_elite_shockwave   45cd9c81c4b0e7a8    9368 bytes  OK
+  enemy_fx_boss_charge       5d061d83fbe70f04    5202 bytes  OK
+  overhaul_characters        24e2be597e91deb0   24802 bytes  OK
+  overhaul_fx                2ff76ba4f6a1a291   74146 bytes  OK
+  overhaul_weapon_icons      a64b0a486c865bd2    2672 bytes  OK
+  art_hits                   1f4af781ce9c8f3b    1904 bytes  OK
+  art_projectiles            8cf1ef47ef36bf3e    1236 bytes  OK
+  art_characters             81e6996fc573d9d0  244902 bytes  OK
+  art_enemies                afeb11b5b7306169    5980 bytes  OK
+  art_weapons                4ce32f0d23c45a9a    1406 bytes  OK
+  art_elements               f67220670be8483e    1234 bytes  OK
+  art_effects                f193b29bf54d2468    2106 bytes  OK
+  signature_fx               e89f541c351bf22f   72836 bytes  OK
+  range_fx                   fa63ca53443f1d1b    8140 bytes  OK
+  mismatches: 0
+
+5b. RGBA8 pixels decoded by libwebp (PIL) vs rgba_sha256 in the manifest
+  enemy_fx_elite_shockwave    256x256  OK
+  enemy_fx_boss_charge        384x192  OK
+  overhaul_characters         896x256  OK
+  overhaul_fx                 512x1280 OK
+  overhaul_weapon_icons       256x64   OK
+  art_hits                    128x96   OK
+  art_projectiles             128x96   OK
+  art_characters              896x704  OK
+  art_enemies                 320x288  OK
+  art_weapons                 128x128  OK
+  art_elements                160x64   OK
+  art_effects                 128x96   OK
+  signature_fx                512x2944 OK
+  range_fx                    512x512  OK
+  mismatches: 0
+
+5c. Draw geometry vs the game's OWN buildAtlasDrawGeometry (source text cut from original.html, run in an empty vm with fake images)
+    (re-run after review round 1 against the final atlas_layout.json)
+  324 geometry entries compared (ids and aliases, 7 sheets, key order included), mismatches: 0
+
+5d. Layout constants vs the S2 analyst's separate evaluation (an/layout_eval.json)
+    review round 1: every layout section except runtime_derived is byte-identical to the layout that was compared
+    below (JSON deep compare old vs new, see 8), so the 32 constants and the SPINNING_HAZARD_TYPES check below still hold
+  32 constants compared, mismatches: 0
+  SPINNING_HAZARD_TYPES (Set): ['cyclone', 'wildfirewhirl', 'blackfire'] analyst: ['cyclone', 'wildfirewhirl', 'blackfire']
+
+5e. Godot 4.7.2 decode and import, against rgba_sha256 (scratch script, 14 images):
+    default Godot import settings (process/fix_alpha_border=true, detect_3d/compress_to=1), scratch copy of the project:
+      enemy_fx_elite_shockwave   256x256 tex=DIFF raw=OK
+      enemy_fx_boss_charge       384x192 tex=DIFF raw=OK
+      overhaul_characters        896x256 tex=DIFF raw=OK
+      overhaul_fx                512x1280 tex=DIFF raw=OK
+      overhaul_weapon_icons      256x64 tex=DIFF raw=OK
+      art_hits                   128x96 tex=DIFF raw=OK
+      art_projectiles            128x96 tex=DIFF raw=OK
+      art_characters             896x704 tex=DIFF raw=OK
+      art_enemies                320x288 tex=DIFF raw=OK
+      art_weapons                128x128 tex=DIFF raw=OK
+      art_elements               160x64 tex=DIFF raw=OK
+      art_effects                128x96 tex=DIFF raw=OK
+      signature_fx               512x2944 tex=DIFF raw=OK
+      range_fx                   512x512 tex=DIFF raw=OK
+      bad textures: 14
+    committed settings (process/fix_alpha_border=false, detect_3d/compress_to=0), this project (re-run after review round 1):
+      enemy_fx_elite_shockwave   256x256 tex=OK raw=OK
+      enemy_fx_boss_charge       384x192 tex=OK raw=OK
+      overhaul_characters        896x256 tex=OK raw=OK
+      overhaul_fx                512x1280 tex=OK raw=OK
+      overhaul_weapon_icons      256x64 tex=OK raw=OK
+      art_hits                   128x96 tex=OK raw=OK
+      art_projectiles            128x96 tex=OK raw=OK
+      art_characters             896x704 tex=OK raw=OK
+      art_enemies                320x288 tex=OK raw=OK
+      art_weapons                128x128 tex=OK raw=OK
+      art_elements               160x64 tex=OK raw=OK
+      art_effects                128x96 tex=OK raw=OK
+      signature_fx               512x2944 tex=OK raw=OK
+      range_fx                   512x512 tex=OK raw=OK
+      bad textures: 0
+    (tex = imported texture, get_image(); raw = Image.load_from_file() on the .webp. godot/tests/test_atlas_assets.gd asserts both.)
+
+5f. Godot parses every non-integer double of atlas_layout.json bit-exactly, compared with Python's IEEE-754 bytes
+    (includes 64/52, 0.065, 0.455, 0.492; scratch run of gd/float_bits.gd on the final layout, re-run after review round 1):
+      checked 856 floats (3413 found), mismatching: 0
+
+----------------------------------------------------------------------
+6. Godot import settings (godot/assets/atlas/*.webp.import, generated by Godot, then edited; all 14 identical)
+----------------------------------------------------------------------
+compress/mode=0
+mipmaps/generate=false
+process/fix_alpha_border=false
+process/premult_alpha=false
+process/size_limit=0
+detect_3d/compress_to=0
+metadata: vram_texture=false  (no VRAM compression; the APK holds lossless .ctex, 493134 bytes for the 14 textures)
+
+compress/mode=0 (Lossless), mipmaps/generate=false      pixel art, exact texels, Nearest filter is the project default
+process/fix_alpha_border=false  CHANGED from Godot's default (true): the default rewrote the RGB of transparent texels
+                                and made all 14 imported textures differ from the decoded WebP (5e). Every alpha-0 pixel
+                                is RGB 0,0,0 in the source, so with Nearest filtering nothing is gained from bleeding;
+                                keeping the texels exact lets the test compare them with the pinned hashes.
+process/premult_alpha=false     straight alpha, as the 2D renderer expects
+detect_3d/compress_to=0         CHANGED (default 1): never recompress to VRAM if a texture is ever used in 3D
+
+----------------------------------------------------------------------
+7. Not extracted here (runtime-derived in the game, rebuilt by S7); parameters are in atlas_layout.json runtime_derived
+----------------------------------------------------------------------
+  ART_FLASH_IMAGES.enemies   white-silhouette copy of the enemies sheet -> hit-flash shader (rgb = min(rgb + k, 1) ONLY while flash > 0; k = 0 at rest)
+  LOWRES_EFFECT_CACHE        nearest downscale of effect/hit cells to FX_RASTER_RES etc. (index = cell_origin + ceil((i+.5)*cell/res) - 1; a Chromium measurement, verified only for 32/64 px cells at res 6-72 and 256 px cells at res 32/64/96/128)
+  RANGE_FX_TINT_CACHE        range ring: 256 px cell -> 96 px (coarse), ring mask 0.492/0.185, tint, alpha quantised to steps of 32
+  validation canvases (validateOverhaulAtlas, validateSignatureFxAtlas, validateMikoAtlas): all ok=true in the game; Godot treats every atlas as valid
+  runtime-drawn images (ecoWorldPattern, buildWorldChunk, buildLightBlob, ...): S7
+
+----------------------------------------------------------------------
+8. Review round 1: runtime_derived text corrected (atlas_layout.json, written by tools/extract_assets.mjs)
+----------------------------------------------------------------------
+Compared with the layout before the review, parsed JSON, top-level key by key:
+top-level keys identical and in the same order: true
+format               identical
+generated_by         identical
+source               identical
+notes                identical
+sheets               identical
+overhaul_characters  identical
+overhaul_fx          identical
+overhaul_weapon_icons identical
+signature_fx         identical
+range_fx             identical
+generated_enemy_fx   identical
+art_maps             identical
+animation            identical
+raster               identical
+runtime_derived      CHANGED (expected)
+  + runtime_derived.enemy_hit_flash.applies_when
+  ~ runtime_derived.enemy_hit_flash.draw
+  + runtime_derived.enemy_hit_flash.base_alpha
+  + runtime_derived.enemy_hit_flash.base_alpha_note
+  ~ runtime_derived.enemy_hit_flash.shader_equivalent
+  ~ runtime_derived.lowres_effect_cache.draw_size_in_drawSpriteFx
+  + runtime_derived.lowres_effect_cache.position_snap_in_drawSpriteFx
+  ~ runtime_derived.lowres_effect_cache.measured_index_formula
+  + runtime_derived.lowres_effect_cache.measured_index_formula_scope
+  ~ runtime_derived.range_fx_tint.cell_downscale
+
+Source fragments now pinned in RUNTIME_DERIVED_SOURCE (each must occur exactly once in the game, otherwise extraction exits 2):
+  if(opts.flash){const strength=opts.flash===true?1:clamp(Number(opts.flash)||0,0,1)     hit-flash pass exists only while flash > 0
+  const baseAlpha=opts.alpha==null?1:opts.alpha                                         baseAlpha is 1 without opts.alpha
+  const artOpts={flipX:false,flash:0}  /  artOpts.flash=e.flash;const drewEnemyArt=...   enemies are drawn with flash = e.flash and no alpha
+  const x=visualFxSnap(s.x,fx),y=visualFxSnap(s.y,fx)                                   effect positions are snapped
+  function visualFxGrid(p){...}function visualFxSnap(v,p){...}  /  function px(v){...}   grid rule (1 at ultra, reactionFx, fxLowRes, else 1)
+  fxLowRes:true,reactionFx:opts.reactionFx==null?...                                    spawnAtlasFx (the only producer of game.spriteFx)
+
+enemy_hit_flash (finding 1): applies_when "flash > 0 only"; draw/shader_equivalent say k = 0 when flash == 0 and k >= 0.32 as soon as flash > 0;
+  base_alpha 1 (drawEnemies passes no alpha).
+lowres_effect_cache (findings 2, 3): measured_index_formula_scope (exact for 32/64 px cells at res 6-72 and for 256 px cells at res 32/64/96/128;
+  not a general rule; fails e.g. at 256 px cells and res 28, 30, 52, 56, 60, 104, 112, 120, 126, 190), full visualFxGrid rule in
+  draw_size_in_drawSpriteFx, new position_snap_in_drawSpriteFx. range_fx_tint.cell_downscale names 96/128 as inside the verified scope.
+
+Re-measurement of the formula scope in Chromium 141 (reviewer's scripts, instrumented copy of the game in scratch, page-evaluated lowResAtlasSource):
+  lowres.js  (effects, hits, characters, enemies at every res 6..72; range cells res 24..200 and 32/64/96/128): 278 cases, ceil-formula mismatching cases: 1 (range, res 112: 122 of 50176)
+  lowres2.js (res 6 for the four sheets, range res 24..200): 181 cases, mismatching cases: 10
+             res 28, 30, 52, 56, 60, 104, 112, 120, 126, 190 (range 256 px cells); 0 mismatches at 32, 64, 96, 128.

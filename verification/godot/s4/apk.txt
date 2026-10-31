@@ -1,0 +1,34 @@
+S4 evidence: the Android debug build after the review fixes
+date: 2026-10-20    Godot 4.7.2-stable    tools/build_android.sh --skip-tests --evidence-dir <scratch>   (the tests were run just before, see tests.txt)
+
+The build does not pack godot/tests/: the preset's exclude_filter is tests/*, and the check '6. Sim definitions and scripts' of tools/build_android.sh fails the build if any
+assets/tests/ entry is in the APK. The 7 reference traces (10.38 MiB) are therefore not in the APK.
+
+Elemental Swarm Engine - Android debug build
+apk: /home/user/project-ab/export/ElementalSwarm_engine_s1_debug.apk
+
+PASS export - 58317128 bytes
+PASS apksigner verify - v2,v3 verified
+PASS signed with the debug keystore - certificate sha256 351abaa1580f2fbd...
+PASS zipalign -c -P 16 -v 4 - stored entries are 16 KiB / 4-byte aligned
+PASS package name - com.elementalswarm.engine
+PASS versionCode - 1
+PASS versionName - 0.1.0-s1
+PASS application label - Elemental Swarm Engine
+PASS native-code ABIs - arm64-v8a armeabi-v7a
+PASS launcher intent - MAIN + LAUNCHER declared
+PASS screenOrientation - 13 (fullUser), accepted by the user on 2026-10-19 (design 6.1): the system rotation lock applies; Godot 4.7.2's non-Gradle exporter cannot emit 10
+PASS SDK levels - minSdkVersion=24 targetSdkVersion=36
+PASS ELF 16 KiB alignment - 2 64-bit librar(ies), every LOAD segment aligned to >= 0x4000
+PASS permissions - none requested or declared
+WARN provider authorities - duplicate authority in the exported manifest: com.elementalswarm.engine.fileprovider (Godot 4.7.2 exporter behaviour; see tools/build_android.sh)
+PASS atlas assets - 14 textures (.ctex, 493134 bytes) + atlas_layout.json + atlas_manifest.json are in the APK
+PASS sim definitions - 5 defs JSON + 38 sim scripts (.gdc) in the APK, 0 godot/tests/ entries
+
+RESULT: PASS
+
+sha256 of the APK:
+20789f868498743ac21b94f16396c1f230fd787dea12e0ba4eae944716bfb458  ElementalSwarm_engine_s1_debug.apk
+
+entries under assets/tests/ in the APK: 0
+entries under assets/sim/ in the APK:   81

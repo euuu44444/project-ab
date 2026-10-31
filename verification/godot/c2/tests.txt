@@ -1,0 +1,117 @@
+C2 evidence (verifier re-run, runs 4 and 5 of the verifier's list): tools/run_godot_tests.sh (run 4) and tools/build_android.sh --skip-tests (run 5)
+date:      2026-10-30 (UTC)
+HEAD:      403f51a (C2 work uncommitted in the working tree)
+toolchain: godot 4.7.2.stable.official.ed1daf0bf; node v22.22.0; NDK 28.1.13356709; scons 4.10.1; godot-cpp 8070599885b6
+
+Run 4
+  command:   tools/run_godot_tests.sh
+  exit code: 0
+  wall time: 150 s (08:57:16 to 08:59:46 UTC); the native step inside it was an incremental linux debug build (2 s, 0 files compiled)
+  Summary, RESULT (verbatim):
+    RESULT: PASS
+    Summary: 213/213 passed, 0 failed, 10469 assertions
+    RESULT: PASS
+  counts (over the whole log):
+    PASS lines: 213 tests (grep ^PASS also matches one native-build PASS line, so the raw count is 214)   FAIL lines: 0   WARN lines: 0
+    engine/script error lines (ERROR|SCRIPT ERROR|USER ERROR|Parse Error): 0
+  "running 18 test file(s)" as printed by Godot; the 18 files each appear in the per-file counts below.
+
+tests per file (PASS lines):
+  test_atlas_assets.gd             24
+  test_defs.gd                      8
+  test_enemy_golden.gd             11
+  test_enemy_systems.gd             9
+  test_enemy_update.gd             45
+  test_formulas.gd                  9
+  test_js_math.gd                  26
+  test_main_sim.gd                  4
+  test_native_extension.gd          9
+  test_native_files.gd              2
+  test_new_game.gd                  9
+  test_project_settings.gd         13
+  test_reference_trace.gd          11
+  test_replay_oracle.gd             7
+  test_rng.gd                      10
+  test_scenes.gd                    2
+  test_sim_movement.gd             11
+  test_sim_source_rules.gd          3
+  total                          213
+
+BENCH lines (verbatim, test_js_math.gd):
+BENCH  (typed GDScript, headless; each line is net of the loop cost. The SwarmJsMath lines are C++ functions called from GDScript:
+BENCH   what they show is mostly the cost of the call itself (the arguments and the result go through Variants), not of the C++ code;
+BENCH   the time of the C++ functions alone is printed by native/tests: swarm_sim_tests --bench)
+BENCH  builtin sin                         46 ns/call   21.95 M calls/s
+BENCH  SwarmJsMath.sin                     54 ns/call   18.62 M calls/s
+BENCH  SwarmJsMath.cos                     52 ns/call   19.35 M calls/s
+BENCH  builtin atan2                       72 ns/call   13.87 M calls/s
+BENCH  SwarmJsMath.atan2                   68 ns/call   14.67 M calls/s
+BENCH  SwarmJsMath.atan                    48 ns/call   20.65 M calls/s
+BENCH  builtin exp                         25 ns/call   40.71 M calls/s
+BENCH  SwarmJsMath.exp                     45 ns/call   22.17 M calls/s
+BENCH  SwarmJsMath.log                     60 ns/call   16.58 M calls/s
+BENCH  SwarmJsMath.hypot                   47 ns/call   21.39 M calls/s
+BENCH  SwarmJsMath.js_round                23 ns/call   43.84 M calls/s
+BENCH  SwarmJsMath.to_int32                30 ns/call   32.95 M calls/s
+BENCH  SwarmJsMath.js_max                  45 ns/call   22.36 M calls/s
+BENCH  SwarmJsMath.clamp                   40 ns/call   24.82 M calls/s
+BENCH  SwarmJsMath.js_min                  46 ns/call   21.66 M calls/s
+BENCH  SwarmJsMath.max3                    64 ns/call   15.66 M calls/s
+BENCH  SwarmJsMath.min3                    61 ns/call   16.33 M calls/s
+BENCH  SwarmJsMath.max5                    86 ns/call   11.64 M calls/s
+BENCH  SwarmJsMath.min5                    63 ns/call   15.96 M calls/s
+BENCH  SwarmJsMath.max_n (5 values)        67 ns/call   14.87 M calls/s
+BENCH  SwarmJsMath.min_n (5 values)        68 ns/call   14.68 M calls/s
+BENCH  SwarmJsMath.trunc                   14 ns/call   71.71 M calls/s
+BENCH  SwarmJsMath.to_uint32               37 ns/call   27.24 M calls/s
+BENCH  SwarmJsMath.sqrt (wrapper)          31 ns/call   32.65 M calls/s
+BENCH  builtin sqrt                        29 ns/call   34.81 M calls/s
+BENCH  SwarmJsMath.js_mod                  24 ns/call   41.14 M calls/s
+BENCH  SwarmJsMath.pow                     67 ns/call   14.84 M calls/s
+BENCH  SwarmJsMath.imul                    12 ns/call   85.18 M calls/s
+BENCH  SwarmJsMath.i32                     17 ns/call   59.67 M calls/s
+BENCH  SwarmJsMath.shl                     15 ns/call   68.87 M calls/s
+BENCH  SwarmJsMath.sar                     18 ns/call   55.22 M calls/s
+BENCH  SwarmJsMath.shr_u                   21 ns/call   47.64 M calls/s
+BENCH  checksum 426709294743277 60599923992737 (keeps the loops from being optimised away)
+
+BENCH lines (verbatim, test_rng.gd):
+BENCH  SwarmSeededRng.next_u32             21 ns/call   48.39 M calls/s
+BENCH  SwarmSeededRng.next_float           21 ns/call   46.73 M calls/s
+BENCH  SwarmGameRng.random               < 10 ns/call  (below the resolution of the loop-cost subtraction)
+BENCH  SwarmGameRng.rand                 < 10 ns/call  (below the resolution of the loop-cost subtraction)
+BENCH  SwarmGameRng.chance                 11 ns/call   90.09 M calls/s
+BENCH  SwarmGameRng.index                < 10 ns/call  (below the resolution of the loop-cost subtraction)
+BENCH  SwarmFxRng.random                 < 10 ns/call  (below the resolution of the loop-cost subtraction)
+BENCH  checksum 20000198461.7815 429135612668478 (keeps the loops from being optimised away)
+
+Run 5
+  command:   tools/build_android.sh --skip-tests
+  exit code: 0
+  wall time: 90 s (08:59:59 to 09:01:29 UTC)
+  apk sha256 (as printed): a51d9d55bc63b8aff874e41b182ebc8f38dec217ab5624e1632954b6c6ae29eb
+  output file: export/ElementalSwarm_engine_s1_debug.apk (gitignored)
+  PASS/WARN/FAIL lines (verbatim) and RESULT:
+[build] PASS native libraries - 6 configurations built and checked (ELF, 16 KiB alignment, no embedded build paths, no FMA in any object, swarm_sim_tests passed)
+[build] PASS native library files - all 6 libraries named in swarm_native.gdextension exist (linux and android, debug and release; ELF magic, > 100 kB)
+[build] PASS export - 59213540 bytes
+[build] PASS apksigner verify - v2,v3 verified
+[build] PASS signed with the debug keystore - certificate sha256 7a38b4375fe8fa85...
+[build] PASS zipalign -c -P 16 -v 4 - stored entries are 16 KiB / 4-byte aligned
+[build] PASS package name - com.elementalswarm.engine
+[build] PASS versionCode - 1
+[build] PASS versionName - 0.1.0-s1
+[build] PASS application label - Elemental Swarm Engine
+[build] PASS native-code ABIs - arm64-v8a armeabi-v7a
+[build] PASS launcher intent - MAIN + LAUNCHER declared
+[build] PASS screenOrientation - 13 (fullUser), accepted by the user on 2026-10-19 (design 6.1): the system rotation lock applies; Godot 4.7.2's non-Gradle exporter cannot emit 10
+[build] PASS SDK levels - minSdkVersion=24 targetSdkVersion=36
+[build] PASS ELF 16 KiB alignment - 3 64-bit librar(ies), every LOAD segment aligned to >= 0x4000
+[build] PASS permissions - none requested or declared
+[build] WARN provider authorities - duplicate authority in the exported manifest: com.elementalswarm.engine.fileprovider (Godot 4.7.2 exporter behaviour; see tools/build_android.sh)
+[build] PASS atlas assets - 14 textures (.ctex, 493134 bytes) + atlas_layout.json + atlas_manifest.json are in the APK
+[build] PASS sim definitions - 5 defs JSON + 57 sim scripts (.gdc) in the APK, 0 godot/tests/ entries
+[build] PASS extension ELF 16 KiB alignment - lib/arm64-v8a/libswarm_native.android.template_debug.arm64.so: LOAD alignment 0x4000
+[build] PASS native extension - libswarm_native.so is in lib/<abi>/ for arm64-v8a armeabi-v7a (identical to the build), plus assets/swarm_native.gdextension; no linux library packed
+  counts: PASS 20   WARN 1   FAIL 0
+  RESULT: PASS

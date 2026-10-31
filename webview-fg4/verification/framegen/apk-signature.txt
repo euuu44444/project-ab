@@ -1,0 +1,17 @@
+Verifies
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): false
+Verified using v3 scheme (APK Signature Scheme v3): true
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Verified for SourceStamp: false
+Number of signers: 1
+Signer #1 certificate DN: CN=Elemental Swarm Local Build, OU=Personal Android Build, O=Elemental Swarm, C=JP
+Signer #1 certificate SHA-256 digest: 8eaea0fb89a8ef2c5ea269ea2e3b95bfa8bd982ea36820daa5f603f486ae0abd
+Signer #1 certificate SHA-1 digest: 8ea243c10216dd7890ed049e33847191ea34405e
+Signer #1 certificate MD5 digest: fe226c0f3042cc88ab07362f53597591
+Signer #1 key algorithm: RSA
+Signer #1 key size (bits): 3072
+Signer #1 public key SHA-256 digest: a4efc1db67aa40d4c08b066e16fa0cdfa0b5d6d732372a65e7bbc7638036aeec
+Signer #1 public key SHA-1 digest: 1c4ade1699429cfa9b1e031e32486170ef2cbecf
+Signer #1 public key MD5 digest: 8cb4b5cf74dccedd8c2a49d1d8b1a9d1
