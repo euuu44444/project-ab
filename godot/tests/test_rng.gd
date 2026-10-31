@@ -1,5 +1,10 @@
 extends "res://tests/test_case.gd"
-## SeededRng, GameRng and FxRng against res://tests/golden/rng.json (design section 9.1).
+## SwarmSeededRng, SwarmGameRng and SwarmFxRng, the Godot bindings of the C++ generators (native/src/sim/seeded_rng.h, game_rng.h,
+## fx_rng.h), against res://tests/golden/rng.json (design section 9.1). Step C2 moved the generators to C++, and these tests
+## exercise the native classes only: the GDScript SeededRng, GameRng and FxRng (res://sim/rng.gd, game_rng.gd, fx_rng.gd), which the
+## combat simulation uses until C3, are no longer compared with rng.json here (they stay protected by the replay of the reference
+## traces, which compares every draw count). The C++ code is also tested without Godot, on every configuration, by native/tests.
+## A GDExtension class cannot take arguments in new(): a generator is made with new() and set_seed(seed).
 ##
 ## The golden file is generated from the original game: makeSeededRandom, setGameSeed, rand, randi, chance and shuffle are cut
 ## out of original.html and run in an empty node:vm context (tools/golden/rng.mjs). It holds, per seed, the first 1000 outputs of
@@ -7,6 +12,26 @@ extends "res://tests/test_case.gd"
 ## seeds, and scripted sequences of the gameRandom helpers with the draw counter after every call.
 
 const CHECKPOINT_FULL_LENGTH_SEED: int = 424242
+## Net times below this per call are reported as "below the resolution" (the loop cost is subtracted and its jitter is about this size).
+const BENCH_RESOLUTION_NS: float = 10.0
+
+
+func _seeded(seed: int) -> SwarmSeededRng:
+	var rng: SwarmSeededRng = SwarmSeededRng.new()
+	rng.set_seed(seed)
+	return rng
+
+
+func _game(seed: int) -> SwarmGameRng:
+	var game: SwarmGameRng = SwarmGameRng.new()
+	game.set_seed(seed)
+	return game
+
+
+func _fx(seed: int) -> SwarmFxRng:
+	var fx: SwarmFxRng = SwarmFxRng.new()
+	fx.set_seed(seed)
+	return fx
 
 
 func _golden() -> Dictionary:
@@ -25,8 +50,8 @@ func test_first_1000_outputs_of_every_seed_match_the_original() -> void:
 		seen[seed] = true
 		var expected: PackedInt64Array = GoldenCodec.decode_u32(entry["first"])
 		assert_eq(expected.size(), length, "seed %d: vector length" % seed)
-		var rng: SeededRng = SeededRng.new(seed)
-		var floats: SeededRng = SeededRng.new(seed)
+		var rng: SwarmSeededRng = _seeded(seed)
+		var floats: SwarmSeededRng = _seeded(seed)
 		var bad: int = 0
 		for i: int in range(length):
 			var k: int = rng.next_u32()
@@ -53,7 +78,7 @@ func test_later_outputs_match_the_checkpoints() -> void:
 		if checkpoints.has("999999"):
 			assert_eq(seed, CHECKPOINT_FULL_LENGTH_SEED, "only the first reference seed has the long checkpoint")
 			last = 999999
-		var rng: SeededRng = SeededRng.new(seed)
+		var rng: SwarmSeededRng = _seeded(seed)
 		var k: int = 0
 		for i: int in range(last + 1):
 			k = rng.next_u32()
@@ -70,9 +95,9 @@ func test_seed_normalisation_follows_seed_ushr_0_or_default() -> void:
 	assert_true(cases.size() >= 10)
 	for entry: Dictionary in cases:
 		var input: float = GoldenCodec.from_hex(entry["input"])
-		var normalized: int = SeededRng.normalize_seed(input)
+		var normalized: int = SwarmSeededRng.normalize_seed(input)
 		assert_eq(normalized, int(entry["normalized"]), "normalize_seed(%s)" % str(input))
-		var rng: SeededRng = SeededRng.new(normalized)
+		var rng: SwarmSeededRng = _seeded(normalized)
 		var first: Array = entry["first"]
 		for i: int in range(first.size()):
 			assert_eq(rng.next_u32(), int(first[i]), "seed %s, output %d" % [str(input), i])
@@ -80,11 +105,11 @@ func test_seed_normalisation_follows_seed_ushr_0_or_default() -> void:
 
 func test_equal_streams_for_seeds_that_normalise_alike() -> void:
 	# 0, 2654435769 and 4294967296 are the same seed for the original (and so are -1 and 4294967295).
-	var a: SeededRng = SeededRng.new(0)
-	var b: SeededRng = SeededRng.new(2654435769)
-	var c: SeededRng = SeededRng.new(4294967296)
-	var d: SeededRng = SeededRng.new(-1)
-	var e: SeededRng = SeededRng.new(4294967295)
+	var a: SwarmSeededRng = _seeded(0)
+	var b: SwarmSeededRng = _seeded(2654435769)
+	var c: SwarmSeededRng = _seeded(4294967296)
+	var d: SwarmSeededRng = _seeded(-1)
+	var e: SwarmSeededRng = _seeded(4294967295)
 	for i: int in range(50):
 		var k: int = a.next_u32()
 		assert_eq(b.next_u32(), k)
@@ -93,25 +118,25 @@ func test_equal_streams_for_seeds_that_normalise_alike() -> void:
 
 
 func test_state_can_be_saved_and_restored() -> void:
-	var rng: SeededRng = SeededRng.new(24681357)
+	var rng: SwarmSeededRng = _seeded(24681357)
 	for i: int in range(37):
 		rng.next_u32()
 	var saved: int = rng.state
 	var expected: PackedInt64Array = PackedInt64Array()
 	for i: int in range(20):
 		expected.append(rng.next_u32())
-	var other: SeededRng = SeededRng.new(1)
+	var other: SwarmSeededRng = _seeded(1)
 	other.state = saved
 	for i: int in range(20):
 		assert_eq(other.next_u32(), expected[i], "output %d after restoring the state" % i)
 	other.set_seed(24681357)
-	var fresh: SeededRng = SeededRng.new(24681357)
+	var fresh: SwarmSeededRng = _seeded(24681357)
 	assert_eq(other.next_u32(), fresh.next_u32(), "set_seed restarts the stream")
 
 
 func _replay_game_rng_sequence(sequence: Dictionary) -> int:
 	var seed: int = int(sequence["seed"])
-	var game: GameRng = GameRng.new(12345)  # deliberately another seed first: set_seed must start the stream over
+	var game: SwarmGameRng = _game(12345)  # deliberately another seed first: set_seed must start the stream over
 	game.random()
 	game.set_seed(seed)
 	var initial: Dictionary = sequence["initial"]
@@ -188,7 +213,7 @@ func test_game_rng_helpers_and_draw_counter_match_the_original() -> void:
 
 func test_every_helper_draws_as_often_as_in_the_original() -> void:
 	# The counts are those of the original (verified by the replay above); stated here so that a failure names the helper.
-	var game: GameRng = GameRng.new(424242)
+	var game: SwarmGameRng = _game(424242)
 	assert_eq(game.draws, 0)
 	game.random()
 	assert_eq(game.draws, 1)
@@ -212,17 +237,17 @@ func test_every_helper_draws_as_often_as_in_the_original() -> void:
 
 
 func test_game_rng_and_seeded_rng_give_the_same_stream() -> void:
-	var game: GameRng = GameRng.new(424242)
-	var plain: SeededRng = SeededRng.new(424242)
+	var game: SwarmGameRng = _game(424242)
+	var plain: SwarmSeededRng = _seeded(424242)
 	for i: int in range(100):
 		assert_eq(GoldenCodec.same_double(game.random(), plain.next_float()), true, "draw %d" % i)
 	assert_eq(game.draws, 100)
 
 
 func test_fx_rng_is_separate_and_seedable() -> void:
-	var game_a: GameRng = GameRng.new(424242)
-	var game_b: GameRng = GameRng.new(424242)
-	var fx: FxRng = FxRng.new(777)
+	var game_a: SwarmGameRng = _game(424242)
+	var game_b: SwarmGameRng = _game(424242)
+	var fx: SwarmFxRng = _fx(777)
 	for i: int in range(200):
 		var a: float = game_a.random()
 		# Effects drawn between the simulation's draws must not change them.
@@ -234,9 +259,9 @@ func test_fx_rng_is_separate_and_seedable() -> void:
 		assert_eq(GoldenCodec.same_double(a, b), true, "simulation draw %d unchanged by effect draws" % i)
 	assert_eq(game_a.draws, 200)
 	assert_eq(game_b.draws, 200, "FxRng never touches GameRng.draws")
-	var fx_a: FxRng = FxRng.new(5)
-	var fx_b: FxRng = FxRng.new(5)
-	var fx_c: FxRng = FxRng.new(6)
+	var fx_a: SwarmFxRng = _fx(5)
+	var fx_b: SwarmFxRng = _fx(5)
+	var fx_c: SwarmFxRng = _fx(6)
 	var differs: bool = false
 	for i: int in range(50):
 		var x: float = fx_a.random()
@@ -254,14 +279,16 @@ func test_fx_rng_is_separate_and_seedable() -> void:
 
 
 # ---------------------------------------------------------------------------------------------------
-# Microbenchmark (prints draws per second; there is no pass/fail threshold)
+# Microbenchmark (prints draws per second; there is no pass/fail threshold). The generators are C++, called from GDScript:
+# the numbers are mostly the cost of the call itself (arguments and result go through Variants), not of the C++ code, whose
+# time alone is printed by native/tests (swarm_sim_tests --bench).
 # ---------------------------------------------------------------------------------------------------
 
 func test_benchmark_prints_draws_per_second() -> void:
 	var calls: int = 200000
-	var rng: SeededRng = SeededRng.new(424242)
-	var game: GameRng = GameRng.new(424242)
-	var fx: FxRng = FxRng.new(1)
+	var rng: SwarmSeededRng = _seeded(424242)
+	var game: SwarmGameRng = _game(424242)
+	var fx: SwarmFxRng = _fx(1)
 	var acc: float = 0.0
 	var k_sum: int = 0
 	var t: int = Time.get_ticks_usec()
@@ -271,32 +298,32 @@ func test_benchmark_prints_draws_per_second() -> void:
 	t = Time.get_ticks_usec()
 	for i: int in range(calls):
 		k_sum += rng.next_u32()
-	_report("SeededRng.next_u32", t, loop_us, calls)
+	_report("SwarmSeededRng.next_u32", t, loop_us, calls)
 	t = Time.get_ticks_usec()
 	for i: int in range(calls):
 		acc += rng.next_float()
-	_report("SeededRng.next_float", t, loop_us, calls)
+	_report("SwarmSeededRng.next_float", t, loop_us, calls)
 	t = Time.get_ticks_usec()
 	for i: int in range(calls):
 		acc += game.random()
-	_report("GameRng.random", t, loop_us, calls)
+	_report("SwarmGameRng.random", t, loop_us, calls)
 	t = Time.get_ticks_usec()
 	for i: int in range(calls):
 		acc += game.rand(-5.0, 5.0)
-	_report("GameRng.rand", t, loop_us, calls)
+	_report("SwarmGameRng.rand", t, loop_us, calls)
 	t = Time.get_ticks_usec()
 	for i: int in range(calls):
 		if game.chance(0.5):
 			k_sum += 1
-	_report("GameRng.chance", t, loop_us, calls)
+	_report("SwarmGameRng.chance", t, loop_us, calls)
 	t = Time.get_ticks_usec()
 	for i: int in range(calls):
 		k_sum += game.index(4)
-	_report("GameRng.index", t, loop_us, calls)
+	_report("SwarmGameRng.index", t, loop_us, calls)
 	t = Time.get_ticks_usec()
 	for i: int in range(calls):
 		acc += fx.random()
-	_report("FxRng.random", t, loop_us, calls)
+	_report("SwarmFxRng.random", t, loop_us, calls)
 	print("BENCH  checksum %s %d (keeps the loops from being optimised away)" % [str(acc), k_sum])
 	assert_eq(game.draws, 4 * calls, "the benchmark drew from GameRng four times per round (random, rand, chance, index)")
 	assert_true(is_finite(acc), "the benchmark checksum is finite")
@@ -304,5 +331,9 @@ func test_benchmark_prints_draws_per_second() -> void:
 
 func _report(label: String, started_us: int, baseline_us: int, calls: int) -> void:
 	var elapsed: float = float(Time.get_ticks_usec() - started_us - baseline_us)
-	var per_call_ns: float = maxf(elapsed, 1.0) * 1000.0 / float(calls)
-	print("BENCH  %-26s %7.0f ns/call  %6.2f M calls/s" % [label, per_call_ns, 1000.0 / per_call_ns])
+	var per_call_ns: float = elapsed * 1000.0 / float(calls)
+	if per_call_ns < BENCH_RESOLUTION_NS:
+		# The loop's own cost was subtracted: what is left is below what this method can measure (a number would be noise).
+		print("BENCH  %-30s    < %d ns/call  (below the resolution of the loop-cost subtraction)" % [label, int(BENCH_RESOLUTION_NS)])
+		return
+	print("BENCH  %-30s %7.0f ns/call  %6.2f M calls/s" % [label, per_call_ns, 1000.0 / per_call_ns])

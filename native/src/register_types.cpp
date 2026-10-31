@@ -2,7 +2,12 @@
 
 #include "swarm_native.h"
 
+#include "bindings/js_math_binding.h"
+#include "bindings/rng_binding.h"
+#include "sim/fp_env.h"
+
 #include <godot_cpp/godot.hpp>
+#include <godot_cpp/variant/utility_functions.hpp>
 
 using namespace godot;
 
@@ -11,6 +16,19 @@ void initialize_swarm_native_module(ModuleInitializationLevel p_level) {
 		return;
 	}
 	GDREGISTER_CLASS(swarm::SwarmNative);
+	GDREGISTER_CLASS(swarm::SwarmJsMath);
+	GDREGISTER_CLASS(swarm::SwarmSeededRng);
+	GDREGISTER_CLASS(swarm::SwarmGameRng);
+	GDREGISTER_CLASS(swarm::SwarmFxRng);
+#ifdef DEBUG_ENABLED
+	// godot-cpp defines DEBUG_ENABLED for template_debug builds only (see the compile commands in the flag-guard.txt
+	// that native/SConstruct writes). The simulation needs round-to-nearest and no flush-to-zero
+	// (docs/godot-port-design.md section 11); C3 repeats this check when a battle starts.
+	const char *reason = "";
+	if (!swarm::sim::fp_environment_ok(&reason)) {
+		UtilityFunctions::push_error(String("swarm_native: the floating-point environment is not suitable for the simulation: ") + reason);
+	}
+#endif
 }
 
 void uninitialize_swarm_native_module(ModuleInitializationLevel p_level) {

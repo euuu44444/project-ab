@@ -8,6 +8,21 @@
 # the extension uses: about 60 godot-cpp files instead of 1,093 per configuration).
 # The build is incremental: a second run without changes only runs scons' up-to-date check.
 #
+# Step C2 adds the following (docs/godot-port-design.md section 10, verification/godot/c2/spec.md):
+#   - before scons: python3 -I tools/check_native_sources.py --self-test, then the source check itself (the rules of
+#     native/src/sim, native/src/bindings, native/third_party and native/tests; the license texts). A violation fails
+#     the script at once.
+#   - per configuration, besides the library: the static library libswarm_glibc_sincos.a (native/third_party, the LGPL
+#     sin/cos, linked into the .so) and the test program swarm_sim_tests (native/tests: linked from the very objects of
+#     native/src/sim that the .so links, the same static library and the test sources; in the build directory, not in
+#     godot/bin; Android: -static).
+#   - after the checks below, swarm_sim_tests --golden godot/tests/golden is run for EVERY configuration: x86_64
+#     natively, arm64 with $SWARM_QEMU_AARCH64 and armv7 with $SWARM_QEMU_ARM (qemu-user-static, installed by
+#     tools/setup_cpp.sh). It compares JsMath and the random number generators with the golden vectors (math.json, rng.json)
+#     bit for bit. A configuration passes only if the program exits with 0 and prints "RESULT: PASS". A missing qemu fails
+#     the configuration: the test is never skipped. (qemu-user reproduces the ARM instructions; it cannot show how the FPU
+#     of a real phone is set up.)
+#
 # native/SConstruct refuses to build unless the substituted compile and link commands consist of allowlisted
 # flags only (no fast-math, -O3, LTO, -march=native, ... whatever variable it came through). After every
 # configuration the library is checked, and any failed check fails the script:
@@ -17,7 +32,8 @@
 #   - no path of this machine (cache dir, checkout, home directory, NDK) is embedded in the library
 #   - floating point: the compiled body of the probe function (a * b + c) holds no fused multiply-add
 #     instruction, and the same source compiled WITH -ffp-contract=fast does (so the check can fail);
-#     and none of the objects of native/src (every .cpp at any depth) holds one
+#     and none of the objects of native/src and native/third_party (every .cpp at any depth) and of native/tests holds one
+#   - the test program swarm_sim_tests passes (see above)
 #
 # Usage: tools/build_native.sh [--host-only | --android-only] [--debug-only | --release-only]
 #                              [--jobs N] [--verbose] [--clean] [--evidence-dir DIR]
@@ -29,7 +45,8 @@
 #   --jobs N           parallel compile jobs (default: number of CPU cores)
 #   --verbose          show scons' output while it runs (default: log file, summary only)
 #   --clean            remove the build directories and libraries of the selected configurations first
-#   --evidence-dir DIR keep the scons logs, readelf output, the checked flag lists and the disassembly of the probe there
+#   --evidence-dir DIR keep the scons logs, readelf output, the checked flag lists, the disassembly of the probe, the output of
+#                      the source check and the output of swarm_sim_tests of each configuration there
 # Exit code 0 only if every selected configuration builds and passes its checks.
 set -euo pipefail
 
@@ -41,6 +58,9 @@ LIB_PREFIX="libswarm_native"
 ENTRY_SYMBOL="swarm_native_library_init"
 PROBE_SYMBOL="swarm_fp_probe_mul_add"
 LIB_OBJ_DIR="swarm_native" # below the config's build directory (native/SConstruct)
+TEST_PROGRAM="swarm_sim_tests" # in the config's build directory
+GOLDEN_DIR="$REPO_ROOT/godot/tests/golden"
+CHECKER="$SCRIPT_DIR/check_native_sources.py"
 
 log() { printf '[native] %s\n' "$*"; }
 die() { printf '[native] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -108,6 +128,25 @@ exec 8>"$SWARM_NATIVE_BUILD_DIR/.build.lock"
 flock -n 8 || { log "another build_native.sh is running; waiting for it ..."; flock 8; }
 
 if [[ -n "$EVIDENCE_DIR" ]]; then mkdir -p -- "$EVIDENCE_DIR"; fi
+
+# The source rules first (nothing is built from sources that break them): the checker is tested on its own examples, then
+# it checks the sources.
+[[ -f "$CHECKER" ]] || die "missing $CHECKER"
+command -v python3 >/dev/null 2>&1 || die "python3 is required (tools/check_native_sources.py)"
+[[ -d "$GOLDEN_DIR" ]] || die "missing $GOLDEN_DIR"
+check_sources() {
+  local out="$SWARM_NATIVE_BUILD_DIR/logs/check_native_sources.txt" rc=0
+  {
+    python3 -I "$CHECKER" --self-test && python3 -I "$CHECKER"
+  } >"$out" 2>&1 || rc=$?
+  if [[ -n "$EVIDENCE_DIR" ]]; then cp -- "$out" "$EVIDENCE_DIR/check-native-sources.txt"; fi
+  if ((rc != 0)); then
+    cat -- "$out" >&2
+    die "tools/check_native_sources.py found a problem (details above)"
+  fi
+  log "$(tail -n 1 -- "$out")"
+}
+check_sources
 
 # Configurations in build order: "platform target arch".
 CONFIGS=()
@@ -178,30 +217,40 @@ compile_probe_control() {
   esac
 }
 
-# scan_own_objects <arch> <config build dir> <work dir>: no fused instruction anywhere in our own code (every
-# object of native/src, at any depth, not only the probe); sets SCAN_DETAIL. This is what keeps the simulation
-# code of steps C2/C3 honest: it only has to be added below native/src. The objects come from the list
-# native/SConstruct writes (own-objects.txt, what is linked into the library); that list must equal the
-# .cpp files found below native/src by a separate find, so a source can neither be missed nor be stale.
+# scan_own_objects <arch> <config build dir> <work dir> <config>: no fused instruction anywhere in our own code (every
+# object of native/src and native/third_party, at any depth, which is what is linked into the library, and every object
+# of native/tests, which is what is linked into the test program; not only the probe); sets SCAN_DETAIL. This is what
+# keeps the simulation code of steps C2/C3 honest: it only has to be added below native/. The objects come from the
+# lists native/SConstruct writes (own-objects.txt and test-objects.txt); each list must equal the .cpp files found below
+# those directories by a separate find, so a source can neither be missed nor be stale.
 scan_own_objects() {
-  local arch=$1 cfgdir=$2 work=$3 bad_re rel obj count=0 fused="" listing="$3/all.txt" manifest="$2/own-objects.txt" expected
+  local arch=$1 cfgdir=$2 work=$3 cfg=$4 bad_re rel obj count=0 fused="" listing="$3/all.txt" expected_lib expected_tests list
   bad_re="$(fused_regex "$arch")"
-  [[ -s "$manifest" ]] || { SCAN_DETAIL="no list of objects ($manifest)"; return 1; }
-  expected="$(cd -- "$NATIVE_DIR/src" && find . -type f -name '*.cpp' | sed "s|^\./|$LIB_OBJ_DIR/|; s|\.cpp\$|.os|" | LC_ALL=C sort)"
-  [[ "$(LC_ALL=C sort "$manifest")" == "$expected" ]] \
-    || { SCAN_DETAIL="own-objects.txt does not list exactly the objects of native/src/**/*.cpp"; return 1; }
+  [[ -s "$cfgdir/own-objects.txt" ]] || { SCAN_DETAIL="no list of objects ($cfgdir/own-objects.txt)"; return 1; }
+  [[ -s "$cfgdir/test-objects.txt" ]] || { SCAN_DETAIL="no list of objects ($cfgdir/test-objects.txt)"; return 1; }
+  expected_lib="$({
+    (cd -- "$NATIVE_DIR/src" && find . -type f -name '*.cpp' | sed "s|^\./|$LIB_OBJ_DIR/|; s|\.cpp\$|.os|")
+    (cd -- "$NATIVE_DIR/third_party" && find . -type f -name '*.cpp' | sed "s|^\./|third_party/|; s|\.cpp\$|.os|")
+  } | LC_ALL=C sort)"
+  expected_tests="$(cd -- "$NATIVE_DIR/tests" && find . -type f -name '*.cpp' | sed "s|^\./|tests/|; s|\.cpp\$|.$cfg.o|" | LC_ALL=C sort)"
+  [[ "$(LC_ALL=C sort "$cfgdir/own-objects.txt")" == "$expected_lib" ]] \
+    || { SCAN_DETAIL="own-objects.txt does not list exactly the objects of native/src/**/*.cpp and native/third_party/**/*.cpp"; return 1; }
+  [[ "$(LC_ALL=C sort "$cfgdir/test-objects.txt")" == "$expected_tests" ]] \
+    || { SCAN_DETAIL="test-objects.txt does not list exactly the objects of native/tests/**/*.cpp"; return 1; }
   : >"$work/scan-mnemonics.txt"
-  while IFS= read -r rel; do
-    obj="$cfgdir/$rel"
-    [[ -f "$obj" ]] || { SCAN_DETAIL="object missing: $obj"; return 1; }
-    count=$((count + 1))
-    "$OBJDUMP" -d --no-show-raw-insn "$obj" >"$listing" 2>&1 || { SCAN_DETAIL="cannot disassemble $obj"; return 1; }
-    mnemonics_of "$listing" >>"$work/scan-mnemonics.txt"
-    if mnemonics_of "$listing" | grep -Eq "$bad_re"; then
-      fused+=" $rel:$(mnemonics_of "$listing" | grep -E "$bad_re" | sort -u | paste -sd, -)"
-    fi
-  done <"$manifest"
-  ((count > 0)) || { SCAN_DETAIL="no object files listed in $manifest"; return 1; }
+  for list in own-objects.txt test-objects.txt; do
+    while IFS= read -r rel; do
+      obj="$cfgdir/$rel"
+      [[ -f "$obj" ]] || { SCAN_DETAIL="object missing: $obj"; return 1; }
+      count=$((count + 1))
+      "$OBJDUMP" -d --no-show-raw-insn "$obj" >"$listing" 2>&1 || { SCAN_DETAIL="cannot disassemble $obj"; return 1; }
+      mnemonics_of "$listing" >>"$work/scan-mnemonics.txt"
+      if mnemonics_of "$listing" | grep -Eq "$bad_re"; then
+        fused+=" $rel:$(mnemonics_of "$listing" | grep -E "$bad_re" | sort -u | paste -sd, -)"
+      fi
+    done <"$cfgdir/$list"
+  done
+  ((count > 0)) || { SCAN_DETAIL="no object files listed in $cfgdir"; return 1; }
   [[ -z "$fused" ]] || { SCAN_DETAIL="fused instruction(s) in our own code:$fused"; return 1; }
   SCAN_DETAIL="$count objects, $(wc -l <"$work/scan-mnemonics.txt") instructions, none fused"
 }
@@ -241,7 +290,7 @@ check_fma_in() {
     FMA_DETAIL="control with -ffp-contract=fast shows no fused instruction ($(mnemonics_of "$dir/control.txt" | paste -sd' ' -)): the check proves nothing"
     return 1
   fi
-  scan_own_objects "$arch" "$cfgdir" "$dir" || { FMA_DETAIL="$SCAN_DETAIL"; return 1; }
+  scan_own_objects "$arch" "$cfgdir" "$dir" "$cfg" || { FMA_DETAIL="$SCAN_DETAIL"; return 1; }
   FMA_DETAIL="probe body: $m; control (-ffp-contract=fast): $(mnemonics_of "$dir/control.txt" | paste -sd' ' -); own code: $SCAN_DETAIL"
   {
     printf '# %s: disassembly of %s from the build (object %s), by %s (%s)\n' "$cfg" "$PROBE_SYMBOL" "${obj#"$SWARM_CACHE_DIR"/}" \
@@ -249,7 +298,7 @@ check_fma_in() {
     cat "$dir/probe.txt"
     printf '\n# %s: the same source compiled with -ffp-contract=fast (control; must contain a fused instruction)\n' "$cfg"
     cat "$dir/control.txt"
-    printf '\n# %s: all objects of native/src (any depth) scanned for fused instructions: %s\n' "$cfg" "$SCAN_DETAIL"
+    printf '\n# %s: all objects of native/src, native/third_party and native/tests (any depth) scanned for fused instructions: %s\n' "$cfg" "$SCAN_DETAIL"
   } >"$dir/evidence.txt"
   save_evidence "fma-$cfg.txt" "$dir/evidence.txt"
 }
@@ -305,6 +354,41 @@ check_library() {
   rm -f -- "$SWARM_NATIVE_BUILD_DIR/.readelf.tmp"
 }
 
+# run_sim_tests <config> <platform> <arch> <config build dir>: runs the test program of the configuration (native/tests,
+# built by native/SConstruct as swarm_sim_tests) against the golden vectors; sets TEST_DETAIL; returns 1 on failure.
+# x86_64 runs natively; the Android programs are static and run under qemu-user. Never skipped: a missing qemu fails.
+run_sim_tests() {
+  local cfg=$1 platform=$2 arch=$3 cfgdir=$4 prog="$4/$TEST_PROGRAM" runner=() out rc=0 want_machine machine summary via=""
+  TEST_DETAIL=""
+  [[ -x "$prog" ]] || { TEST_DETAIL="test program not found: $prog"; return 1; }
+  case "$arch" in
+    x86_64) want_machine="Advanced Micro Devices X86-64" ;;
+    arm64) want_machine="AArch64"; runner=("$SWARM_QEMU_AARCH64") ;;
+    arm32) want_machine="ARM"; runner=("$SWARM_QEMU_ARM") ;;
+  esac
+  machine="$(readelf -hW "$prog" | sed -n 's/^ *Machine: *//p')"
+  [[ "$machine" == "$want_machine" ]] || { TEST_DETAIL="the test program is for '$machine', expected '$want_machine'"; return 1; }
+  if ((${#runner[@]})); then
+    [[ -x "${runner[0]}" ]] || { TEST_DETAIL="qemu-user is missing (${runner[0]}): the tests of $cfg cannot run; run tools/setup_cpp.sh"; return 1; }
+    if readelf -lW "$prog" | awk '$1 == "INTERP" { found = 1 } END { exit !found }'; then
+      TEST_DETAIL="the test program is not static (it names a program interpreter): qemu-user cannot run it"
+      return 1
+    fi
+    via=" under qemu-user $SWARM_QEMU_VERSION"
+  fi
+  out="$SWARM_NATIVE_BUILD_DIR/logs/$cfg.sim-tests.txt"
+  timeout 900 ${runner[@]+"${runner[@]}"} "$prog" --golden "$GOLDEN_DIR" >"$out" 2>&1 || rc=$?
+  save_evidence "sim-tests-$cfg.txt" "$out"
+  if ((rc != 0)) || ! grep -qx 'RESULT: PASS' "$out"; then
+    grep -E -A6 '^FAIL' "$out" | head -n 40 | sed 's/^/    /' >&2 || true
+    TEST_DETAIL="$TEST_PROGRAM failed (exit code $rc): $(grep -E '^(FAIL|RESULT)' "$out" | head -n 6 | paste -sd'|' -) (full output: $out)"
+    return 1
+  fi
+  summary="$(sed -n 's/^SUMMARY: //p' "$out")"
+  [[ -n "$summary" ]] || { TEST_DETAIL="$TEST_PROGRAM printed no SUMMARY line (full output: $out)"; return 1; }
+  TEST_DETAIL="$TEST_PROGRAM$via: RESULT: PASS, $summary"
+}
+
 # ---- Build ----------------------------------------------------------------------------------------
 build_config() {
   local platform=$1 target=$2 arch=$3 cfg lib scons_log started compiled rc=0 secs
@@ -345,7 +429,11 @@ build_config() {
     record FAIL "$cfg" "$FMA_DETAIL"
     return 0
   fi
-  record PASS "$cfg" "$(stat -c %s -- "$lib") bytes; $lib_detail; no FMA in $PROBE_SYMBOL or the rest of native/src"
+  if ! run_sim_tests "$cfg" "$platform" "$arch" "$SWARM_NATIVE_BUILD_DIR/$cfg"; then
+    record FAIL "$cfg" "$TEST_DETAIL"
+    return 0
+  fi
+  record PASS "$cfg" "$(stat -c %s -- "$lib") bytes; $lib_detail; no FMA in $PROBE_SYMBOL or the rest of native/; $TEST_DETAIL"
   if [[ -n "$EVIDENCE_DIR" ]]; then printf '%s\n' "$FMA_DETAIL" >"$EVIDENCE_DIR/fma-$cfg.summary.txt"; fi
 }
 

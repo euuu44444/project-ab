@@ -1,0 +1,68 @@
+C2 evidence (verifier re-run, step C2 step 3): tools/build_native.sh (all six configurations), node tools/check_js_compat_consts.mjs, python3 -I tools/check_native_sources.py (self-test and full), and tools/build_android.sh --skip-tests are re-run; Only the summaries are recorded here.
+date:      2026-10-30 (UTC), runs 1-3 between 08:55:48 and 08:57:09
+HEAD:      403f51a (C2 work uncommitted in the working tree)
+toolchain (as printed by the runs): godot 4.7.2.stable.official.ed1daf0bf; node v22.22.0; python 3.13.17;
+           godot-cpp 8070599885b6, api_version 4.7, NDK 28.1.13356709, scons 4.10.1; qemu-user 8.2.2+ds-0ubuntu1.18 (arm64/armv7 tests)
+
+Run 1a: python3 -I tools/check_native_sources.py --self-test
+  exit code: 0
+  wall time: 0.14 s
+  output (last line, verbatim):
+check_native_sources: self-test OK (16 rules + the C library rule, the lexer and the license check)
+
+Run 1b: python3 -I tools/check_native_sources.py
+  exit code: 0
+  wall time: 0.13 s
+  output (last line, verbatim):
+check_native_sources: 19 files checked, no violations; the LGPL and BSD license texts are the exact V8 copies
+
+Run 2: node tools/check_js_compat_consts.mjs
+  exit code: 0 (node v22.22.0)
+  wall time: 0.56 s
+  output (last line, verbatim):
+check OK: 95 constants of js_compat.gd = their CONST_BITS entries = the upstream literals; SINCOSTAB_BITS (440) and TOVERP (75) = tools/golden/_glibc_sin.mjs; C++: 94 constants of 5 files = the same, SINCOSTAB_BITS (440) and TOVERP (75) = js_compat.gd and _glibc_sin.mjs
+
+Run 3: tools/build_native.sh --evidence-dir <scratchpad>/c2-verify/build-evidence
+  exit code: 0
+  wall time: 71 s (08:55:58 to 08:57:09 UTC)
+  note: this was not a --clean build. All six configurations report "0 file(s) compiled" (the objects were already current);
+        the scons times are 8 s, 2 s, 6 s, 1 s, 2 s, 2 s (debug/release of linux, then android arm64 debug/release, arm32 debug/release).
+  evidence directory (not in the repository): <scratchpad>/c2-verify/build-evidence
+
+----------------------------------------------------------------------
+native build summary (verbatim from run 3)
+----------------------------------------------------------------------
+================ native build summary ================
+libswarm_native: godot-cpp 8070599885b6, api_version 4.7, NDK 28.1.13356709, scons 4.10.1
+PASS linux.template_debug.x86_64          383912 bytes; ELF64 Advanced Micro Devices X86-64, LOAD align 0x1000, needs: ld-linux-x86-64.so.2 libc.so.6 libm.so.6, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/; swarm_sim_tests: RESULT: PASS, 48 items, 519631 checks (math.json 508731, rng.json 10298), 0 failed
+PASS linux.template_release.x86_64        371616 bytes; ELF64 Advanced Micro Devices X86-64, LOAD align 0x1000, needs: ld-linux-x86-64.so.2 libc.so.6 libm.so.6, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/; swarm_sim_tests: RESULT: PASS, 48 items, 519631 checks (math.json 508731, rng.json 10298), 0 failed
+PASS android.template_debug.arm64         462472 bytes; ELF64 AArch64, LOAD align 0x4000, needs: libc.so libdl.so libm.so, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/; swarm_sim_tests under qemu-user 8.2.2+ds-0ubuntu1.18: RESULT: PASS, 48 items, 519631 checks (math.json 508731, rng.json 10298), 0 failed
+PASS android.template_release.arm64       452744 bytes; ELF64 AArch64, LOAD align 0x4000, needs: libc.so libdl.so libm.so, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/; swarm_sim_tests under qemu-user 8.2.2+ds-0ubuntu1.18: RESULT: PASS, 48 items, 519631 checks (math.json 508731, rng.json 10298), 0 failed
+PASS android.template_debug.arm32         349776 bytes; ELF32 ARM, LOAD align 0x1000, needs: libc.so libdl.so libm.so, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/; swarm_sim_tests under qemu-user 8.2.2+ds-0ubuntu1.18: RESULT: PASS, 48 items, 519631 checks (math.json 508731, rng.json 10298), 0 failed
+PASS android.template_release.arm32       341560 bytes; ELF32 ARM, LOAD align 0x1000, needs: libc.so libdl.so libm.so, no build paths embedded; no FMA in swarm_fp_probe_mul_add or the rest of native/; swarm_sim_tests under qemu-user 8.2.2+ds-0ubuntu1.18: RESULT: PASS, 48 items, 519631 checks (math.json 508731, rng.json 10298), 0 failed
+
+libraries in /home/user/project-ab/godot/bin:
+      349776  libswarm_native.android.template_debug.arm32.so
+      462472  libswarm_native.android.template_debug.arm64.so
+      341560  libswarm_native.android.template_release.arm32.so
+      452744  libswarm_native.android.template_release.arm64.so
+      383912  libswarm_native.linux.template_debug.x86_64.so
+      371616  libswarm_native.linux.template_release.x86_64.so
+RESULT: PASS
+
+----------------------------------------------------------------------
+swarm_sim_tests result line per configuration (verbatim, from the summary above)
+----------------------------------------------------------------------
+linux.template_debug.x86_64        swarm_sim_tests: RESULT: PASS, 48 items, 519631 checks (math.json 508731, rng.json 10298), 0 failed
+linux.template_release.x86_64      swarm_sim_tests: RESULT: PASS, 48 items, 519631 checks (math.json 508731, rng.json 10298), 0 failed
+android.template_debug.arm64       swarm_sim_tests under qemu-user 8.2.2+ds-0ubuntu1.18: RESULT: PASS, 48 items, 519631 checks (math.json 508731, rng.json 10298), 0 failed
+android.template_release.arm64     swarm_sim_tests under qemu-user 8.2.2+ds-0ubuntu1.18: RESULT: PASS, 48 items, 519631 checks (math.json 508731, rng.json 10298), 0 failed
+android.template_debug.arm32       swarm_sim_tests under qemu-user 8.2.2+ds-0ubuntu1.18: RESULT: PASS, 48 items, 519631 checks (math.json 508731, rng.json 10298), 0 failed
+android.template_release.arm32     swarm_sim_tests under qemu-user 8.2.2+ds-0ubuntu1.18: RESULT: PASS, 48 items, 519631 checks (math.json 508731, rng.json 10298), 0 failed
+
+----------------------------------------------------------------------
+Runs 1 and 2 (final summary lines, verbatim)
+----------------------------------------------------------------------
+run 1a --self-test: check_native_sources: self-test OK (16 rules + the C library rule, the lexer and the license check)
+run 1b full:        check_native_sources: 19 files checked, no violations; the LGPL and BSD license texts are the exact V8 copies
+run 2 js compat:    check OK: 95 constants of js_compat.gd = their CONST_BITS entries = the upstream literals; SINCOSTAB_BITS (440) and TOVERP (75) = tools/golden/_glibc_sin.mjs; C++: 94 constants of 5 files = the same, SINCOSTAB_BITS (440) and TOVERP (75) = js_compat.gd and _glibc_sin.mjs

@@ -186,7 +186,7 @@ class FxRng { /* 既定シード 0x9E3779B9。random / rand_fx / randi_fx / chan
 ## 6. LGPL 部分（`native/third_party/glibc_sincos/`）
 
 - 中身は `js_compat.gd` の `sin`、`cos`、`_branred`、`SINCOSTAB_BITS`、`TOVERP` と、それらが使う定数（`G_*`、`BR_*`）の C++ への写しである。これらは glibc の `s_sin.c`、`branred.c`、`branred.h`、`sincostab.c`、`usncs.h`、`dla.h` の派生物である。
-- 各ファイルの先頭に、上流の著作権表示とライセンスの告知を一字一句そのまま写す（`IBM Accurate Mathematical Library` ／ `Copyright (C) 2001-2022 Free Software Foundation, Inc.` ／ LGPL-2.1 以降の告知文）。そのあとに、変更した日付と変更内容の要約を加える（LGPL-2.1 §2(a)。【事実】§2 は、変更したファイルに、変更した旨と日付を目立つように書くことを求めている）。
+- 各ファイルの先頭に、上流の著作権表示とライセンスの告知を一字一句そのまま写す（`IBM Accurate Mathematical Library` ／ `Copyright (C) 2001-2022 Free Software Foundation, Inc.` ／ LGPL-2.1 以降の告知文）。そのあとに、変更した日付と変更内容の要約を加える（LGPL-2.1 §2(b)。【事実】§2(b) は、変更したファイルに、変更した旨と日付を目立つように書くことを求めている。初版の本書は §2(a) と誤記しており、実装時に訂正した）。
 - `README.md` の「変更点」には、上流からの変更を1項目ずつ書く。
   1. C から GDScript へ移し（S3、`godot/sim/js_compat.gd`）、それを C++17 に写した（C2）。namespace は `swarm_glibc` で、外部に見せるのは `sin` / `cos` だけである
   2. `do_sin`、`do_cos`、`reduce_sincos`、`do_sincos` を `sin` / `cos` の中に展開した

@@ -1,10 +1,17 @@
 extends "res://tests/test_case.gd"
-## JsMath (res://sim/js_compat.gd) against the golden vectors of res://tests/golden/math.json (design section 9.1).
+## SwarmJsMath, the Godot binding of the C++ JsMath (native/src/sim/js_math.h), against the golden vectors of
+## res://tests/golden/math.json (design section 9.1). Step C2 moved JsMath to C++, and these tests exercise the native classes only:
+## the GDScript JsMath (res://sim/js_compat.gd), which the combat simulation uses until C3, is no longer compared with
+## math.json here. It stays protected indirectly: by the replay of the reference traces (test_reference_trace.gd) and by
+## tools/check_js_compat_consts.mjs (its constants and tables). The C++ code itself is also tested without Godot, on
+## every configuration, by native/tests (tools/build_native.sh runs swarm_sim_tests against math.json and rng.json).
 ##
 ## Every vector holds at least 20 000 inputs per ported function (edge cases around the thresholds of the algorithms,
 ## multiples of pi/2, 0.5 boundaries, int32 limits, +-0, +-Infinity, NaN, plus pseudo-random numbers in the ranges the game
 ## produces). The expected values come from the original game's JavaScript semantics (tools/golden/math.mjs, checked against
 ## Chromium 141 by tools/verify_golden_chromium.mjs). Results are compared by bit pattern: -0 differs from +0, any NaN equals any NaN.
+## The native static methods are called through lambdas: `SwarmJsMath.sin` as a Callable can be called, but it reports
+## get_argument_count() == 0 and is_valid() == false (measured in C2), and _check takes the argument count from the Callable.
 
 const MAX_REPORTED: int = 5
 ## Every ported function is checked on at least this many golden rows (the thin wrappers over exact builtins and pow need fewer).
@@ -74,98 +81,92 @@ func _check(vector_name: String, f: Callable, min_rows: int = PORTED_MIN_ROWS) -
 # Ported functions
 # ---------------------------------------------------------------------------------------------------
 
-func test_constants_match_their_bit_patterns() -> void:
-	# Every constant of js_compat.gd is written as integer / 2^k (exact); this guards against a mis-rounded literal.
-	assert_eq(JsMath.self_check(), 0, "JsMath constants or tables differ from their recorded bit patterns")
-	assert_eq(JsMath.SINCOSTAB.size(), 440)
-
-
 func test_sin() -> void:
-	_check("sin", JsMath.sin)
+	_check("sin", func(x: float) -> float: return SwarmJsMath.sin(x))
 
 
 func test_cos() -> void:
-	_check("cos", JsMath.cos)
+	_check("cos", func(x: float) -> float: return SwarmJsMath.cos(x))
 
 
 func test_atan() -> void:
-	_check("atan", JsMath.atan)
+	_check("atan", func(x: float) -> float: return SwarmJsMath.atan(x))
 
 
 func test_atan2() -> void:
-	_check("atan2", JsMath.atan2)
+	_check("atan2", func(y: float, x: float) -> float: return SwarmJsMath.atan2(y, x))
 
 
 func test_exp() -> void:
-	_check("exp", JsMath.exp)
+	_check("exp", func(x: float) -> float: return SwarmJsMath.exp(x))
 
 
 func test_log() -> void:
-	_check("log", JsMath.log)
+	_check("log", func(x: float) -> float: return SwarmJsMath.log(x))
 
 
 func test_hypot() -> void:
-	_check("hypot", JsMath.hypot)
+	_check("hypot", func(a: float, b: float) -> float: return SwarmJsMath.hypot(a, b))
 
 
 func test_js_round() -> void:
-	_check("round", JsMath.js_round)
+	_check("round", func(x: float) -> float: return SwarmJsMath.js_round(x))
 
 
 func test_trunc() -> void:
-	_check("trunc", JsMath.trunc)
+	_check("trunc", func(x: float) -> float: return SwarmJsMath.trunc(x))
 
 
 func test_js_mod() -> void:
-	_check("mod", JsMath.js_mod)
+	_check("mod", func(a: float, b: float) -> float: return SwarmJsMath.js_mod(a, b))
 
 
 func test_js_max() -> void:
-	_check("max", JsMath.js_max)
+	_check("max", func(a: float, b: float) -> float: return SwarmJsMath.js_max(a, b))
 
 
 func test_js_min() -> void:
-	_check("min", JsMath.js_min)
+	_check("min", func(a: float, b: float) -> float: return SwarmJsMath.js_min(a, b))
 
 
 func test_max3_min3() -> void:
-	_check("max3", JsMath.max3)
-	_check("min3", JsMath.min3)
+	_check("max3", func(a: float, b: float, c: float) -> float: return SwarmJsMath.max3(a, b, c))
+	_check("min3", func(a: float, b: float, c: float) -> float: return SwarmJsMath.min3(a, b, c))
 
 
 func test_max5_min5() -> void:
-	_check("max5", JsMath.max5)
-	_check("min5", JsMath.min5)
+	_check("max5", func(a: float, b: float, c: float, d: float, e: float) -> float: return SwarmJsMath.max5(a, b, c, d, e))
+	_check("min5", func(a: float, b: float, c: float, d: float, e: float) -> float: return SwarmJsMath.min5(a, b, c, d, e))
 
 
 func test_max_n_min_n_agree_with_the_five_argument_vectors() -> void:
-	_check("max5", func(a: float, b: float, c: float, d: float, e: float) -> float: return JsMath.max_n(PackedFloat64Array([a, b, c, d, e])))
-	_check("min5", func(a: float, b: float, c: float, d: float, e: float) -> float: return JsMath.min_n(PackedFloat64Array([a, b, c, d, e])))
-	assert_eq(JsMath.max_n(PackedFloat64Array()), -INF, "Math.max() is -Infinity")
-	assert_eq(JsMath.min_n(PackedFloat64Array()), INF, "Math.min() is Infinity")
+	_check("max5", func(a: float, b: float, c: float, d: float, e: float) -> float: return SwarmJsMath.max_n(PackedFloat64Array([a, b, c, d, e])))
+	_check("min5", func(a: float, b: float, c: float, d: float, e: float) -> float: return SwarmJsMath.min_n(PackedFloat64Array([a, b, c, d, e])))
+	assert_eq(SwarmJsMath.max_n(PackedFloat64Array()), -INF, "Math.max() is -Infinity")
+	assert_eq(SwarmJsMath.min_n(PackedFloat64Array()), INF, "Math.min() is Infinity")
 
 
 func test_clamp_is_the_games_clamp() -> void:
 	# The expected values were produced by the game's own clamp(v,a,b), cut out of original.html.
-	_check("clamp", JsMath.clamp)
+	_check("clamp", func(v: float, lo: float, hi: float) -> float: return SwarmJsMath.clamp(v, lo, hi))
 
 
 func test_to_int32() -> void:
-	_check("to_int32", func(x: float) -> int: return JsMath.to_int32(x))
+	_check("to_int32", func(x: float) -> int: return SwarmJsMath.to_int32(x))
 
 
 func test_to_uint32() -> void:
-	_check("to_uint32", func(x: float) -> int: return JsMath.to_uint32(x))
+	_check("to_uint32", func(x: float) -> int: return SwarmJsMath.to_uint32(x))
 
 
 func test_imul() -> void:
-	_check("imul", func(a: float, b: float) -> int: return JsMath.imul(int(a), int(b)))
+	_check("imul", func(a: float, b: float) -> int: return SwarmJsMath.imul(int(a), int(b)))
 
 
 func test_shifts() -> void:
-	_check("shl", func(a: float, n: float) -> int: return JsMath.shl(int(a), int(n)))
-	_check("sar", func(a: float, n: float) -> int: return JsMath.sar(int(a), int(n)))
-	_check("shr_u", func(a: float, n: float) -> int: return JsMath.shr_u(int(a), int(n)))
+	_check("shl", func(a: float, n: float) -> int: return SwarmJsMath.shl(int(a), int(n)))
+	_check("sar", func(a: float, n: float) -> int: return SwarmJsMath.sar(int(a), int(n)))
+	_check("shr_u", func(a: float, n: float) -> int: return SwarmJsMath.shr_u(int(a), int(n)))
 
 
 func test_i32_wraps_to_the_int32_range() -> void:
@@ -173,13 +174,13 @@ func test_i32_wraps_to_the_int32_range() -> void:
 	var cases: Array = [0, 1, -1, 2147483647, 2147483648, -2147483648, -2147483649, 4294967295, 4294967296, 9223372036854775807, -9223372036854775807 - 1]
 	var expected: Array = [0, 1, -1, 2147483647, -2147483648, -2147483648, 2147483647, -1, 0, -1, 0]
 	for i: int in range(cases.size()):
-		assert_eq(JsMath.i32(cases[i] as int), expected[i] as int, "i32(%s)" % str(cases[i]))
+		assert_eq(SwarmJsMath.i32(cases[i] as int), expected[i] as int, "i32(%s)" % str(cases[i]))
 
 
 func test_pow_special_cases() -> void:
 	# pow is not bit-guaranteed in general (see the header of js_compat.gd); the vector holds only arguments whose result
 	# is fixed by IEEE 754 or by the ECMAScript special cases.
-	_check("pow", JsMath.pow, 400)
+	_check("pow", func(a: float, b: float) -> float: return SwarmJsMath.pow(a, b), 400)
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -187,10 +188,10 @@ func test_pow_special_cases() -> void:
 # ---------------------------------------------------------------------------------------------------
 
 func test_exact_wrappers_sqrt_floor_ceil_abs() -> void:
-	_check("sqrt", JsMath.sqrt, WRAPPER_MIN_ROWS)
-	_check("floor", JsMath.floor, WRAPPER_MIN_ROWS)
-	_check("ceil", JsMath.ceil, WRAPPER_MIN_ROWS)
-	_check("abs", JsMath.abs, WRAPPER_MIN_ROWS)
+	_check("sqrt", func(x: float) -> float: return SwarmJsMath.sqrt(x), WRAPPER_MIN_ROWS)
+	_check("floor", func(x: float) -> float: return SwarmJsMath.floor(x), WRAPPER_MIN_ROWS)
+	_check("ceil", func(x: float) -> float: return SwarmJsMath.ceil(x), WRAPPER_MIN_ROWS)
+	_check("abs", func(x: float) -> float: return SwarmJsMath.abs(x), WRAPPER_MIN_ROWS)
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -200,33 +201,33 @@ func test_exact_wrappers_sqrt_floor_ceil_abs() -> void:
 func _call_named(fn: String, a: PackedFloat64Array) -> float:
 	match fn:
 		"sin":
-			return JsMath.sin(a[0])
+			return SwarmJsMath.sin(a[0])
 		"cos":
-			return JsMath.cos(a[0])
+			return SwarmJsMath.cos(a[0])
 		"round":
-			return JsMath.js_round(a[0])
+			return SwarmJsMath.js_round(a[0])
 		"max":
-			return JsMath.js_max(a[0], a[1])
+			return SwarmJsMath.js_max(a[0], a[1])
 		"min":
-			return JsMath.js_min(a[0], a[1])
+			return SwarmJsMath.js_min(a[0], a[1])
 		"clamp":
-			return JsMath.clamp(a[0], a[1], a[2])
+			return SwarmJsMath.clamp(a[0], a[1], a[2])
 		"mod":
-			return JsMath.js_mod(a[0], a[1])
+			return SwarmJsMath.js_mod(a[0], a[1])
 		"hypot":
-			return JsMath.hypot(a[0], a[1])
+			return SwarmJsMath.hypot(a[0], a[1])
 		"atan2":
-			return JsMath.atan2(a[0], a[1])
+			return SwarmJsMath.atan2(a[0], a[1])
 		"exp":
-			return JsMath.exp(a[0])
+			return SwarmJsMath.exp(a[0])
 		"to_int32":
-			return float(JsMath.to_int32(a[0]))
+			return float(SwarmJsMath.to_int32(a[0]))
 		"to_uint32":
-			return float(JsMath.to_uint32(a[0]))
+			return float(SwarmJsMath.to_uint32(a[0]))
 		"imul":
-			return float(JsMath.imul(int(a[0]), int(a[1])))
+			return float(SwarmJsMath.imul(int(a[0]), int(a[1])))
 		"pow":
-			return JsMath.pow(a[0], a[1])
+			return SwarmJsMath.pow(a[0], a[1])
 	fail("named case: unknown function %s" % fn)
 	return NAN
 
@@ -251,14 +252,14 @@ func test_named_pitfall_cases() -> void:
 
 
 func test_bit_helpers_and_negative_zero() -> void:
-	var z: float = JsMath.neg_zero()
+	var z: float = SwarmJsMath.neg_zero()
 	assert_eq(GoldenCodec.hex_of(z), "8000000000000000", "neg_zero() is -0")
 	assert_eq(GoldenCodec.hex_of(0.0), "0000000000000000")
-	assert_eq(JsMath.to_bits(1.0), 0x3FF0000000000000)
-	assert_eq(JsMath.from_bits(0x3FF0000000000000), 1.0)
-	assert_eq(JsMath.to_bits(-2.0), -4611686018427387904, "-2.0 is 0xC000000000000000 as a signed int64")
+	assert_eq(SwarmJsMath.to_bits(1.0), 0x3FF0000000000000)
+	assert_eq(SwarmJsMath.from_bits(0x3FF0000000000000), 1.0)
+	assert_eq(SwarmJsMath.to_bits(-2.0), -4611686018427387904, "-2.0 is 0xC000000000000000 as a signed int64")
 	for x: float in [0.1, -0.1, 1e300, 5e-324, 123456.789]:
-		assert_eq(JsMath.from_bits(JsMath.to_bits(x)), x)
+		assert_eq(SwarmJsMath.from_bits(SwarmJsMath.to_bits(x)), x)
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -270,9 +271,9 @@ func _report(label: String, started_us: int, baseline_us: int) -> void:
 	var per_call_ns: float = elapsed * 1000.0 / float(BENCH_CALLS)
 	if per_call_ns < BENCH_RESOLUTION_NS:
 		# The loop's own cost was subtracted: what is left is below what this method can measure (a number would be noise).
-		print("BENCH  %-26s    < %d ns/call  (below the resolution of the loop-cost subtraction)" % [label, int(BENCH_RESOLUTION_NS)])
+		print("BENCH  %-30s    < %d ns/call  (below the resolution of the loop-cost subtraction)" % [label, int(BENCH_RESOLUTION_NS)])
 		return
-	print("BENCH  %-26s %7.0f ns/call  %6.2f M calls/s" % [label, per_call_ns, 1000.0 / per_call_ns])
+	print("BENCH  %-30s %7.0f ns/call  %6.2f M calls/s" % [label, per_call_ns, 1000.0 / per_call_ns])
 
 
 func test_benchmark_prints_calls_per_second() -> void:
@@ -288,7 +289,8 @@ func test_benchmark_prints_calls_per_second() -> void:
 	xs.resize(BENCH_CALLS)
 	ys.resize(BENCH_CALLS)
 	es.resize(BENCH_CALLS)
-	var rng: SeededRng = SeededRng.new(12345)
+	var rng: SwarmSeededRng = SwarmSeededRng.new()
+	rng.set_seed(12345)
 	for i: int in range(BENCH_CALLS):
 		xs[i] = rng.next_float() * 20.0 - 10.0
 		ys[i] = rng.next_float() * 600.0 - 300.0
@@ -298,139 +300,141 @@ func test_benchmark_prints_calls_per_second() -> void:
 	for i: int in range(BENCH_CALLS):
 		acc += xs[i]
 	var loop_us: int = Time.get_ticks_usec() - t
-	print("BENCH  (typed GDScript, headless; each line is net of the loop cost; a builtin call costs about 30 to 70 ns)")
+	print("BENCH  (typed GDScript, headless; each line is net of the loop cost. The SwarmJsMath lines are C++ functions called from GDScript:")
+	print("BENCH   what they show is mostly the cost of the call itself (the arguments and the result go through Variants), not of the C++ code;")
+	print("BENCH   the time of the C++ functions alone is printed by native/tests: swarm_sim_tests --bench)")
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
 		acc += sin(xs[i])
 	_report("builtin sin", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.sin(xs[i])
-	_report("JsMath.sin", t, loop_us)
+		acc += SwarmJsMath.sin(xs[i])
+	_report("SwarmJsMath.sin", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.cos(xs[i])
-	_report("JsMath.cos", t, loop_us)
+		acc += SwarmJsMath.cos(xs[i])
+	_report("SwarmJsMath.cos", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
 		acc += atan2(ys[i], xs[i])
 	_report("builtin atan2", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.atan2(ys[i], xs[i])
-	_report("JsMath.atan2", t, loop_us)
+		acc += SwarmJsMath.atan2(ys[i], xs[i])
+	_report("SwarmJsMath.atan2", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.atan(xs[i])
-	_report("JsMath.atan", t, loop_us)
+		acc += SwarmJsMath.atan(xs[i])
+	_report("SwarmJsMath.atan", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
 		acc += exp(es[i])
 	_report("builtin exp", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.exp(es[i])
-	_report("JsMath.exp", t, loop_us)
+		acc += SwarmJsMath.exp(es[i])
+	_report("SwarmJsMath.exp", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.log(absf(ys[i]) + 1.0)
-	_report("JsMath.log", t, loop_us)
+		acc += SwarmJsMath.log(absf(ys[i]) + 1.0)
+	_report("SwarmJsMath.log", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.hypot(ys[i], xs[i])
-	_report("JsMath.hypot", t, loop_us)
+		acc += SwarmJsMath.hypot(ys[i], xs[i])
+	_report("SwarmJsMath.hypot", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.js_round(ys[i])
-	_report("JsMath.js_round", t, loop_us)
+		acc += SwarmJsMath.js_round(ys[i])
+	_report("SwarmJsMath.js_round", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += float(JsMath.to_int32(ys[i]))
-	_report("JsMath.to_int32", t, loop_us)
+		acc += float(SwarmJsMath.to_int32(ys[i]))
+	_report("SwarmJsMath.to_int32", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.js_max(xs[i], ys[i])
-	_report("JsMath.js_max", t, loop_us)
+		acc += SwarmJsMath.js_max(xs[i], ys[i])
+	_report("SwarmJsMath.js_max", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.clamp(ys[i], -100.0, 100.0)
-	_report("JsMath.clamp", t, loop_us)
+		acc += SwarmJsMath.clamp(ys[i], -100.0, 100.0)
+	_report("SwarmJsMath.clamp", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.js_min(xs[i], ys[i])
-	_report("JsMath.js_min", t, loop_us)
+		acc += SwarmJsMath.js_min(xs[i], ys[i])
+	_report("SwarmJsMath.js_min", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.max3(xs[i], ys[i], es[i])
-	_report("JsMath.max3", t, loop_us)
+		acc += SwarmJsMath.max3(xs[i], ys[i], es[i])
+	_report("SwarmJsMath.max3", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.min3(xs[i], ys[i], es[i])
-	_report("JsMath.min3", t, loop_us)
+		acc += SwarmJsMath.min3(xs[i], ys[i], es[i])
+	_report("SwarmJsMath.min3", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.max5(xs[i], ys[i], es[i], xs[i], ys[i])
-	_report("JsMath.max5", t, loop_us)
+		acc += SwarmJsMath.max5(xs[i], ys[i], es[i], xs[i], ys[i])
+	_report("SwarmJsMath.max5", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.min5(xs[i], ys[i], es[i], xs[i], ys[i])
-	_report("JsMath.min5", t, loop_us)
+		acc += SwarmJsMath.min5(xs[i], ys[i], es[i], xs[i], ys[i])
+	_report("SwarmJsMath.min5", t, loop_us)
 	var five: PackedFloat64Array = PackedFloat64Array([1.0, 2.0, 3.0, 4.0, 5.0])
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
 		five[i % 5] = xs[i]
-		acc += JsMath.max_n(five)
-	_report("JsMath.max_n (5 values)", t, loop_us)
+		acc += SwarmJsMath.max_n(five)
+	_report("SwarmJsMath.max_n (5 values)", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
 		five[i % 5] = ys[i]
-		acc += JsMath.min_n(five)
-	_report("JsMath.min_n (5 values)", t, loop_us)
+		acc += SwarmJsMath.min_n(five)
+	_report("SwarmJsMath.min_n (5 values)", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.trunc(ys[i])
-	_report("JsMath.trunc", t, loop_us)
+		acc += SwarmJsMath.trunc(ys[i])
+	_report("SwarmJsMath.trunc", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += float(JsMath.to_uint32(ys[i]))
-	_report("JsMath.to_uint32", t, loop_us)
+		acc += float(SwarmJsMath.to_uint32(ys[i]))
+	_report("SwarmJsMath.to_uint32", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.sqrt(absf(ys[i]))
-	_report("JsMath.sqrt (wrapper)", t, loop_us)
+		acc += SwarmJsMath.sqrt(absf(ys[i]))
+	_report("SwarmJsMath.sqrt (wrapper)", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
 		acc += sqrt(absf(ys[i]))
 	_report("builtin sqrt", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.js_mod(ys[i], 1e4)
-	_report("JsMath.js_mod", t, loop_us)
+		acc += SwarmJsMath.js_mod(ys[i], 1e4)
+	_report("SwarmJsMath.js_mod", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		acc += JsMath.pow(absf(xs[i]), 0.7)
-	_report("JsMath.pow", t, loop_us)
+		acc += SwarmJsMath.pow(absf(xs[i]), 0.7)
+	_report("SwarmJsMath.pow", t, loop_us)
 	t = Time.get_ticks_usec()
 	var bits: int = 1
 	for i: int in range(BENCH_CALLS):
-		bits = JsMath.imul(bits + i, 1831565813)
-	_report("JsMath.imul", t, loop_us)
+		bits = SwarmJsMath.imul(bits + i, 1831565813)
+	_report("SwarmJsMath.imul", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		bits += JsMath.i32(i * 40000)
-	_report("JsMath.i32", t, loop_us)
+		bits += SwarmJsMath.i32(i * 40000)
+	_report("SwarmJsMath.i32", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		bits += JsMath.shl(i, 7)
-	_report("JsMath.shl", t, loop_us)
+		bits += SwarmJsMath.shl(i, 7)
+	_report("SwarmJsMath.shl", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		bits += JsMath.sar(i - 100000, 3)
-	_report("JsMath.sar", t, loop_us)
+		bits += SwarmJsMath.sar(i - 100000, 3)
+	_report("SwarmJsMath.sar", t, loop_us)
 	t = Time.get_ticks_usec()
 	for i: int in range(BENCH_CALLS):
-		bits += JsMath.shr_u(i - 100000, 3)
-	_report("JsMath.shr_u", t, loop_us)
+		bits += SwarmJsMath.shr_u(i - 100000, 3)
+	_report("SwarmJsMath.shr_u", t, loop_us)
 	print("BENCH  checksum %s %d (keeps the loops from being optimised away)" % [str(acc), bits])
 	# The only assertions: the input sets were read and the loops produced finite numbers.
 	assert_true(angles.size() == 20000 and pairs[0].size() == 20000 and exps.size() == 20000 and nums.size() == 20000, "golden input sets are complete")

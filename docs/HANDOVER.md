@@ -1,7 +1,7 @@
 # 引き継ぎ書：Elemental Swarm の Godot 移植
 
-- 作成日：2026-10-24（C1 完了時点）
-- 対象ブランチ：`claude/directx-game-engine-refactor-255pfv`（最新コミット `05a4123` 時点）
+- 作成日：2026-10-24（C1 完了時点）。2026-10-31 に C2 完了時点の内容に更新
+- 対象ブランチ：`claude/directx-game-engine-refactor-255pfv`
 - 詳細な設計と決定の経緯：[`docs/godot-port-design.md`](godot-port-design.md)。本書はその要約と、作業を続けるための手順をまとめたものである。
 
 ## 1. 現状の要約
@@ -11,8 +11,8 @@
   - キャラは catalyst、ウェーブは W1〜W4、敵は swarm と assassin
   - 武器は catalytic_ring と pulse・blades・wand
 - 戦闘処理は、元のゲームと**乱数の使用回数と座標がビット単位で一致すること**を、元ゲームの実行記録（参照トレース）との照合で確かめながら移植している。
-- S5 までの戦闘処理は GDScript で書いた。性能が不足したため、戦闘処理全体を C++（GDExtension）へ移す方針に切り替えた。C1 でそのビルド環境が整った。
-- **次の作業は C2**（数学関数と乱数の C++ 化）である。§7 を参照。
+- S5 までの戦闘処理は GDScript で書いた。性能が不足したため、戦闘処理全体を C++（GDExtension）へ移す方針に切り替えた。C1 でそのビルド環境が整い、C2 で数学関数と乱数を C++ に移した。
+- **次の作業は C3**（S3〜S5 の戦闘処理を C++ に移す）である。§7 を参照。
 
 ## 2. 決定事項（ユーザーの判断）
 
@@ -25,6 +25,8 @@
 | 2026-10-19 | モデル分担：Opus は全体設計と最終判断、Sonnet は中核の実装、Haiku は並列の下請け作業 |
 | 2026-10-24 | **戦闘処理全体を C++（GDExtension）に移す**（案A）。GDScript には表示と UI だけを残す |
 | 2026-10-24 | sin/cos の移植元（glibc、LGPL-2.1以降）は当面そのまま使う。配布方針と一緒に S9 で決める |
+| 2026-10-25 | C2：qemu は版とハッシュを固定して `setup_cpp.sh` で入れる。LGPL の sin/cos は別ディレクトリの静的ライブラリにする。C++ は GDScript 版の写しとする。`test_js_math.gd`・`test_rng.gd` は C++ 版だけを試験する。仕様書はリポジトリに入れる |
+| 2026-10-25 | C2：わざと誤りを入れて検出を確かめる検証は行わない。`js_compat.gd` に著作権表示がない件は記録だけ |
 
 ## 3. 進捗
 
@@ -36,8 +38,8 @@
 | S4 | 参照トレースの採取ツール、比較ツール | 完了 | `59247d8` |
 | S5 | 敵とウェーブ（出現の指揮、AI、接触ダメージ）。7本のトレースと全ステップ一致 | 完了 | `b13a389` |
 | C1 | C++ ビルド環境（NDK、godot-cpp、SCons、決定性の検査） | 完了 | `05a4123` |
-| C2 | 数学関数と乱数を C++ に移す | **次** | — |
-| C3 | S3〜S5 の戦闘処理を C++ に移し、7本のトレースで照合する | 未着手 | — |
+| C2 | 数学関数と乱数を C++ に移す（qemu の導入 `79b59f0`、仕様書 `403f51a`） | 完了 | 本書を更新したコミット |
+| C3 | S3〜S5 の戦闘処理を C++ に移し、7本のトレースで照合する | **次** | — |
 | S6 | 武器・弾・ダメージ・経験値（C++ で移植） | 未着手 | — |
 | S7 | 描画と補間（MultiMesh、レイヤー、地形） | 未着手 | — |
 | S8 | UI と入力（HUD、仮想スティック、画面、簡略版レベルアップ） | 未着手 | — |
@@ -58,7 +60,11 @@ godot/                 Godot プロジェクト
   assets/atlas/        元ゲームから抽出した WebP 14枚と配置データ
   tests/               ヘッドレステスト、正解値（golden/）、参照トレース（reference/）、照合用コード（trace/）、性能計測（bench/）
   swarm_native.gdextension   C++ 拡張の定義
-native/                C++ 拡張のソース（SConstruct、build_profile.json、src/）
+native/                C++ 拡張のソース（SConstruct、build_profile.json）
+  src/sim/             Godot に依存しない C++17 の戦闘処理（C2：JsMath と乱数）
+  src/bindings/        Godot との受け渡し（SwarmJsMath、SwarmSeededRng、SwarmGameRng、SwarmFxRng）
+  third_party/glibc_sincos/  LGPL の sin/cos（静的ライブラリ。由来とライセンスは README.md）
+  tests/               C++ 単体テスト（swarm_sim_tests。正解値をビット単位で照合する）
 tools/                 セットアップ、ビルド、抽出、正解値生成、トレース採取・比較のスクリプト
 verification/godot/    各手順の検証記録
 export/                APK の出力先（Git 管理外）
@@ -70,13 +76,13 @@ export/                APK の出力先（Git 管理外）
 
 ```bash
 tools/setup_godot.sh    # Godot 4.7.2、Android テンプレート、build-tools、platform-tools、デバッグ鍵（約1.4GB を取得）
-tools/setup_cpp.sh      # NDK r28b（約720MB、展開後2.2GB）、godot-cpp、SCons。テストだけなら --host-only
+tools/setup_cpp.sh      # NDK r28b（約720MB、展開後2.2GB）、godot-cpp、SCons、qemu-user（ARM のテスト用）。テストだけなら --host-only
 ```
 
 | 目的 | コマンド | 所要時間の目安 |
 | --- | --- | --- |
-| 全テスト（抽出データと正解値の照合、C++ の PC 向けビルド、Godot テスト210件） | `tools/run_godot_tests.sh` | 約1分20秒 |
-| C++ 拡張のビルド（全6種） | `tools/build_native.sh`（PC 向けだけなら `--host-only --debug-only`） | 初回約47秒 |
+| 全テスト（抽出データと正解値の照合、C++ の PC 向けビルドと単体テスト、Godot テスト213件） | `tools/run_godot_tests.sh` | 約2分30秒 |
+| C++ 拡張のビルドと単体テスト（全6種。ARM は qemu で実行） | `tools/build_native.sh`（PC 向けだけなら `--host-only --debug-only`） | 約1〜2分 |
 | デバッグ版 APK の書き出しと検査 | `tools/build_android.sh --skip-tests` | 約30秒 |
 | 元ゲームの参照トレースの採取 | `node tools/reference-trace/capture.mjs --script dirs8 --seed 424242 --out <file>`（先に `tools/reference-trace` で `npm ci` が必要） | — |
 | 移植版のトレースの出力 | `tools/emit_port_trace.sh <参照トレース> <出力> --oracle` | — |
@@ -101,31 +107,36 @@ tools/setup_cpp.sh      # NDK r28b（約720MB、展開後2.2GB）、godot-cpp、
    - 融合命令（FMA）がないこと
    - 依存ライブラリと 16KiB 境界
    - 絶対パスが埋め込まれていないこと
+   - ソース規則（`tools/check_native_sources.py`：float、long、std::sort、スレッド、fma、pragma、Godot の include などの禁止。ライセンス本文のハッシュ）
+5. **C++ 単体テスト**（C2）：`swarm_sim_tests` が全6構成で `math.json`・`rng.json` をビット単位で照合する。`build_native.sh` が毎回実行する。C++ の定数と表は `tools/check_js_compat_consts.mjs` が上流の値・GDScript 版と照合する。
 
-## 7. 次の作業：C2（数学関数と乱数の C++ 化）
+## 7. 次の作業：C3（戦闘処理の C++ 化）
 
-C1 レビューの推奨（設計書 §11 に記録）に従って進める。
+C2 の結果（詳細は `verification/godot/c2/`）：
 
-1. `native/src/sim/` に、Godot に依存しない C++17 で次を書く。
-   - `JsMath`：GDScript 版 `godot/sim/js_compat.gd` と同じアルゴリズムにする
-   - `SeededRng` / `GameRng` / `FxRng`
-   - LGPL の sin/cos（glibc 由来）は独立したライブラリにし、ライセンス文と由来を添える
-2. Godot との受け渡し部分は別ディレクトリに置く。値は PackedFloat64Array/PackedInt64Array で受け渡す（Vector2 や real_t は32ビットなので使わない）。
-3. C++ 単体のテストプログラムで `godot/tests/golden/math.json`・`rng.json` を読み、ビット単位で一致することを確かめる。
-   - 対象は x86_64、arm64、armv7 の3種で、ARM は qemu-user で動かす。
-   - **qemu は現在のコンテナに手動で入れたもので、新しいセッションには入っていない。** `qemu-user-static` の導入をセットアップに加える必要がある。
-4. 守る規則：設計書 §11 の「C2 以降で C++ の戦闘処理に適用する規則」（禁止事項、NaN の扱い、浮動小数の環境の検査など）。
-5. 既存の GDScript テスト（`test_js_math.gd`、`test_rng.gd`）が、C++ 版でも合格するようにする。
+- `JsMath` と `SeededRng` / `GameRng` / `FxRng` を、GDScript 版の写しとして C++ に移した（`native/src/sim/`、`native/third_party/glibc_sincos/`）。
+- 全6構成で、正解値と 519,631 件すべてが一致した（ARM は qemu）。Godot テストは 213 件すべて合格した。
+- C++ 版の速さ（PC、配布用の設定）：sin 約19ns、atan2 約15ns、exp 約9ns、乱数1回 約2ns。GDScript 版の sin は約0.8〜1.0µs である（`bench.txt`）。
 
-その後の C3 では、`godot/sim/` の GDScript（約1万行）を C++ に移す。7本のトレースと正解値をそのまま使って照合し、`tools/bench_sim.sh` で性能を再計測する。
+C3 では次を行う。
+
+1. `godot/sim/` の GDScript（約1万行）を `native/src/sim/` の C++ に移す。数学関数と乱数は C2 のもの（`swarm::sim::js::`、`GameRng`）を使う。
+2. GDScript との受け渡しは `native/src/bindings/` に置く。値は PackedFloat64Array / PackedInt64Array で受け渡す。
+3. 7本の参照トレースと正解値をそのまま使って照合する。照合の仕組み（`godot/tests/trace/`）を C++ 版に向ける。
+4. `tools/bench_sim.sh` で性能を再計測する（目標：敵100体で1ステップ4ms以下）。
+5. 移し終えたら、GDScript 版の戦闘処理と `js_compat.gd`・乱数3ファイルを削除する（表示と UI だけを GDScript に残す）。
+6. 守る規則は設計書 §11 と `tools/check_native_sources.py` のとおり。戦闘処理の開始時に `fp_environment_ok` を呼ぶ。
 
 ## 8. 既知の問題・リスク・未確認事項
 
 | 項目 | 内容 | 対応時期 |
 | --- | --- | --- |
-| 性能 | GDScript 版は敵100体で1ステップ 5〜6.5ms（配布用テンプレート、PC）。目標は4ms。原因は GDScript の処理の重さである | C3 で C++ 化し、再計測する |
+| 性能 | GDScript 版は敵100体で1ステップ 5〜6.5ms（配布用テンプレート、PC）。目標は4ms。原因は GDScript の処理の重さである。C2 で数学関数と乱数は C++ になったが、戦闘処理はまだ GDScript 版を使う | C3 で C++ 化し、再計測する |
 | 実機未確認 | Android 端末でのインストール、起動、ビット一致、速度は一度も確かめていない | S9（端末が必要） |
-| ライセンス | sin/cos の移植元は LGPL-2.1以降である | S9 で配布方針と一緒に決める |
+| ライセンス | sin/cos は LGPL-2.1以降で、C2 から静的ライブラリとして拡張に組み込んでいる。静的リンクで配布するなら、再リンクできるようにする義務がある（LGPL §6）。配布用の APK は作っていない | S9 で配布方針と一緒に決める（`native/THIRD_PARTY_NOTICES.md`） |
+| ライセンス表示の欠落 | 【事実】`godot/sim/js_compat.gd` には glibc と fdlibm の著作権表示がない（ユーザー判断で記録だけ） | C3 で GDScript 版を消す |
+| GDScript 版の数学関数の照合 | C2 から `test_js_math.gd`・`test_rng.gd` は C++ 版だけを試験する（ユーザー判断）。GDScript 版は参照トレースの照合で間接的に守られる | C3 で GDScript 版を消す |
+| qemu の限界 | ARM での一致は qemu-user で確かめた。実機の FPU の設定（flush-to-zero など）は確かめていない | S9（端末が必要） |
 | 署名 | デバッグ用の使い捨て鍵だけを使っている。配布用の鍵は未作成である | S9（ユーザーの確認を取ってから作る） |
 | Godot 4.7.2 の不具合 | 作業ツリーを新しく取り出した直後の初回の取り込みで、C++ 拡張を読み込むと異常終了する。`tools/lib/godot_project.sh` の回避策で防いでいる | 回避済み |
 | provider の重複 | Gradle なしの書き出しで、2つの provider が同じ authority を持つ。端末での影響は未確認で、ビルド時に警告を出している | 実機確認時 |
@@ -134,16 +145,16 @@ C1 レビューの推奨（設計書 §11 に記録）に従って進める。
 | 大きなテクスチャ | `signature_fx.webp` は 512×2944 である。OpenGL ES 3.0 で保証される最大サイズ（2048）を超える | S7 |
 | 粒子の数 | 粒子が1,100個以上になると、ダメージ数字の表示が乱数を引かなくなる。そのため、元と同じ数を保つ必要がある | S7 |
 | W4 の照合 | W4 は、コミットしていない 8,640 ステップのトレースでしか確かめていない | S6 でハッシュ等を用いてコミットする |
-| 分析資料 | 各手順の分析仕様（元ゲームの関数の詳細な読み解き）は、作業用の一時領域にしかなく、新しいセッションでは消える。移植済みの GDScript と設計書が、その代わりの資料になる | — |
-| 残骸 | 検証用エージェントが、コンテナのルート直下に一時ファイル2つ（`/capture_fx2222.log`、`/dirs8_424242_fx2222.jsonl`）を残した。ユーザーの判断で残している。リポジトリとは無関係である | — |
+| 分析資料 | S5 までの分析仕様は一時領域にしかなく、消えている。移植済みの GDScript と設計書がその代わりになる。C2 からは仕様書をリポジトリに入れている（`verification/godot/c2/spec.md`） | — |
 
 ## 9. 作業の進め方（これまでの方式）
 
 - 各手順の前後でユーザーの確認を取る。ファイルや資料を作る前にも確認する。
+- 各手順の仕様書は `verification/godot/<手順>/spec.md` としてリポジトリに入れる（C2 から）。
 - 手順は次の流れで進め、合格するまで修正とレビューを繰り返す。
   1. 分析（Opus）
   2. 実装（Sonnet）
-  3. 検証（Haiku）：テストと照合の再実行、わざと誤りを入れて検出できるかの確認
+  3. 検証（Haiku）：テストと照合の再実行、わざと誤りを入れて検出できるかの確認（C2 では、ユーザーの判断で再実行だけを行った）
   4. レビュー（Opus）
   5. 修正（Sonnet）
 - コミットは、最終確認（テストと APK 検査の再実行）のあと、オーケストレーター（Opus）が行う。サブエージェントには git の書き込み操作をさせない。

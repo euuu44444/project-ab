@@ -4,7 +4,9 @@
 # SDK levels, ABIs, permissions) against godot/export_presets.cfg.
 # Signing uses the throwaway DEBUG keystore created by tools/setup_godot.sh.
 # The C++ extension (native/) is built for every target first (tools/build_native.sh, needs the full
-# tools/setup_cpp.sh including the Android NDK; the tests alone need only the host part), every library the
+# tools/setup_cpp.sh including the Android NDK and qemu-user; the tests alone need only the host part), and its C++ unit
+# tests (swarm_sim_tests against the golden vectors, step C2) are run for every configuration, the ARM ones under qemu-user;
+# a failing test fails this script. Every library the
 # descriptor names (linux and android, debug and release) must exist, and the APK must carry its arm64-v8a and
 # armeabi-v7a libraries. On a fresh checkout the extension is listed in godot/.godot/extension_list.cfg before the
 # first Godot start (tools/lib/godot_project.sh), which avoids a crash of the Godot 4.7.2 editor in the first import.
@@ -173,10 +175,11 @@ describe_failure() { # describe_failure <what> <exit code> <seconds> <env var th
   esac
 }
 
-# ---- 0. Native libraries (step C1) ----------------------------------------------------------------
+# ---- 0. Native libraries (steps C1, C2) ----------------------------------------------------------------
 # The C++ extension has to be built for every target before anything loads or exports the project: the
 # editor loads the linux library at startup, and the exporter packs the Android libraries. The build is
-# incremental, and it checks each library (ELF, 16 KiB alignment, no FMA) and fails the build otherwise.
+# incremental, and it checks each library (ELF, 16 KiB alignment, no FMA) and runs the C++ unit tests of every
+# configuration (x86_64 natively, ARM under qemu-user), and fails the build otherwise.
 log "building the native extension for linux and android (incremental) ..."
 native_rc=0
 native_args=()
@@ -187,7 +190,7 @@ if ((native_rc != 0)); then
   record FAIL "native libraries" "build_native.sh exited with code $native_rc"
   finish
 fi
-record PASS "native libraries" "$(grep -c '^PASS ' "$OUT_DIR/native-build.log") configurations built and checked (ELF, 16 KiB alignment, no embedded build paths, no FMA in any object)"
+record PASS "native libraries" "$(grep -c '^PASS ' "$OUT_DIR/native-build.log") configurations built and checked (ELF, 16 KiB alignment, no embedded build paths, no FMA in any object, swarm_sim_tests passed)"
 
 # Every library the descriptor names must exist: the debug APK packs only the android debug ones, but the linux and
 # the release libraries are only built here (tools/run_godot_tests.sh builds just the linux debug library).

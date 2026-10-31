@@ -8,8 +8,11 @@
 # The C++ extension (native/, library swarm_native) is built first, for the host and as template_debug only
 # (tools/build_native.sh --host-only --debug-only: the library the editor loads; incremental, a few seconds
 # when nothing changed), so the tests always run against the current C++ code. That needs the host toolchain
-# only (tools/setup_cpp.sh --host-only is enough: no Android NDK). The release libraries and the Android
-# ones are built, and checked to exist, by tools/build_android.sh.
+# only (tools/setup_cpp.sh --host-only is enough: no Android NDK, no qemu). The same step checks the C++ sources
+# (tools/check_native_sources.py) and runs the C++ unit test program (swarm_sim_tests against the golden vectors) for the
+# host library; a failure there stops this script before Godot starts. The Godot tests then exercise the same code through
+# the bindings (SwarmJsMath, SwarmSeededRng, SwarmGameRng, SwarmFxRng). The release libraries and the Android ones are built,
+# tested (the ARM ones under qemu-user) and checked to exist by tools/build_android.sh.
 #
 # On a fresh checkout (no godot/.godot) the extension is listed in godot/.godot/extension_list.cfg before the
 # first import: otherwise the Godot 4.7.2 editor can crash at the end of that import (tools/lib/godot_project.sh).

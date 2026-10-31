@@ -11,6 +11,15 @@ Everything else (godot-cpp's generated bindings, its static library, our object 
 database) lives in $SWARM_NATIVE_BUILD_DIR/<platform>.<target>.<arch>/, outside the repository and
 outside the godot-cpp checkout, which stays exactly at its pinned commit.
 
+Three things are built from three source trees (step C2):
+  native/src/**.cpp                      the library libswarm_native (the bindings to Godot in src/bindings, the
+                                         Godot-free simulation code in src/sim)
+  native/third_party/glibc_sincos/*.cpp  the LGPL sin/cos, compiled with the same flags into the static library
+                                         libswarm_glibc_sincos.a (in the build directory), which is linked into the .so
+  native/tests/*.cpp                     the test program swarm_sim_tests (in the build directory, not in out_dir): the
+                                         objects of native/src/sim, the same libswarm_glibc_sincos.a and the test
+                                         sources, linked without godot-cpp (Android: -static, so that qemu-user can run it)
+
 Nothing else is accepted on the command line, and the godot-cpp options are fixed here (api_version,
 optimize=speed_trace, precision=single, lto=none, production=no, the build profile native/build_profile.json,
 use_llvm for Linux), so no option can change what is built. SCONSFLAGS and SCONS_CACHE in the environment
@@ -19,8 +28,10 @@ are refused too (tools/build_native.sh runs scons without them).
 Floating point is deterministic by construction (the simulation must match the original game bit for
 bit): -ffp-contract=off keeps the compiler from fusing a*b+c into one FMA instruction. The build refuses
 to continue unless the fully substituted compile command of EVERY source file (ours and godot-cpp's, C and
-C++), and the link command of the library, consist only of flags on an allowlist (FP_COMPILE_FLAGS and
-friends below), and the compile commands contain -ffp-contract=off, -fno-fast-math and -O2. So -ffast-math,
+C++; the sources of native/src, native/third_party and native/tests too), the link commands of the library and of
+the test program, and the archive command of the static library (only the program is checked there), consist only of flags
+on an allowlist (FP_COMPILE_FLAGS and friends below), and the compile commands contain -ffp-contract=off,
+-fno-fast-math and -O2. So -ffast-math,
 -Ofast, -O3, -ffp-model=*, -mdaz-ftz, -fdenormal-fp-math=*, -fno-honor-*, -mfpmath=*, -ffloat-store,
 -fexcess-precision=*, -march=native, -mfma, -flto and everything else that is not listed stops the build,
 whichever variable (CCFLAGS, CFLAGS, CXXFLAGS, SHC*FLAGS, CPPFLAGS, LINKFLAGS, SHLINKFLAGS, CC, CXX, SHCXX,
@@ -36,7 +47,7 @@ import sys
 
 from SCons.Errors import UserError
 
-SWARM_NATIVE_VERSION = "0.1.0-c1"
+SWARM_NATIVE_VERSION = "0.2.0-c2"
 LIBRARY_NAME = "swarm_native"
 
 PLATFORMS = ("linux", "android")
@@ -48,8 +59,13 @@ ALLOWED_ARGUMENTS = ("platform", "target", "arch", "out_dir", "verbose")
 # Environment variables that change what scons builds. tools/build_native.sh removes them; a direct call is refused.
 FORBIDDEN_ENVIRONMENT = ("SCONSFLAGS", "SCONS_CACHE")
 
-# Source layout: every *.cpp below native/src (any depth) is part of the library. Step C2 adds subdirectories.
+# Source layout: every *.cpp below native/src (any depth) is part of the library; every *.cpp below
+# native/third_party goes into the static library; every *.cpp below native/tests into the test program.
 SOURCE_DIR_NAME = "src"
+THIRD_PARTY_DIR_NAME = "third_party"
+TESTS_DIR_NAME = "tests"
+STATIC_LIBRARY_NAME = "swarm_glibc_sincos"  # libswarm_glibc_sincos.a
+TEST_PROGRAM_NAME = "swarm_sim_tests"
 BUILD_PROFILE_NAME = "build_profile.json"
 NOT_CPP_SOURCE_SUFFIXES = (".c", ".cc", ".cxx", ".c++", ".cp", ".C", ".s", ".S", ".asm")
 
@@ -74,6 +90,10 @@ FP_COMPILE_FLAGS = [
     "-ffp-contract=off", "-fno-fast-math",
 ]
 FP_LINK_FLAGS = ["-o", "-shared", "-fvisibility=hidden", "-s", "-Wl,--gc-sections"]
+# The test program is linked like the library, but it is an executable ("-shared" is not allowed for it) and on Android
+# it is static: qemu-user runs a static executable without an Android linker and libc.
+PROGRAM_LINK_FLAGS = [flag for flag in FP_LINK_FLAGS if flag != "-shared"]
+PROGRAM_PLATFORM_LINK_FLAGS = {"linux": [], "android": ["-static"]}
 # Per target: code generation (compile and link) flags, and what only the compiler gets.
 ARCH_FLAGS = {
     ("linux", "x86_64"): ["-m64", "-march=x86-64"],
@@ -195,8 +215,10 @@ SConsignFile(os.path.join(build_dir, ".sconsign.dblite"))  # not next to the sou
 # The build profile (native/build_profile.json): godot-cpp then generates bindings only for the engine classes
 # this extension uses (and their base classes) instead of all 1,036: about 60 files per configuration instead
 # of 1,093 (a cold build takes seconds, not minutes). The set was found by building with smaller ones:
-#   RefCounted  the base class of SwarmNative (Object comes with it; godot-cpp always adds ClassDB,
-#               WorkerThreadPool, FileAccess, Image and XMLParser)
+#   RefCounted  the base class of SwarmNative and of the classes of step C2 (SwarmJsMath, SwarmSeededRng, SwarmGameRng,
+#               SwarmFxRng; Object comes with it; godot-cpp always adds ClassDB, WorkerThreadPool, FileAccess, Image and
+#               XMLParser). Step C2 needed no other engine class: Array, String, PackedFloat64Array and
+#               UtilityFunctions::push_error are builtin types and functions, not classes.
 #   OS          godot-cpp's own src/core/print_string.cpp calls OS::get_singleton(); it does not compile without
 # Engine and SceneTree are not needed (src/classes/low_level.cpp uses them only if their headers exist).
 # C++ code that starts to use another engine class (Time, Engine, ...) must add it to the profile.
@@ -280,30 +302,75 @@ if platform == "android":
 if platform == "android" and arch in ("arm64", "x86_64"):
     env.Append(LINKFLAGS=["-Wl,-z,max-page-size=16384"])
 
-# ---- The extension ------------------------------------------------------------------------------
-# Every *.cpp below native/src, at any depth, in a fixed order. The build directory mirrors the tree.
+# ---- The extension, the static library and the test program ------------------------------------------
+def collect_cpp_sources(directory_name):
+    """Every *.cpp below native/<directory_name>, at any depth, in a fixed order (paths relative to that directory)."""
+    root = os.path.join(native_dir, directory_name)
+    found = []
+    for directory, subdirectories, names in os.walk(root):
+        subdirectories.sort()
+        for name in sorted(names):
+            relative = os.path.relpath(os.path.join(directory, name), root)
+            if name.endswith(".cpp"):
+                found.append(relative)
+            elif name.endswith(NOT_CPP_SOURCE_SUFFIXES):
+                fail("%s/%s: only .cpp files are compiled; rename it or extend native/SConstruct" % (directory_name, relative))
+    if not found:
+        fail("no .cpp files below %s" % root)
+    return found
+
+
+# The build directory mirrors the three trees.
 ext_build_dir = os.path.join(build_dir, LIBRARY_NAME)
+third_party_build_dir = os.path.join(build_dir, THIRD_PARTY_DIR_NAME)
+tests_build_dir = os.path.join(build_dir, TESTS_DIR_NAME)
 VariantDir(ext_build_dir, SOURCE_DIR_NAME, duplicate=0)
-cpp_sources = []
-for directory, subdirectories, names in os.walk(source_dir):
-    subdirectories.sort()
-    for name in sorted(names):
-        relative = os.path.relpath(os.path.join(directory, name), source_dir)
-        if name.endswith(".cpp"):
-            cpp_sources.append(relative)
-        elif name.endswith(NOT_CPP_SOURCE_SUFFIXES):
-            fail("%s/%s: only .cpp files are compiled; rename it or extend native/SConstruct" % (SOURCE_DIR_NAME, relative))
-if not cpp_sources:
-    fail("no .cpp files below %s" % source_dir)
+VariantDir(third_party_build_dir, THIRD_PARTY_DIR_NAME, duplicate=0)
+VariantDir(tests_build_dir, TESTS_DIR_NAME, duplicate=0)
+cpp_sources = collect_cpp_sources(SOURCE_DIR_NAME)
+third_party_sources = collect_cpp_sources(THIRD_PARTY_DIR_NAME)
+test_sources = collect_cpp_sources(TESTS_DIR_NAME)
 
 env.Append(CPPPATH=[ext_build_dir])
 own_ccflags = list(env.Flatten(env["CCFLAGS"])) + [prefix_map_flag(own_path_map)]
+# Include paths of our own code, given per source (an env.Append would reach godot-cpp's compile commands too):
+# the library finds "glibc_sincos/glibc_sincos.h" below native/third_party; the tests find "sim/js_math.h" below native/src.
+third_party_include = os.path.join(native_dir, THIRD_PARTY_DIR_NAME)
+library_cpppath = list(env.Flatten(env["CPPPATH"])) + [third_party_include]
+test_cpppath = library_cpppath + [source_dir]
+
+# The library: native/src/**.cpp, shared objects (-fPIC), and the static library of the LGPL sin/cos.
 objects = []
 for relative in cpp_sources:
-    objects += env.SharedObject(env.File(os.path.join(ext_build_dir, relative)), CCFLAGS=own_ccflags)
+    objects += env.SharedObject(env.File(os.path.join(ext_build_dir, relative)), CCFLAGS=own_ccflags, CPPPATH=library_cpppath)
+third_party_objects = []
+for relative in third_party_sources:
+    third_party_objects += env.SharedObject(env.File(os.path.join(third_party_build_dir, relative)), CCFLAGS=own_ccflags)
+static_library = env.StaticLibrary(
+    target=os.path.join(build_dir, "lib%s%s" % (STATIC_LIBRARY_NAME, env["LIBSUFFIX"])),
+    source=third_party_objects,
+)
 library = env.SharedLibrary(
     target=os.path.join(out_dir, "lib%s%s%s" % (LIBRARY_NAME, env["suffix"], env["SHLIBSUFFIX"])),
     source=objects,
+    LIBS=list(env.Flatten(env["LIBS"])) + static_library,
+)
+
+# The test program: the objects of native/src/sim (the very objects the library links: the simulation code is tested
+# as it is delivered), the same static library, and the test sources. No godot-cpp.
+sim_objects = [node for relative, node in zip(cpp_sources, objects) if relative.split(os.sep)[0] == "sim"]
+if not sim_objects:
+    fail("no .cpp files below native/src/sim")
+test_objects = []
+for relative in test_sources:
+    test_objects += env.Object(env.File(os.path.join(tests_build_dir, relative)), CCFLAGS=own_ccflags, CPPPATH=test_cpppath)
+program_link_flags = list(env.Flatten(env["LINKFLAGS"])) + PROGRAM_PLATFORM_LINK_FLAGS[platform]
+program = env.Program(
+    target=os.path.join(build_dir, TEST_PROGRAM_NAME),
+    source=sim_objects + test_objects,
+    LIBS=static_library,
+    LINKFLAGS=program_link_flags,
+    PROGSUFFIX="",
 )
 
 # ---- Guard rails on the floating-point flags ------------------------------------------------------
@@ -314,7 +381,11 @@ arch_flags = ARCH_FLAGS[(platform, arch)]
 compile_allowed = FP_COMPILE_FLAGS + arch_flags + ARCH_COMPILE_ONLY_FLAGS.get((platform, arch), []) + [
     prefix_map_flag(m) for m in path_maps + [own_path_map]
 ]
-link_allowed = FP_LINK_FLAGS + arch_flags + PLATFORM_LINK_FLAGS[platform] + ARCH_LINK_ONLY_FLAGS.get((platform, arch), [])
+library_link_allowed = FP_LINK_FLAGS + arch_flags + PLATFORM_LINK_FLAGS[platform] + ARCH_LINK_ONLY_FLAGS.get((platform, arch), [])
+program_link_allowed = (
+    PROGRAM_LINK_FLAGS + arch_flags + PLATFORM_LINK_FLAGS[platform] + ARCH_LINK_ONLY_FLAGS.get((platform, arch), [])
+    + PROGRAM_PLATFORM_LINK_FLAGS[platform]
+)
 prefix_maps_required = [prefix_map_flag(m) for m in path_maps]
 
 if set(env["ENV"]) - {"PATH"}:  # CCC_OVERRIDE_OPTIONS and friends can add flags to every clang call
@@ -330,6 +401,20 @@ for relative, node in zip(cpp_sources, objects):
     )
     own_compile.append(tokens)
     guard_report.append("own source  native/src/%s\n  %s" % (relative, " ".join(tokens)))
+for relative, node in zip(third_party_sources, third_party_objects):
+    tokens = command_tokens(node.get_build_env(), "SHCXXCOM", [node], node.sources)
+    check_command(
+        "compile command of native/third_party/%s" % relative, tokens, cxx_program, compile_allowed,
+        REQUIRED_COMPILE_FLAGS + prefix_maps_required + [prefix_map_flag(own_path_map)],
+    )
+    guard_report.append("third party  native/third_party/%s\n  %s" % (relative, " ".join(tokens)))
+for relative, node in zip(test_sources, test_objects):
+    tokens = command_tokens(node.get_build_env(), "CXXCOM", [node], node.sources)
+    check_command(
+        "compile command of native/tests/%s" % relative, tokens, cxx_program, compile_allowed,
+        REQUIRED_COMPILE_FLAGS + prefix_maps_required + [prefix_map_flag(own_path_map)],
+    )
+    guard_report.append("test source  native/tests/%s\n  %s" % (relative, " ".join(tokens)))
 
 # godot-cpp's objects (every one: they are compiled with the same environment, but a per-file override
 # would be visible only here), checked for each distinct set of flags.
@@ -358,18 +443,31 @@ for variable in ("SHCCCOM", "CCCOM"):
     tokens = command_tokens(env, variable, [probe_object], [probe_c])
     check_command("$%s (C code)" % variable, tokens, cc_program, compile_allowed, REQUIRED_COMPILE_FLAGS)
 tokens = command_tokens(library[0].get_build_env(), "SHLINKCOM", library, objects)
-check_command("link command of the library", tokens, cxx_program, link_allowed)
-guard_report.append("link\n  %s" % " ".join(tokens))
+check_command("link command of the library", tokens, cxx_program, library_link_allowed)
+guard_report.append("link of the library\n  %s" % " ".join(tokens))
 link_tokens = tokens
+# The test program is an executable: no -shared, and -static on Android.
+tokens = command_tokens(program[0].get_build_env(), "LINKCOM", program, sim_objects + test_objects)
+check_command("link command of the test program", tokens, cxx_program, program_link_allowed)
+guard_report.append("link of the test program\n  %s" % " ".join(tokens))
+# The static library is made by ar (llvm-ar from the NDK; ar on the host). It compiles nothing; the check is that
+# the program is the expected one and no option is passed (ar's flags such as "rc" carry no dash).
+tokens = command_tokens(static_library[0].get_build_env(), "ARCOM_ORIG", static_library, third_party_objects)
+check_command("archive command of the static library", tokens, str(env.subst("$AR")), [])
+guard_report.append("archive of the static library\n  %s" % " ".join(tokens))
 
 # Evidence of what was checked, kept next to the objects (tools/build_native.sh copies it with --evidence-dir).
 with open(os.path.join(build_dir, "flag-guard.txt"), "w", encoding="utf-8") as f:
     f.write("# %s: commands checked against the floating-point allowlist by native/SConstruct (passed)\n" % config)
-    f.write("# allowed compile flags: %s\n# allowed link flags: %s\n\n" % (" ".join(compile_allowed), " ".join(link_allowed)))
+    f.write("# allowed compile flags: %s\n" % " ".join(compile_allowed))
+    f.write("# allowed link flags (library): %s\n# allowed link flags (test program): %s\n\n" % (" ".join(library_link_allowed), " ".join(program_link_allowed)))
     f.write("\n".join(guard_report) + "\n")
-# The objects of our own code, relative to the build directory: the FMA scan of tools/build_native.sh reads this list.
+# The objects of our own code that are linked into the library (native/src and native/third_party), and those of the
+# test program (native/tests), relative to the build directory: the FMA scan of tools/build_native.sh reads these lists.
 with open(os.path.join(build_dir, "own-objects.txt"), "w", encoding="utf-8") as f:
-    f.write("".join(os.path.relpath(node.get_abspath(), build_dir) + "\n" for node in objects))
+    f.write("".join(os.path.relpath(node.get_abspath(), build_dir) + "\n" for node in objects + third_party_objects))
+with open(os.path.join(build_dir, "test-objects.txt"), "w", encoding="utf-8") as f:
+    f.write("".join(os.path.relpath(node.get_abspath(), build_dir) + "\n" for node in test_objects))
 
 # ---- build_info.gen.h: what SwarmNative.version() reports ------------------------------------------
 fp_summary = []
@@ -406,4 +504,4 @@ build_info = env.Command(
 for relative, node in zip(cpp_sources, objects):
     if relative == "build_info.cpp":
         env.Depends(node, build_info)
-Default(library)
+Default(library, program)

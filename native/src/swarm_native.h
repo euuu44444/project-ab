@@ -8,8 +8,10 @@
 namespace swarm {
 
 // Entry point of the extension for GDScript: SwarmNative.version() and friends are static methods.
-// Step C1 only proves the toolchain (loading, build identity, deterministic floating point); the
-// combat simulation moves here in C2/C3 (docs/godot-port-design.md section 5.5).
+// Step C1 only proves the toolchain (loading, build identity, deterministic floating point). Step C2 added the
+// numerics and random number generators as the classes of bindings/ (SwarmJsMath, SwarmSeededRng, SwarmGameRng,
+// SwarmFxRng) on top of the Godot-free code in sim/; the rest of the combat simulation moves here in C3
+// (docs/godot-port-design.md section 5.5).
 class SwarmNative : public godot::RefCounted {
 	GDCLASS(SwarmNative, godot::RefCounted)
 

@@ -180,6 +180,7 @@ character/berserker, character/sentinel, player/reaction-buffs, **player/movemen
     - S6：武器と弾を最初から C++ で移植する
   - C++ は浮動小数の演算を融合させない（`-ffp-contract=off`）。`-ffast-math` 系の最適化は使わない。arm64 の clang は既定で a*b+c を1命令（FMA）にまとめ、結果が変わるためである。
   - 照合の方法（正解値・参照トレース）は今と同じものを使う。
+- 【事実：C2 の実測】C++ 版の数学関数と乱数の1回あたりの時間（`verification/godot/c2/bench.txt`。PC、配布用と同じ `-O2 -ffp-contract=off`、中央値）：sin 18〜20ns、cos 18〜21ns、atan2 14〜15ns、exp 約9ns、log 約8ns、hypot 約4ns、乱数1回 1.5〜2ns。GDScript 版（sin 約0.8〜1.0µs）の約40〜50分の1である。GDScript から1回ずつ呼ぶと、呼び出しの負担が大半を占める。そのため C3 では、戦闘処理全体を C++ で動かす。
 - **ライセンス【事実】**：sin/cos の移植元である glibc s_sin.c は LGPL-2.1 以降である。fdlibm（atan2/exp/log）は、著作権表示を残せば自由に使える。
   - ユーザーの判断（2026-10-24）：当面はそのまま使う。配布方針と一緒に S9 で決める。
   - それまで LGPL の部分は別ファイルに分け、ライセンス表示を付けておく。
@@ -341,6 +342,11 @@ S1 で実際に組んだ構成である。
    - 書き出した APK では、拡張は `lib/arm64-v8a/` と `lib/armeabi-v7a/` に入る。
    - arm64/armv7 の実行は、qemu-user（PC 上で ARM 用のプログラムを動かすツール）で確かめた。実機では確認していない。
 10. 【事実：S1 で確認】書き出した APK では、FileProvider と androidx.startup の InitializationProvider が同じ authority を持っている。Godot 4.7.2 の書き出し処理がすべての provider の authority を `<パッケージ名>.fileprovider` に書き換えるためである。端末での影響は【未確認】で、`build_android.sh` は警告として表示する。
+11. C2 で加えた構成【事実：C2 で構築】（詳細は `verification/godot/c2/spec.md`）：
+   - `native/src/sim/`：Godot に依存しない C++17（`JsMath` と乱数）。`native/src/bindings/`：Godot との受け渡し。
+   - `native/third_party/glibc_sincos/`：LGPL の sin/cos。静的ライブラリ `libswarm_glibc_sincos.a` にして拡張にリンクする。
+   - `native/tests/`：単体テストプログラム `swarm_sim_tests`。ライブラリと同じ `sim` のオブジェクトをリンクする（Android は `-static`）。
+   - `tools/build_native.sh` は、ビルドの前に `tools/check_native_sources.py`（ソース規則）を実行する。構成ごとに `swarm_sim_tests` で正解値を照合し、ARM は qemu-user（`setup_cpp.sh` が版を固定して入れる）で動かす。
 
 ## 11. 実装手順（各手順の前後でユーザーの確認を取る）
 
@@ -362,6 +368,11 @@ S1 で実際に組んだ構成である。
   - W1〜W4 を通した 8,640 ステップの検証用トレース（コミットしていない）でも一致した。
   - M1 用の終了処理として、W4 終了時に勝利で終わる処理（`WaveRules.M1_LAST_WAVE = 4`）を加えた。
 - C1 の結果【事実】：C++ 拡張を全6種でビルドでき、Godot（PC）で読み込めることと、APK に同梱されることを確かめた。テスト210件はすべて合格した。
+- C2 の結果【事実】：
+  - `JsMath` と乱数3種を、GDScript 版の写しとして C++ に移した（ユーザーの判断）。
+  - 全6構成で正解値と 519,631 件すべてが一致した（arm64・armv7 は qemu-user 8.2.2）。Godot テストは 213 件すべて合格した（`test_js_math.gd`・`test_rng.gd` は C++ 版だけを試験する）。
+  - C++ の定数と表は、`check_js_compat_consts.mjs` で上流の値・GDScript 版と照合した。記録は `verification/godot/c2/`（`spec.md`、`build.txt`、`tests.txt`、`bench.txt`、`review.md`）にある。
+  - GDScript の戦闘処理は、C3 まで GDScript 版の `JsMath` と乱数を使い続ける。
 - C2 以降で C++ の戦闘処理に適用する規則（C1 レビューの推奨を採用）：
   1. 構成：
      - `native/src/sim/` は Godot に依存しない純粋な C++17 にする。数学、乱数、状態、システムの順に追加していく。

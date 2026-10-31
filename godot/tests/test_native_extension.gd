@@ -1,10 +1,31 @@
 extends "res://tests/test_case.gd"
 ## The C++ extension (native/, library swarm_native) loads in the headless editor and behaves as the
 ## C1 contract says (docs/godot-port-design.md section 5.5): build identity, deterministic IEEE
-## floating point (no fused multiply-add), exact int64 arithmetic.
+## floating point (no fused multiply-add), exact int64 arithmetic. Step C2 adds the classes SwarmJsMath, SwarmSeededRng,
+## SwarmGameRng and SwarmFxRng (their results are checked against the golden vectors by test_js_math.gd and test_rng.gd; here:
+## that they are registered, what they expose, and that the floating-point environment is the one the simulation needs).
 ## Whether the descriptor and the library files exist is checked by test_native_files.gd.
 
 const DESCRIPTOR_PATH: String = "res://swarm_native.gdextension"
+const NATIVE_VERSION: String = "0.2.0-c2"
+const SWARM_CLASSES: PackedStringArray = ["SwarmJsMath", "SwarmSeededRng", "SwarmGameRng", "SwarmFxRng"]
+## The methods each C2 class has (verification/godot/c2/spec.md sections 7.2 and 7.3), and the properties.
+const SWARM_METHODS: Dictionary = {
+	"SwarmJsMath": [
+		"sin", "cos", "atan", "atan2", "exp", "log", "hypot", "js_round", "trunc", "js_mod", "js_max", "js_min", "max3", "min3",
+		"max5", "min5", "max_n", "min_n", "clamp", "sqrt", "floor", "ceil", "abs", "pow", "to_int32", "to_uint32", "i32", "imul",
+		"shl", "sar", "shr_u", "to_bits", "from_bits", "neg_zero", "fp_environment_ok", "fp_environment_reason",
+	],
+	"SwarmSeededRng": ["set_seed", "next_u32", "next_float", "normalize_seed", "get_state", "set_state"],
+	"SwarmGameRng": ["set_seed", "random", "rand", "randi", "chance", "index", "shuffle", "get_draws", "get_seed_value"],
+	"SwarmFxRng": ["set_seed", "random", "rand_fx", "randi_fx", "chance_fx"],
+}
+const SWARM_PROPERTIES: Dictionary = {
+	"SwarmJsMath": [],
+	"SwarmSeededRng": ["state"],
+	"SwarmGameRng": ["draws", "seed_value"],
+	"SwarmFxRng": [],
+}
 const INT64_MAX: int = 9223372036854775807
 const INT64_MIN: int = -9223372036854775807 - 1
 
@@ -40,11 +61,58 @@ func test_version_identifies_the_build() -> void:
 			assert_eq(found.get_string(1), pinned, "the commit in the binary is the pinned one")
 	assert_true(text.contains(".template_debug.") or text.contains(".template_release."), "names the build target: %s" % text)
 	assert_true(text.contains("linux.") and text.contains(".x86_64"), "this run uses the linux x86_64 library: %s" % text)
+	assert_true(text.contains(NATIVE_VERSION), "names the library version %s: %s" % [NATIVE_VERSION, text])
 	assert_true(text.contains("fp flags: "), "lists the floating-point flags: %s" % text)
 	assert_true(text.contains("-ffp-contract=off"), "FMA contraction is off: %s" % text)
 	assert_true(text.contains("-O2"), "optimization level -O2: %s" % text)
 	for forbidden: String in ["-ffast-math", "-Ofast", "-funsafe-math-optimizations", "-ffinite-math-only", "-fassociative-math"]:
 		assert_false(text.contains(forbidden), "no %s: %s" % [forbidden, text])
+
+
+func test_c2_classes_are_registered_and_are_ref_counted() -> void:
+	for swarm_class: String in SWARM_CLASSES:
+		assert_true(ClassDB.class_exists(swarm_class), "class %s is registered" % swarm_class)
+		assert_true(ClassDB.can_instantiate(swarm_class), "%s can be instantiated" % swarm_class)
+		assert_eq(ClassDB.get_parent_class(swarm_class), &"RefCounted", "%s extends RefCounted" % swarm_class)
+		var instance: Variant = ClassDB.instantiate(swarm_class)
+		assert_true(instance is RefCounted, "an instance of %s is a RefCounted" % swarm_class)
+
+
+func test_c2_classes_expose_the_documented_methods_and_properties() -> void:
+	for swarm_class: String in SWARM_CLASSES:
+		for method: String in (SWARM_METHODS[swarm_class] as Array):
+			assert_true(ClassDB.class_has_method(swarm_class, method, true), "%s has the method %s" % [swarm_class, method])
+		var properties: PackedStringArray = PackedStringArray()
+		for info: Dictionary in ClassDB.class_get_property_list(swarm_class, true):
+			properties.append(info["name"] as String)
+		for property: String in (SWARM_PROPERTIES[swarm_class] as Array):
+			assert_true(properties.has(property), "%s has the property %s" % [swarm_class, property])
+
+
+func test_floating_point_environment_is_suitable() -> void:
+	# Round to nearest, subnormal numbers kept (design section 11, rule 5): what the simulation needs. The debug library also checks
+	# this when it loads and reports an engine error otherwise, which would fail the run of the tests.
+	assert_true(SwarmJsMath.fp_environment_ok(), "the floating-point environment: %s" % SwarmJsMath.fp_environment_reason())
+	assert_eq(SwarmJsMath.fp_environment_reason(), "", "no reason is given when the environment is fine")
+	# The engine's own arithmetic in the same thread agrees: 2^-1074 is not flushed, DBL_MIN / 2 is a subnormal number.
+	var tiny: float = SwarmJsMath.from_bits(1)
+	assert_true(tiny > 0.0, "the smallest subnormal number is not zero")
+	assert_true(tiny * 1.0 > 0.0 and SwarmJsMath.from_bits(0x0010000000000000) * 0.5 > 0.0, "subnormal inputs and results are kept")
+
+
+func test_default_seeds_of_the_generators() -> void:
+	var game: SwarmGameRng = SwarmGameRng.new()
+	assert_eq(game.draws, 0, "a new SwarmGameRng has drawn nothing")
+	assert_eq(game.seed_value, 0, "the default seed of SwarmGameRng is 0")
+	var seeded: SwarmSeededRng = SwarmSeededRng.new()
+	var zero: SwarmSeededRng = SwarmSeededRng.new()
+	zero.set_seed(0)
+	assert_eq(seeded.next_u32(), zero.next_u32(), "the default seed of SwarmSeededRng is 0")
+	# SwarmFxRng starts from 0x9E3779B9 (= 2654435769, the value 0 is replaced by).
+	var fx: SwarmFxRng = SwarmFxRng.new()
+	var reference: SwarmSeededRng = SwarmSeededRng.new()
+	reference.set_seed(0x9E3779B9)
+	assert_eq(fx.random(), reference.next_float(), "the default seed of SwarmFxRng is 0x9E3779B9")
 
 
 ## a * b + c computed as two IEEE operations: the product is rounded to 1 + 2^-29 first, so the sum is
